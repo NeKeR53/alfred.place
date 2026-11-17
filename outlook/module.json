@@ -1,0 +1,2430 @@
+{
+  "description": "Boîte Outlook sur votre PC : lire, répondre, trier et classer les messages avec l’application Outlook.",
+  "functions": [
+    {
+      "description": "Liste les comptes Outlook de l’application de bureau et dit si elle répond (nom du compte, adresse).",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Un compte Outlook prêt",
+          "output": {
+            "comptes": [
+              {
+                "default": true,
+                "id": "camille.martin@acme.fr",
+                "label": "Camille Martin <camille.martin@acme.fr>"
+              }
+            ],
+            "pret": true,
+            "profil": {
+              "adresse": "camille.martin@acme.fr",
+              "nom": "Camille Martin"
+            }
+          }
+        }
+      ],
+      "id": "comptes-outlook",
+      "input": {
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "comptes": {
+            "items": {
+              "properties": {
+                "default": {
+                  "type": "boolean"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "pret": {
+            "type": "boolean"
+          },
+          "profil": {
+            "properties": {
+              "adresse": {
+                "type": "string"
+              },
+              "nom": {
+                "type": "string"
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "comptes",
+          "pret"
+        ],
+        "type": "object"
+      },
+      "runtime": "pwsh",
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "comptes"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Liste les comptes et l’état de la boîte"
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Liste les dossiers de la boîte Outlook, avec leur nombre de messages et de non lus, et l’identifiant de la boîte de réception.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "instance": "camille.martin@acme.fr"
+          },
+          "name": "Dossiers de la boîte",
+          "output": {
+            "boite": "S1|INBOX",
+            "dossiers": [
+              {
+                "id": "S1|INBOX",
+                "nom": "Boîte de réception",
+                "nonLus": 3,
+                "parent": "S1|ROOT",
+                "profondeur": 0,
+                "total": 8
+              },
+              {
+                "id": "S1|PROJETS",
+                "nom": "Projets",
+                "nonLus": 1,
+                "parent": "S1|INBOX",
+                "profondeur": 1,
+                "total": 12
+              },
+              {
+                "id": "S1|CLIENTS",
+                "nom": "Clients",
+                "nonLus": 0,
+                "parent": "S1|INBOX",
+                "profondeur": 1,
+                "total": 0
+              },
+              {
+                "id": "S1|ARCHIVES",
+                "nom": "Archives",
+                "nonLus": 0,
+                "parent": "S1|ROOT",
+                "profondeur": 0,
+                "total": 2
+              },
+              {
+                "id": "S1|DRAFTS",
+                "nom": "Brouillons",
+                "nonLus": 0,
+                "parent": "S1|ROOT",
+                "profondeur": 0,
+                "total": 1
+              },
+              {
+                "id": "S1|SENT",
+                "nom": "Éléments envoyés",
+                "nonLus": 0,
+                "parent": "S1|ROOT",
+                "profondeur": 0,
+                "total": 46
+              },
+              {
+                "id": "S1|TRASH",
+                "nom": "Éléments supprimés",
+                "nonLus": 0,
+                "parent": "S1|ROOT",
+                "profondeur": 0,
+                "total": 4
+              }
+            ]
+          }
+        },
+        {
+          "input": {},
+          "name": "Dossiers du compte par défaut",
+          "output": {
+            "boite": "S1|INBOX",
+            "dossiers": [
+              {
+                "id": "S1|INBOX",
+                "nom": "Boîte de réception",
+                "nonLus": 3,
+                "parent": "S1|ROOT",
+                "profondeur": 0,
+                "total": 8
+              },
+              {
+                "id": "S1|PROJETS",
+                "nom": "Projets",
+                "nonLus": 1,
+                "parent": "S1|INBOX",
+                "profondeur": 1,
+                "total": 12
+              },
+              {
+                "id": "S1|CLIENTS",
+                "nom": "Clients",
+                "nonLus": 0,
+                "parent": "S1|INBOX",
+                "profondeur": 1,
+                "total": 0
+              },
+              {
+                "id": "S1|ARCHIVES",
+                "nom": "Archives",
+                "nonLus": 0,
+                "parent": "S1|ROOT",
+                "profondeur": 0,
+                "total": 2
+              },
+              {
+                "id": "S1|DRAFTS",
+                "nom": "Brouillons",
+                "nonLus": 0,
+                "parent": "S1|ROOT",
+                "profondeur": 0,
+                "total": 1
+              },
+              {
+                "id": "S1|SENT",
+                "nom": "Éléments envoyés",
+                "nonLus": 0,
+                "parent": "S1|ROOT",
+                "profondeur": 0,
+                "total": 46
+              },
+              {
+                "id": "S1|TRASH",
+                "nom": "Éléments supprimés",
+                "nonLus": 0,
+                "parent": "S1|ROOT",
+                "profondeur": 0,
+                "total": 4
+              }
+            ]
+          }
+        }
+      ],
+      "id": "lister-dossiers",
+      "input": {
+        "properties": {
+          "instance": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "boite": {
+            "type": "string"
+          },
+          "dossiers": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                },
+                "nonLus": {
+                  "type": "integer"
+                },
+                "parent": {
+                  "type": "string"
+                },
+                "profondeur": {
+                  "type": "integer"
+                },
+                "total": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "nom",
+                "profondeur",
+                "nonLus",
+                "total"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "boite",
+          "dossiers"
+        ],
+        "type": "object"
+      },
+      "runtime": "pwsh",
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "dossiers"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Liste les dossiers de la boîte"
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Liste les messages d’un dossier Outlook avec recherche plein texte, filtre par expéditeur, non lus et pagination.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "debut": 0,
+            "dossier": "S1|INBOX",
+            "instance": "camille.martin@acme.fr",
+            "limite": 40,
+            "nonLus": false
+          },
+          "name": "Boîte de réception (8 messages)",
+          "output": {
+            "messages": [
+              {
+                "brouillon": false,
+                "destinataires": [
+                  "Camille Martin"
+                ],
+                "dossier": "S1|INBOX",
+                "expediteur": "Sophie Laurent",
+                "expediteurAdresse": "sophie.laurent@acme.fr",
+                "extrait": "Bonjour Camille, je cale la revue du sprint 47 jeudi à 10 h en salle Atlas. Peux-tu présenter l’export PDF des factures (ALF-12) ? Ordre du jour en pièce jointe.",
+                "id": "S1|M01",
+                "important": true,
+                "lu": false,
+                "objet": "Revue du sprint 47 — jeudi 10 h",
+                "pieces": true,
+                "recu": "2026-11-17T09:42:00+01:00",
+                "url": null
+              },
+              {
+                "brouillon": false,
+                "destinataires": [
+                  "Camille Martin"
+                ],
+                "dossier": "S1|INBOX",
+                "expediteur": "Julien Bernard",
+                "expediteurAdresse": "julien.bernard@acme.fr",
+                "extrait": "Salut Camille, la PR #42 sur alfred-app est prête. J’ai repris tes remarques sur la pagination et ajouté les tests. Tu peux y jeter un œil avant jeudi ?",
+                "id": "S1|M02",
+                "important": false,
+                "lu": false,
+                "objet": "PR #42 : export PDF des factures prêt pour relecture",
+                "pieces": false,
+                "recu": "2026-11-17T08:15:00+01:00",
+                "url": null
+              },
+              {
+                "brouillon": false,
+                "destinataires": [
+                  "Camille Martin"
+                ],
+                "dossier": "S1|INBOX",
+                "expediteur": "Jira",
+                "expediteurAdresse": "jira@acme.fr",
+                "extrait": "Sophie Laurent vous a assigné ALF-18 « Corriger l’arrondi de la TVA sur les avoirs ». Priorité : Haute. Échéance : 21 novembre 2026.",
+                "id": "S1|M03",
+                "important": false,
+                "lu": false,
+                "objet": "[JIRA] ALF-18 vous a été assigné",
+                "pieces": false,
+                "recu": "2026-11-16T17:03:00+01:00",
+                "url": null
+              },
+              {
+                "brouillon": false,
+                "destinataires": [
+                  "Camille Martin"
+                ],
+                "dossier": "S1|INBOX",
+                "expediteur": "Comptabilité Acme",
+                "expediteurAdresse": "compta@acme.fr",
+                "extrait": "Votre note de frais d’octobre (186,40 €) a été validée. Le remboursement apparaîtra sur votre salaire de novembre. Le récapitulatif est joint.",
+                "id": "S1|M04",
+                "important": false,
+                "lu": true,
+                "objet": "Note de frais d’octobre validée",
+                "pieces": true,
+                "recu": "2026-11-14T11:20:00+01:00",
+                "url": null
+              },
+              {
+                "brouillon": false,
+                "destinataires": [
+                  "Camille Martin"
+                ],
+                "dossier": "S1|INBOX",
+                "expediteur": "Léa Moreau",
+                "expediteurAdresse": "lea.moreau@delta-conseil.fr",
+                "extrait": "Bonjour Camille, comme convenu, voici notre devis pour la refonte du portail client : 24 jours, livraison fin janvier. Je reste disponible pour en parler.",
+                "id": "S1|M05",
+                "important": false,
+                "lu": true,
+                "objet": "Devis pour la refonte du portail client",
+                "pieces": true,
+                "recu": "2026-11-13T15:48:00+01:00",
+                "url": null
+              },
+              {
+                "brouillon": false,
+                "destinataires": [
+                  "Camille Martin"
+                ],
+                "dossier": "S1|INBOX",
+                "expediteur": "Confluence",
+                "expediteurAdresse": "confluence@acme.fr",
+                "extrait": "Thomas Petit a modifié la page « Spécifications — Relance automatique » dans l’espace Ingénierie. Modification : ajout des délais de relance par client.",
+                "id": "S1|M06",
+                "important": false,
+                "lu": true,
+                "objet": "Thomas Petit a modifié « Spécifications — Relance automatique »",
+                "pieces": false,
+                "recu": "2026-11-13T10:05:00+01:00",
+                "url": null
+              },
+              {
+                "brouillon": false,
+                "destinataires": [
+                  "Camille Martin"
+                ],
+                "dossier": "S1|INBOX",
+                "expediteur": "Sophie Laurent",
+                "expediteurAdresse": "sophie.laurent@acme.fr",
+                "extrait": "C’est noté pour toi du 24 décembre au 2 janvier. Julien assurera la permanence la première semaine. Je mets le planning à jour dans Confluence.",
+                "id": "S1|M07",
+                "important": false,
+                "lu": true,
+                "objet": "Re: Planning des congés de fin d’année",
+                "pieces": false,
+                "recu": "2026-11-12T18:30:00+01:00",
+                "url": null
+              },
+              {
+                "brouillon": false,
+                "destinataires": [
+                  "Camille Martin"
+                ],
+                "dossier": "S1|INBOX",
+                "expediteur": "Ressources humaines",
+                "expediteurAdresse": "rh@acme.fr",
+                "extrait": "Les entretiens annuels ont lieu du 1er au 12 décembre. Merci de choisir votre créneau avec votre responsable avant le 25 novembre.",
+                "id": "S1|M08",
+                "important": false,
+                "lu": true,
+                "objet": "Entretien annuel : choisissez votre créneau",
+                "pieces": false,
+                "recu": "2026-11-10T09:00:00+01:00",
+                "url": null
+              }
+            ],
+            "suivant": false
+          }
+        },
+        {
+          "input": {
+            "debut": 0,
+            "dossier": "S1|INBOX",
+            "instance": "camille.martin@acme.fr",
+            "limite": 40,
+            "nonLus": true
+          },
+          "name": "Non lus de la boîte de réception",
+          "output": {
+            "messages": [
+              {
+                "brouillon": false,
+                "destinataires": [
+                  "Camille Martin"
+                ],
+                "dossier": "S1|INBOX",
+                "expediteur": "Sophie Laurent",
+                "expediteurAdresse": "sophie.laurent@acme.fr",
+                "extrait": "Bonjour Camille, je cale la revue du sprint 47 jeudi à 10 h en salle Atlas. Peux-tu présenter l’export PDF des factures (ALF-12) ? Ordre du jour en pièce jointe.",
+                "id": "S1|M01",
+                "important": true,
+                "lu": false,
+                "objet": "Revue du sprint 47 — jeudi 10 h",
+                "pieces": true,
+                "recu": "2026-11-17T09:42:00+01:00",
+                "url": null
+              },
+              {
+                "brouillon": false,
+                "destinataires": [
+                  "Camille Martin"
+                ],
+                "dossier": "S1|INBOX",
+                "expediteur": "Julien Bernard",
+                "expediteurAdresse": "julien.bernard@acme.fr",
+                "extrait": "Salut Camille, la PR #42 sur alfred-app est prête. J’ai repris tes remarques sur la pagination et ajouté les tests. Tu peux y jeter un œil avant jeudi ?",
+                "id": "S1|M02",
+                "important": false,
+                "lu": false,
+                "objet": "PR #42 : export PDF des factures prêt pour relecture",
+                "pieces": false,
+                "recu": "2026-11-17T08:15:00+01:00",
+                "url": null
+              },
+              {
+                "brouillon": false,
+                "destinataires": [
+                  "Camille Martin"
+                ],
+                "dossier": "S1|INBOX",
+                "expediteur": "Jira",
+                "expediteurAdresse": "jira@acme.fr",
+                "extrait": "Sophie Laurent vous a assigné ALF-18 « Corriger l’arrondi de la TVA sur les avoirs ». Priorité : Haute. Échéance : 21 novembre 2026.",
+                "id": "S1|M03",
+                "important": false,
+                "lu": false,
+                "objet": "[JIRA] ALF-18 vous a été assigné",
+                "pieces": false,
+                "recu": "2026-11-16T17:03:00+01:00",
+                "url": null
+              }
+            ],
+            "suivant": false
+          }
+        },
+        {
+          "input": {
+            "debut": 0,
+            "dossier": "S1|INBOX",
+            "expediteur": "sophie.laurent@acme.fr",
+            "instance": "camille.martin@acme.fr",
+            "limite": 40,
+            "nonLus": false
+          },
+          "name": "Messages de Sophie Laurent",
+          "output": {
+            "messages": [
+              {
+                "brouillon": false,
+                "destinataires": [
+                  "Camille Martin"
+                ],
+                "dossier": "S1|INBOX",
+                "expediteur": "Sophie Laurent",
+                "expediteurAdresse": "sophie.laurent@acme.fr",
+                "extrait": "Bonjour Camille, je cale la revue du sprint 47 jeudi à 10 h en salle Atlas. Peux-tu présenter l’export PDF des factures (ALF-12) ? Ordre du jour en pièce jointe.",
+                "id": "S1|M01",
+                "important": true,
+                "lu": false,
+                "objet": "Revue du sprint 47 — jeudi 10 h",
+                "pieces": true,
+                "recu": "2026-11-17T09:42:00+01:00",
+                "url": null
+              },
+              {
+                "brouillon": false,
+                "destinataires": [
+                  "Camille Martin"
+                ],
+                "dossier": "S1|INBOX",
+                "expediteur": "Sophie Laurent",
+                "expediteurAdresse": "sophie.laurent@acme.fr",
+                "extrait": "C’est noté pour toi du 24 décembre au 2 janvier. Julien assurera la permanence la première semaine. Je mets le planning à jour dans Confluence.",
+                "id": "S1|M07",
+                "important": false,
+                "lu": true,
+                "objet": "Re: Planning des congés de fin d’année",
+                "pieces": false,
+                "recu": "2026-11-12T18:30:00+01:00",
+                "url": null
+              }
+            ],
+            "suivant": false
+          }
+        },
+        {
+          "input": {
+            "debut": 0,
+            "dossier": "S1|ARCHIVES",
+            "instance": "camille.martin@acme.fr",
+            "limite": 40,
+            "nonLus": false
+          },
+          "name": "Archives",
+          "output": {
+            "messages": [
+              {
+                "brouillon": false,
+                "destinataires": [
+                  "Camille Martin"
+                ],
+                "dossier": "S1|ARCHIVES",
+                "expediteur": "Marc Dubreuil",
+                "expediteurAdresse": "marc.dubreuil@delta-conseil.fr",
+                "extrait": "Bonjour Camille, vous trouverez ci-joint le contrat de maintenance 2027 signé de notre côté. Bonne réception.",
+                "id": "S1|M09",
+                "important": false,
+                "lu": true,
+                "objet": "Contrat de maintenance 2027 signé",
+                "pieces": true,
+                "recu": "2026-10-28T14:12:00+01:00",
+                "url": null
+              },
+              {
+                "brouillon": false,
+                "destinataires": [
+                  "Camille Martin"
+                ],
+                "dossier": "S1|ARCHIVES",
+                "expediteur": "Julien Bernard",
+                "expediteurAdresse": "julien.bernard@acme.fr",
+                "extrait": "Voici le compte rendu de l’atelier facturation : trois décisions sur les avoirs, l’export PDF et la relance automatique. Les tickets ALF-12 et ALF-15 sont créés.",
+                "id": "S1|M10",
+                "important": false,
+                "lu": true,
+                "objet": "Compte rendu — atelier facturation",
+                "pieces": false,
+                "recu": "2026-10-21T16:40:00+02:00",
+                "url": null
+              }
+            ],
+            "suivant": false
+          }
+        },
+        {
+          "input": {
+            "debut": 0,
+            "dossier": "S1|CLIENTS",
+            "instance": "camille.martin@acme.fr",
+            "limite": 40,
+            "nonLus": false
+          },
+          "name": "Dossier vide",
+          "output": {
+            "messages": [],
+            "suivant": false
+          }
+        }
+      ],
+      "id": "lister-messages",
+      "input": {
+        "properties": {
+          "debut": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "dossier": {
+            "description": "Identifiant du dossier ; omis, toute la boîte.",
+            "type": "string"
+          },
+          "expediteur": {
+            "description": "Adresse exacte de l’expéditeur.",
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "limite": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "nonLus": {
+            "type": "boolean"
+          },
+          "recherche": {
+            "description": "Mots cherchés dans l’objet, le corps et l’expéditeur.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "messages": {
+            "items": {
+              "properties": {
+                "brouillon": {
+                  "type": "boolean"
+                },
+                "destinataires": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "dossier": {
+                  "type": "string"
+                },
+                "expediteur": {
+                  "type": "string"
+                },
+                "expediteurAdresse": {
+                  "type": "string"
+                },
+                "extrait": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "important": {
+                  "type": "boolean"
+                },
+                "lu": {
+                  "type": "boolean"
+                },
+                "objet": {
+                  "type": "string"
+                },
+                "pieces": {
+                  "type": "boolean"
+                },
+                "recu": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "objet",
+                "expediteur",
+                "recu",
+                "lu"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "suivant": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "messages",
+          "suivant"
+        ],
+        "type": "object"
+      },
+      "runtime": "pwsh",
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "messages"
+            ],
+            "schema": true
+          },
+          "input": {
+            "dossier": "inbox",
+            "limite": 10
+          },
+          "name": "Liste les messages de la boîte de réception"
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Lit un message Outlook en entier : en-têtes, corps HTML, pièces jointes et lien d’origine.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "id": "S1|M01"
+          },
+          "name": "Message « Revue du sprint 47 — jeudi 10 h »",
+          "output": {
+            "message": {
+              "brouillon": false,
+              "copies": [
+                "Julien Bernard"
+              ],
+              "corps": "<p>Bonjour Camille,</p><p>Je cale la revue du sprint 47 <strong>jeudi à 10 h</strong> en salle Atlas (lien Teams dans l’invitation).</p><p>Peux-tu présenter l’export PDF des factures (ALF-12) ? Julien montrera la relance automatique (ALF-15).</p><p>L’ordre du jour est en pièce jointe.</p><p>Merci,<br>Sophie</p>",
+              "destinataires": [
+                "Camille Martin"
+              ],
+              "expediteur": "Sophie Laurent",
+              "expediteurAdresse": "sophie.laurent@acme.fr",
+              "extrait": "Bonjour Camille, je cale la revue du sprint 47 jeudi à 10 h en salle Atlas. Peux-tu présenter l’export PDF des factures (ALF-12) ? Ordre du jour en pièce jointe.",
+              "id": "S1|M01",
+              "important": true,
+              "lu": false,
+              "objet": "Revue du sprint 47 — jeudi 10 h",
+              "pieces": [
+                {
+                  "contentId": "",
+                  "id": "1",
+                  "inline": false,
+                  "nom": "ordre-du-jour-sprint-47.pdf",
+                  "taille": 84213,
+                  "type": "application/pdf"
+                }
+              ],
+              "recu": "2026-11-17T09:42:00+01:00",
+              "url": null
+            }
+          }
+        },
+        {
+          "input": {
+            "id": "S1|M02"
+          },
+          "name": "Message « PR #42 : export PDF des factures prêt pour relecture »",
+          "output": {
+            "message": {
+              "brouillon": false,
+              "copies": [],
+              "corps": "<p>Salut Camille,</p><p>La PR #42 sur <em>alfred-app</em> est prête : j’ai repris tes remarques sur la pagination et ajouté les tests d’export.</p><p>Tu peux y jeter un œil avant la revue de jeudi ?</p><p>Julien</p>",
+              "destinataires": [
+                "Camille Martin"
+              ],
+              "expediteur": "Julien Bernard",
+              "expediteurAdresse": "julien.bernard@acme.fr",
+              "extrait": "Salut Camille, la PR #42 sur alfred-app est prête. J’ai repris tes remarques sur la pagination et ajouté les tests. Tu peux y jeter un œil avant jeudi ?",
+              "id": "S1|M02",
+              "important": false,
+              "lu": false,
+              "objet": "PR #42 : export PDF des factures prêt pour relecture",
+              "pieces": [],
+              "recu": "2026-11-17T08:15:00+01:00",
+              "url": null
+            }
+          }
+        },
+        {
+          "input": {
+            "id": "S1|M03"
+          },
+          "name": "Message « [JIRA] ALF-18 vous a été assigné »",
+          "output": {
+            "message": {
+              "brouillon": false,
+              "copies": [],
+              "corps": "<p>Sophie Laurent vous a assigné <strong>ALF-18</strong> « Corriger l’arrondi de la TVA sur les avoirs ».</p><p>Priorité : Haute · Échéance : 21 novembre 2026</p><p>Ouvrez le ticket dans Jira pour le détail.</p>",
+              "destinataires": [
+                "Camille Martin"
+              ],
+              "expediteur": "Jira",
+              "expediteurAdresse": "jira@acme.fr",
+              "extrait": "Sophie Laurent vous a assigné ALF-18 « Corriger l’arrondi de la TVA sur les avoirs ». Priorité : Haute. Échéance : 21 novembre 2026.",
+              "id": "S1|M03",
+              "important": false,
+              "lu": false,
+              "objet": "[JIRA] ALF-18 vous a été assigné",
+              "pieces": [],
+              "recu": "2026-11-16T17:03:00+01:00",
+              "url": null
+            }
+          }
+        },
+        {
+          "input": {
+            "id": "S1|M04"
+          },
+          "name": "Message « Note de frais d’octobre validée »",
+          "output": {
+            "message": {
+              "brouillon": false,
+              "copies": [],
+              "corps": "<p>Bonjour,</p><p>Votre note de frais d’octobre, d’un montant de <strong>186,40 €</strong>, a été validée.</p><p>Le remboursement apparaîtra sur votre salaire de novembre. Le récapitulatif est joint.</p><p>Le service comptabilité</p>",
+              "destinataires": [
+                "Camille Martin"
+              ],
+              "expediteur": "Comptabilité Acme",
+              "expediteurAdresse": "compta@acme.fr",
+              "extrait": "Votre note de frais d’octobre (186,40 €) a été validée. Le remboursement apparaîtra sur votre salaire de novembre. Le récapitulatif est joint.",
+              "id": "S1|M04",
+              "important": false,
+              "lu": true,
+              "objet": "Note de frais d’octobre validée",
+              "pieces": [
+                {
+                  "contentId": "",
+                  "id": "1",
+                  "inline": false,
+                  "nom": "note-de-frais-octobre-2026.pdf",
+                  "taille": 52740,
+                  "type": "application/pdf"
+                }
+              ],
+              "recu": "2026-11-14T11:20:00+01:00",
+              "url": null
+            }
+          }
+        },
+        {
+          "input": {
+            "id": "S1|M05"
+          },
+          "name": "Message « Devis pour la refonte du portail client »",
+          "output": {
+            "message": {
+              "brouillon": false,
+              "copies": [],
+              "corps": "<p>Bonjour Camille,</p><p>Comme convenu lors de notre échange de mardi, voici notre devis pour la refonte du portail client : <strong>24 jours</strong>, livraison fin janvier.</p><p>Je reste disponible pour en parler cette semaine.</p><p>Bien cordialement,<br>Léa Moreau<br>Delta Conseil</p>",
+              "destinataires": [
+                "Camille Martin"
+              ],
+              "expediteur": "Léa Moreau",
+              "expediteurAdresse": "lea.moreau@delta-conseil.fr",
+              "extrait": "Bonjour Camille, comme convenu, voici notre devis pour la refonte du portail client : 24 jours, livraison fin janvier. Je reste disponible pour en parler.",
+              "id": "S1|M05",
+              "important": false,
+              "lu": true,
+              "objet": "Devis pour la refonte du portail client",
+              "pieces": [
+                {
+                  "contentId": "",
+                  "id": "1",
+                  "inline": false,
+                  "nom": "devis-DC-2026-118.pdf",
+                  "taille": 131072,
+                  "type": "application/pdf"
+                }
+              ],
+              "recu": "2026-11-13T15:48:00+01:00",
+              "url": null
+            }
+          }
+        },
+        {
+          "input": {
+            "id": "S1|M06"
+          },
+          "name": "Message « Thomas Petit a modifié « Spécifications — Relance automatique » »",
+          "output": {
+            "message": {
+              "brouillon": false,
+              "copies": [],
+              "corps": "<p>Thomas Petit a modifié la page <strong>« Spécifications — Relance automatique »</strong> dans l’espace Ingénierie.</p><p>Commentaire de version : ajout des délais de relance par client.</p>",
+              "destinataires": [
+                "Camille Martin"
+              ],
+              "expediteur": "Confluence",
+              "expediteurAdresse": "confluence@acme.fr",
+              "extrait": "Thomas Petit a modifié la page « Spécifications — Relance automatique » dans l’espace Ingénierie. Modification : ajout des délais de relance par client.",
+              "id": "S1|M06",
+              "important": false,
+              "lu": true,
+              "objet": "Thomas Petit a modifié « Spécifications — Relance automatique »",
+              "pieces": [],
+              "recu": "2026-11-13T10:05:00+01:00",
+              "url": null
+            }
+          }
+        },
+        {
+          "input": {
+            "id": "S1|M07"
+          },
+          "name": "Message « Re: Planning des congés de fin d’année »",
+          "output": {
+            "message": {
+              "brouillon": false,
+              "copies": [],
+              "corps": "<p>Merci Camille,</p><p>C’est noté pour toi du 24 décembre au 2 janvier. Julien assurera la permanence la première semaine.</p><p>Je mets le planning à jour dans Confluence.</p><p>Sophie</p>",
+              "destinataires": [
+                "Camille Martin"
+              ],
+              "expediteur": "Sophie Laurent",
+              "expediteurAdresse": "sophie.laurent@acme.fr",
+              "extrait": "C’est noté pour toi du 24 décembre au 2 janvier. Julien assurera la permanence la première semaine. Je mets le planning à jour dans Confluence.",
+              "id": "S1|M07",
+              "important": false,
+              "lu": true,
+              "objet": "Re: Planning des congés de fin d’année",
+              "pieces": [],
+              "recu": "2026-11-12T18:30:00+01:00",
+              "url": null
+            }
+          }
+        },
+        {
+          "input": {
+            "id": "S1|M08"
+          },
+          "name": "Message « Entretien annuel : choisissez votre créneau »",
+          "output": {
+            "message": {
+              "brouillon": false,
+              "copies": [],
+              "corps": "<p>Bonjour,</p><p>Les entretiens annuels ont lieu du 1<sup>er</sup> au 12 décembre.</p><p>Merci de choisir votre créneau avec votre responsable avant le 25 novembre.</p><p>L’équipe RH</p>",
+              "destinataires": [
+                "Camille Martin"
+              ],
+              "expediteur": "Ressources humaines",
+              "expediteurAdresse": "rh@acme.fr",
+              "extrait": "Les entretiens annuels ont lieu du 1er au 12 décembre. Merci de choisir votre créneau avec votre responsable avant le 25 novembre.",
+              "id": "S1|M08",
+              "important": false,
+              "lu": true,
+              "objet": "Entretien annuel : choisissez votre créneau",
+              "pieces": [],
+              "recu": "2026-11-10T09:00:00+01:00",
+              "url": null
+            }
+          }
+        },
+        {
+          "input": {
+            "id": "S1|M09"
+          },
+          "name": "Message « Contrat de maintenance 2027 signé »",
+          "output": {
+            "message": {
+              "brouillon": false,
+              "copies": [],
+              "corps": "<p>Bonjour Camille,</p><p>Vous trouverez ci-joint le contrat de maintenance 2027 signé de notre côté.</p><p>Bonne réception,<br>Marc Dubreuil</p>",
+              "destinataires": [
+                "Camille Martin"
+              ],
+              "expediteur": "Marc Dubreuil",
+              "expediteurAdresse": "marc.dubreuil@delta-conseil.fr",
+              "extrait": "Bonjour Camille, vous trouverez ci-joint le contrat de maintenance 2027 signé de notre côté. Bonne réception.",
+              "id": "S1|M09",
+              "important": false,
+              "lu": true,
+              "objet": "Contrat de maintenance 2027 signé",
+              "pieces": [
+                {
+                  "contentId": "",
+                  "id": "1",
+                  "inline": false,
+                  "nom": "contrat-maintenance-2027.pdf",
+                  "taille": 210944,
+                  "type": "application/pdf"
+                }
+              ],
+              "recu": "2026-10-28T14:12:00+01:00",
+              "url": null
+            }
+          }
+        },
+        {
+          "input": {
+            "id": "S1|M10"
+          },
+          "name": "Message « Compte rendu — atelier facturation »",
+          "output": {
+            "message": {
+              "brouillon": false,
+              "copies": [],
+              "corps": "<p>Bonjour à tous,</p><p>Voici le compte rendu de l’atelier facturation : trois décisions sur les avoirs, l’export PDF et la relance automatique.</p><p>Les tickets ALF-12 et ALF-15 sont créés.</p><p>Julien</p>",
+              "destinataires": [
+                "Camille Martin"
+              ],
+              "expediteur": "Julien Bernard",
+              "expediteurAdresse": "julien.bernard@acme.fr",
+              "extrait": "Voici le compte rendu de l’atelier facturation : trois décisions sur les avoirs, l’export PDF et la relance automatique. Les tickets ALF-12 et ALF-15 sont créés.",
+              "id": "S1|M10",
+              "important": false,
+              "lu": true,
+              "objet": "Compte rendu — atelier facturation",
+              "pieces": [],
+              "recu": "2026-10-21T16:40:00+02:00",
+              "url": null
+            }
+          }
+        }
+      ],
+      "id": "lire-message",
+      "input": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "message": {
+            "properties": {
+              "brouillon": {
+                "type": "boolean"
+              },
+              "copies": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "corps": {
+                "type": "string"
+              },
+              "destinataires": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "expediteur": {
+                "type": "string"
+              },
+              "expediteurAdresse": {
+                "type": "string"
+              },
+              "extrait": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "important": {
+                "type": "boolean"
+              },
+              "lu": {
+                "type": "boolean"
+              },
+              "objet": {
+                "type": "string"
+              },
+              "pieces": {
+                "items": {
+                  "properties": {
+                    "contentId": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "inline": {
+                      "type": "boolean"
+                    },
+                    "nom": {
+                      "type": "string"
+                    },
+                    "taille": {
+                      "type": "integer"
+                    },
+                    "type": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "recu": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
+      "runtime": "pwsh",
+      "tests": [
+        {
+          "expect": {
+            "schema": true
+          },
+          "input": {
+            "id": "test"
+          },
+          "name": "Un message inconnu rend une fiche vide"
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Lit une pièce jointe d’un message Outlook et la rend en image affichable quand c’est une image.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "message": "S1|M01",
+            "piece": "1"
+          },
+          "name": "Pièce jointe « ordre-du-jour-sprint-47.pdf »",
+          "output": {
+            "piece": {
+              "dataUrl": null,
+              "id": "1",
+              "nom": "ordre-du-jour-sprint-47.pdf",
+              "taille": 84213,
+              "type": "application/pdf"
+            }
+          }
+        },
+        {
+          "input": {
+            "message": "S1|M04",
+            "piece": "1"
+          },
+          "name": "Pièce jointe « note-de-frais-octobre-2026.pdf »",
+          "output": {
+            "piece": {
+              "dataUrl": null,
+              "id": "1",
+              "nom": "note-de-frais-octobre-2026.pdf",
+              "taille": 52740,
+              "type": "application/pdf"
+            }
+          }
+        },
+        {
+          "input": {
+            "message": "S1|M05",
+            "piece": "1"
+          },
+          "name": "Pièce jointe « devis-DC-2026-118.pdf »",
+          "output": {
+            "piece": {
+              "dataUrl": null,
+              "id": "1",
+              "nom": "devis-DC-2026-118.pdf",
+              "taille": 131072,
+              "type": "application/pdf"
+            }
+          }
+        },
+        {
+          "input": {
+            "message": "S1|M09",
+            "piece": "1"
+          },
+          "name": "Pièce jointe « contrat-maintenance-2027.pdf »",
+          "output": {
+            "piece": {
+              "dataUrl": null,
+              "id": "1",
+              "nom": "contrat-maintenance-2027.pdf",
+              "taille": 210944,
+              "type": "application/pdf"
+            }
+          }
+        }
+      ],
+      "id": "lire-piece-jointe",
+      "input": {
+        "properties": {
+          "instance": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "piece": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "piece"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "piece": {
+            "properties": {
+              "dataUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "nom": {
+                "type": "string"
+              },
+              "taille": {
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "piece"
+        ],
+        "type": "object"
+      },
+      "runtime": "pwsh",
+      "tests": [
+        {
+          "expect": {
+            "schema": true
+          },
+          "input": {
+            "message": "test",
+            "piece": "test"
+          },
+          "name": "Une pièce inconnue rend une réponse vide"
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Liste les règles de tri Outlook enregistrées, avec leurs conditions et leurs actions.",
+      "effect": "read",
+      "id": "lister-regles",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "regles": {
+            "items": {
+              "properties": {
+                "actif": {
+                  "type": "boolean"
+                },
+                "actions": {
+                  "properties": {
+                    "deplacerVers": {
+                      "type": "string"
+                    },
+                    "marquerLu": {
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                },
+                "conditions": {
+                  "properties": {
+                    "expediteur": {
+                      "type": "string"
+                    },
+                    "nonLu": {
+                      "type": "boolean"
+                    },
+                    "objet": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "nom",
+                "actif"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "regles"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "regles"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Liste les règles enregistrées"
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Marque un message Outlook comme lu ou non lu.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "id": "S1|M01",
+            "lu": true
+          },
+          "name": "Message marqué comme lu",
+          "output": {
+            "ok": true
+          }
+        },
+        {
+          "input": {
+            "id": "S1|M04",
+            "lu": false
+          },
+          "name": "Message marqué comme non lu",
+          "output": {
+            "ok": true
+          }
+        }
+      ],
+      "id": "marquer-message",
+      "input": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "lu": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "lu"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "runtime": "pwsh",
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "ok"
+            ],
+            "schema": true
+          },
+          "input": {
+            "lu": true
+          },
+          "name": "Marque un message de test comme lu",
+          "target": {
+            "field": "id",
+            "hint": "Identifiant d’un message sans importance",
+            "label": "Message de test"
+          }
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Déplace un message Outlook vers un autre dossier.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "dossier": "S1|ARCHIVES",
+            "id": "S1|M04"
+          },
+          "name": "Message rangé dans Archives",
+          "output": {
+            "ok": true
+          }
+        }
+      ],
+      "id": "deplacer-message",
+      "input": {
+        "properties": {
+          "dossier": {
+            "description": "Identifiant du dossier de destination.",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "dossier"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "runtime": "pwsh",
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "ok"
+            ],
+            "schema": true
+          },
+          "input": {
+            "dossier": "inbox"
+          },
+          "name": "Déplace un message de test vers la boîte de réception",
+          "target": {
+            "field": "id",
+            "hint": "Identifiant d’un message sans importance",
+            "label": "Message de test"
+          }
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Envoie un message Outlook à la corbeille.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "id": "S1|M08"
+          },
+          "name": "Message mis à la corbeille",
+          "output": {
+            "ok": true
+          }
+        }
+      ],
+      "id": "supprimer-message",
+      "input": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "runtime": "pwsh",
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "ok"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Supprime un message jetable",
+          "target": {
+            "field": "id",
+            "hint": "Identifiant d’un message que vous acceptez de mettre à la corbeille",
+            "label": "Message jetable"
+          }
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Envoie un nouveau message depuis la boîte Outlook, avec la signature enregistrée.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "corps": "Bonjour Sophie, voici le support pour jeudi.",
+            "destinataires": "sophie.laurent@acme.fr",
+            "objet": "Support de la revue"
+          },
+          "name": "Message envoyé",
+          "output": {
+            "ok": true
+          }
+        }
+      ],
+      "id": "envoyer-message",
+      "input": {
+        "properties": {
+          "copies": {
+            "type": "string"
+          },
+          "corps": {
+            "type": "string"
+          },
+          "destinataires": {
+            "description": "Adresses séparées par des virgules.",
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "objet": {
+            "type": "string"
+          },
+          "signature": {
+            "description": "Signature ajoutée au bas du message.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "destinataires",
+          "objet",
+          "corps"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "runtime": "pwsh",
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "ok"
+            ],
+            "schema": true
+          },
+          "input": {
+            "corps": "Message de test envoyé depuis Alfred.",
+            "destinataires": "",
+            "objet": "Test Outlook"
+          },
+          "name": "Envoie un message de test",
+          "target": {
+            "field": "destinataires",
+            "hint": "Une adresse à vous, pour un essai",
+            "label": "Adresse de test"
+          }
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Crée un brouillon de message dans le dossier Brouillons d’Outlook, avec la signature enregistrée.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "corps": "Bonjour Léa, merci pour le devis.",
+            "destinataires": "lea.moreau@delta-conseil.fr",
+            "objet": "Re: Devis pour la refonte du portail client"
+          },
+          "name": "Brouillon créé",
+          "output": {
+            "id": "S1|M90"
+          }
+        }
+      ],
+      "id": "creer-brouillon",
+      "input": {
+        "properties": {
+          "copies": {
+            "type": "string"
+          },
+          "corps": {
+            "type": "string"
+          },
+          "destinataires": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "objet": {
+            "type": "string"
+          },
+          "signature": {
+            "description": "Signature ajoutée au bas du message.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "objet",
+          "corps"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "runtime": "pwsh",
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "id"
+            ],
+            "schema": true
+          },
+          "input": {
+            "corps": "Brouillon de test.",
+            "destinataires": "vous@exemple.fr",
+            "objet": "Brouillon de test"
+          },
+          "name": "Crée un brouillon de test"
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Envoie un brouillon Outlook déjà enregistré.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "id": "S1|M90"
+          },
+          "name": "Brouillon envoyé",
+          "output": {
+            "ok": true
+          }
+        }
+      ],
+      "id": "envoyer-brouillon",
+      "input": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "runtime": "pwsh",
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "ok"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Envoie un brouillon de test",
+          "target": {
+            "field": "id",
+            "hint": "Identifiant d’un brouillon que vous acceptez d’envoyer",
+            "label": "Brouillon de test"
+          }
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Répond à un message Outlook, à son expéditeur seul ou à tous les destinataires, en gardant le fil de discussion.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "id": "S1|M02",
+            "mode": "repondre",
+            "texte": "Je regarde ça cet après-midi."
+          },
+          "name": "Réponse à Julien",
+          "output": {
+            "ok": true
+          }
+        },
+        {
+          "input": {
+            "id": "S1|M01",
+            "mode": "tous",
+            "texte": "C’est noté pour jeudi."
+          },
+          "name": "Réponse à tous",
+          "output": {
+            "ok": true
+          }
+        }
+      ],
+      "id": "repondre-message",
+      "input": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "repondre",
+              "tous"
+            ],
+            "type": "string"
+          },
+          "signature": {
+            "description": "Signature ajoutée au bas du message.",
+            "type": "string"
+          },
+          "texte": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "mode",
+          "texte"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "runtime": "pwsh",
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "ok"
+            ],
+            "schema": true
+          },
+          "input": {
+            "mode": "repondre",
+            "texte": "Merci, je m’en occupe."
+          },
+          "name": "Répond à un message de test",
+          "target": {
+            "field": "id",
+            "hint": "Identifiant d’un message qui peut recevoir une réponse",
+            "label": "Message de test"
+          }
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Transfère un message Outlook à une ou plusieurs adresses, avec un mot d’accompagnement.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "destinataires": "sophie.laurent@acme.fr",
+            "id": "S1|M05",
+            "texte": "Pour avis avant validation."
+          },
+          "name": "Devis transféré",
+          "output": {
+            "ok": true
+          }
+        }
+      ],
+      "id": "transferer-message",
+      "input": {
+        "properties": {
+          "destinataires": {
+            "description": "Adresses séparées par des virgules.",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "signature": {
+            "description": "Signature ajoutée au bas du message.",
+            "type": "string"
+          },
+          "texte": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "destinataires"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "runtime": "pwsh",
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "ok"
+            ],
+            "schema": true
+          },
+          "input": {
+            "destinataires": "test@example.invalid",
+            "texte": "Pour information."
+          },
+          "name": "Transfère un message de test",
+          "target": {
+            "field": "id",
+            "hint": "Identifiant d’un message sans importance",
+            "label": "Message de test"
+          }
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Crée ou modifie une règle de tri Outlook : conditions sur l’expéditeur, l’objet, le sujet du message (en langage courant) ou les non lus, puis marquage comme lu ou déplacement vers un dossier.",
+      "effect": "write",
+      "id": "enregistrer-regle",
+      "input": {
+        "properties": {
+          "actif": {
+            "type": "boolean"
+          },
+          "actions": {
+            "properties": {
+              "deplacerVers": {
+                "type": "string"
+              },
+              "marquerLu": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "conditions": {
+            "properties": {
+              "expediteur": {
+                "type": "string"
+              },
+              "nonLu": {
+                "type": "boolean"
+              },
+              "objet": {
+                "type": "string"
+              },
+              "sujet": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "nom": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "nom",
+          "conditions",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "id"
+            ],
+            "schema": true
+          },
+          "input": {
+            "actions": {
+              "marquerLu": true
+            },
+            "conditions": {
+              "expediteur": "exemple.fr"
+            },
+            "nom": "Règle de test"
+          },
+          "name": "Enregistre une règle de test"
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Supprime une règle de tri Outlook.",
+      "effect": "write",
+      "id": "supprimer-regle",
+      "input": {
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "ok"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Supprime une règle de test",
+          "target": {
+            "field": "id",
+            "hint": "Identifiant d’une règle que vous acceptez de supprimer",
+            "label": "Règle de test"
+          }
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Applique les règles de tri actives aux messages d’un dossier Outlook (expéditeur, objet, sujet compris sur l’ordinateur), en simulation ou pour de vrai ; peut se limiter à une règle ou aux messages reçus depuis une date.",
+      "effect": "write",
+      "id": "appliquer-regles",
+      "input": {
+        "properties": {
+          "depuis": {
+            "description": "Date ISO : seuls les messages reçus après sont traités.",
+            "type": "string"
+          },
+          "dossier": {
+            "description": "Dossier à parcourir ; omis, la boîte de réception.",
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "limite": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "regle": {
+            "description": "Identifiant d’une seule règle à appliquer.",
+            "type": "string"
+          },
+          "simuler": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "appliques": {
+            "type": "integer"
+          },
+          "details": {
+            "items": {
+              "properties": {
+                "action": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "regle": {
+                  "type": "string"
+                },
+                "sujet": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "examines": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "examines",
+          "appliques",
+          "details"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "examines",
+              "appliques"
+            ],
+            "schema": true
+          },
+          "input": {
+            "limite": 10,
+            "simuler": true
+          },
+          "name": "Simule le tri sans rien modifier"
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Relève la boîte Outlook : trie les nouveaux messages avec les règles actives, compte les non lus, met à jour la pastille du menu et prévient des nouveaux messages.",
+      "effect": "write",
+      "id": "relever",
+      "input": {
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "ignore": {
+            "type": "boolean"
+          },
+          "nonLus": {
+            "type": "integer"
+          },
+          "nouveaux": {
+            "type": "integer"
+          },
+          "tries": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nonLus",
+          "nouveaux"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "nonLus",
+              "nouveaux"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Relève la boîte (silencieux sans compte)"
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Lit des messages sur l’ordinateur et signale l’hameçonnage, les indésirables, l’urgence et les messages qui attendent une réponse.",
+      "effect": "write",
+      "id": "analyser-messages",
+      "input": {
+        "properties": {
+          "messages": {
+            "items": {
+              "properties": {
+                "expediteur": {
+                  "type": "string"
+                },
+                "expediteurAdresse": {
+                  "type": "string"
+                },
+                "extrait": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objet": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "objet"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "resultats": {
+            "items": {
+              "properties": {
+                "categorie": {
+                  "type": "string"
+                },
+                "hameconnage": {
+                  "type": "boolean"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "indesirable": {
+                  "type": "boolean"
+                },
+                "reponseAttendue": {
+                  "type": "boolean"
+                },
+                "urgent": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "hameconnage",
+                "urgent",
+                "reponseAttendue"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "resultats"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "nonEmpty": [
+              "resultats"
+            ],
+            "schema": true
+          },
+          "input": {
+            "messages": [
+              {
+                "expediteur": "Service client",
+                "expediteurAdresse": "securite@banque-verif.xyz",
+                "extrait": "Cliquez ici sous 24 h pour confirmer vos identifiants bancaires.",
+                "id": "essai-1",
+                "objet": "Votre compte sera suspendu"
+              }
+            ]
+          },
+          "name": "Lit un message suspect"
+        }
+      ],
+      "tool": true
+    }
+  ],
+  "id": "outlook",
+  "name": "Outlook",
+  "pages": [
+    {
+      "description": "Messages Outlook : liste, lecture, réponse, transfert, brouillons, dossiers et recherche.",
+      "icon": "mail",
+      "id": "boite-de-reception",
+      "placement": {
+        "kind": "tab",
+        "section": "principal"
+      },
+      "title": "Boîte de réception"
+    },
+    {
+      "description": "Lecture d’un message Outlook et actions : répondre, transférer, marquer, déplacer.",
+      "icon": "mail-open",
+      "id": "message",
+      "placement": {
+        "kind": "panel",
+        "page": "outlook/boite-de-reception"
+      },
+      "title": "Message"
+    },
+    {
+      "description": "Dossiers Outlook avec leur nombre de messages non lus.",
+      "icon": "folder",
+      "id": "dossiers",
+      "placement": {
+        "kind": "tab",
+        "section": "principal"
+      },
+      "title": "Dossiers"
+    },
+    {
+      "description": "Règles de tri des messages : conditions, actions, application aux messages existants.",
+      "icon": "filter",
+      "id": "regles",
+      "placement": {
+        "kind": "tab",
+        "section": "principal"
+      },
+      "title": "Règles"
+    },
+    {
+      "description": "Signature, relève automatique et confort de lecture d’Outlook.",
+      "icon": "settings",
+      "id": "outlook",
+      "placement": {
+        "kind": "settings"
+      },
+      "title": "Outlook"
+    },
+    {
+      "description": "Les personnes qui vous écrivent, avec leur nombre de messages et de non lus ; un clic ouvre leurs messages.",
+      "icon": "users",
+      "id": "correspondants",
+      "placement": {
+        "kind": "tab",
+        "section": "principal"
+      },
+      "title": "Correspondants"
+    }
+  ],
+  "schedules": [
+    {
+      "description": "Relève la boîte Outlook toutes les dix minutes et met à jour la pastille.",
+      "everyMinutes": 10,
+      "function": "relever",
+      "id": "releve",
+      "input": {}
+    }
+  ],
+  "sections": [
+    {
+      "color": "blue",
+      "icon": "icons/principal.svg",
+      "id": "principal",
+      "label": "Outlook"
+    }
+  ],
+  "version": "0.1.0"
+}
