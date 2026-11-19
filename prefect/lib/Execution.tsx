@@ -11,7 +11,7 @@ import {
   FeedbackBanner,
   KeyValueList,
   LoadingSkeleton,
-  openSubpage,
+  openModal,
   Row,
   Section,
   Spinner,
@@ -241,7 +241,7 @@ export function DetailExecution({ instance, id }: { instance: string; id: string
   );
 }
 
-/** Ouvre une exécution en sous-page : logs, tâches et détails. */
+/** Ouvre une exécution en modale : logs, tâches et détails. */
 export async function ouvrirExecution(instance: string, id: string, apresAction?: () => void) {
   const { execution: e } = await lireFiche(instance, id);
   const actif = ACTIFS.has(e.etat) || e.etat === "SCHEDULED" || e.etat === "PAUSED";
@@ -271,12 +271,19 @@ export async function ouvrirExecution(instance: string, id: string, apresAction?
       },
     },
   ];
-  return openSubpage({
-    title: e.nom,
-    subtitle: [e.flux && e.deploiement ? `${e.flux} / ${e.deploiement}` : e.flux, e.debut ? `lancée le ${dateCourte(e.debut)}` : null]
-      .filter(Boolean)
-      .join(" · "),
-    status: etatAffiche(e.etat, e.etatNom),
+  // Le log s’ouvre en modale, au-dessus de la page, comme le log d’un build Jenkins : ni dans la page ni dans le panneau.
+  const etat = etatAffiche(e.etat, e.etatNom);
+  const contexte = [
+    etat.label,
+    e.flux && e.deploiement ? `${e.flux} / ${e.deploiement}` : e.flux,
+    e.debut ? `lancée le ${dateCourte(e.debut)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return openModal({
+    title: `Logs de « ${e.nom} »`,
+    description: contexte,
+    size: "wide",
     actions,
     content: <DetailExecution instance={instance} id={e.id} />,
   });

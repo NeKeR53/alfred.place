@@ -1,3 +1,11 @@
+## 1.2.0 — 2026-11-19
+
+- La carte d’un déploiement reprend celle de Jenkins, avec la barre d’avancement collée au bas de la carte.
+- Les logs, tâches et détails d’une exécution s’ouvrent dans une modale large, y compris depuis l’historique.
+- Le panneau Historique reste fermé jusqu’à ce que vous ouvriez l’historique d’une carte.
+- La recherche ignore les accents et la casse.
+- La barre d’avancement demande un Alfred récent (pied de Surface, commit 5ef42d7) : sur une version plus ancienne, elle ne s’affiche pas.
+
 ## 1.1.0 — 2026-11-19
 
 Un onglet par compte Prefect : la section garde une seule entrée au menu et chaque compte y a son onglet ; le panneau Historique suit le compte de l’onglet.

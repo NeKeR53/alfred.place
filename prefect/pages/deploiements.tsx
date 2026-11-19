@@ -15,7 +15,7 @@ import {
   Text,
   usePageState,
 } from "@alfred/ui";
-import { functions, shell, useAsync, usePageContext, usePeerMessage } from "@alfred/sdk";
+import { functions, shell, useAsync, usePageContext, usePeerMessage, useTopBarSearch } from "@alfred/sdk";
 import { CarteDeploiement } from "../lib/CarteDeploiement";
 import { ouvrirExecution } from "../lib/Execution";
 import {
@@ -40,9 +40,11 @@ const FILTRES = [
 export default function Deploiements() {
   // Chaque onglet est la page d’un compte Prefect : Alfred lui donne son instance.
   const compte = usePageContext()?.instance ?? "";
-  const [recherche, setRecherche] = usePageState<string>("recherche", "");
+  const recherche = useTopBarSearch({ label: "Rechercher un déploiement", placeholder: "Nom, flow, pool, étiquette…" });
   const [filtre, setFiltre] = usePageState<string>("filtre", "tous");
   const [selection, setSelection] = usePageState<string | null>("selection", null);
+  // Le panneau Historique reste fermé tant que l’historique d’une carte n’a pas été demandé.
+  const [historiqueDemande, setHistoriqueDemande] = usePageState<boolean>("historique.demande", false);
 
   const liste = useAsync(
     () =>
@@ -79,12 +81,16 @@ export default function Deploiements() {
     return () => clearInterval(minuterie);
   }, [uneTourne, etats.data]);
 
-  // Le panneau garde le déploiement ouvert d’une visite à l’autre, et prévient après un lancement.
+  // Le panneau est masqué par défaut ; une fois l’historique demandé, il garde son déploiement d’une visite à l’autre.
   useEffect(() => {
-    if (selection) void shell.publish({ id: selection });
+    if (!historiqueDemande) void shell.setPanelVisible(false);
+    else if (selection) void shell.publish({ id: selection });
   }, []);
   usePeerMessage((message) => {
-    if ((message as { type?: string })?.type === "execution-modifiee") setTimeout(etats.reload, 1500);
+    const m = message as { type?: string; execution?: string };
+    if (m?.type === "execution-modifiee") setTimeout(etats.reload, 1500);
+    // Le panneau demande d’ouvrir les logs d’une exécution : la modale s’ouvre sur la page, pas dans le panneau.
+    if (m?.type === "ouvrir-execution" && m.execution) void ouvrirExecution(compte, m.execution, actualiserTout);
   });
 
   const actualiserTout = () => {
@@ -95,13 +101,13 @@ export default function Deploiements() {
   const ouvrirHistorique = (d: Deploiement) => {
     const cle = cleSelection(compte, d.id);
     setSelection(cle);
+    setHistoriqueDemande(true);
     void shell.publish({ id: cle });
     void shell.setPanelVisible(true);
   };
 
-  const texte = recherche.trim().toLowerCase();
   const visibles = deploiements.filter((d) => {
-    if (texte && ![d.nom, d.flux, d.pool ?? "", ...d.tags].some((t) => t.toLowerCase().includes(texte))) return false;
+    if (!recherche.matches(d.nom, d.flux, d.pool, d.tags)) return false;
     const dernier = etats.data?.get(d.id)?.dernier;
     if (filtre === "echec") return Boolean(dernier && ["FAILED", "CRASHED"].includes(dernier.etat));
     if (filtre === "cours") return Boolean(dernier && ACTIFS.has(dernier.etat));
@@ -132,7 +138,7 @@ export default function Deploiements() {
   ];
 
   const bar = (
-    <Row gap="md" wrap>
+    <Row gap="md">
       {deploiements.length > 0 ? (
         <ChoiceGroup appearance="segmented" label="Filtrer les déploiements">
           {FILTRES.map((f) => (
@@ -187,7 +193,7 @@ export default function Deploiements() {
         action={
           <Button
             onClick={() => {
-              setRecherche("");
+              recherche.clear();
               setFiltre("tous");
             }}
           >
@@ -211,15 +217,15 @@ export default function Deploiements() {
               deploiement={d}
               etat={etats.data?.get(d.id)}
               maintenant={maintenant}
+              onLogs={() => {
+                const dernier = etats.data?.get(d.id)?.dernier;
+                if (dernier) return ouvrirExecution(compte, dernier.id, actualiserTout);
+              }}
               onLancer={async () => {
                 await lancer(compte, d.id);
                 actualiserTout();
               }}
               onHistorique={() => ouvrirHistorique(d)}
-              onDernier={async () => {
-                const dernier = etats.data?.get(d.id)?.dernier;
-                if (dernier) await ouvrirExecution(compte, dernier.id, actualiserTout);
-              }}
               autres={actionsCarte(d)}
             />
           ))}
@@ -229,7 +235,7 @@ export default function Deploiements() {
   }
 
   return (
-    <Page search={{ label: "Rechercher un déploiement", value: recherche, onChange: setRecherche }} bar={bar} actions={actions}>
+    <Page bar={bar} actions={actions}>
       {contenu}
     </Page>
   );

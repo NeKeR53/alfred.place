@@ -21,7 +21,6 @@ import {
   usePageState,
 } from "@alfred/ui";
 import { functions, shell, useAsync, usePageContext, usePeerMessage } from "@alfred/sdk";
-import { ouvrirExecution } from "../lib/Execution";
 import {
   ACTIFS,
   aDesParametres,
@@ -204,7 +203,7 @@ export default function Historique() {
                         {a.label}
                       </StatusBadge>
                     }
-                    onClick={() => void ouvrirExecution(instance, r.id, apresAction)}
+                    onClick={() => void shell.send({ type: "ouvrir-execution", execution: r.id })}
                   />
                 );
               })}
