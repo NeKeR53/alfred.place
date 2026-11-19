@@ -1,3 +1,7 @@
+## 1.1.3 — 2026-11-19
+
+- Le pied de carte n’utilise plus de style propre : il reste collé en bas avec un Alfred à jour (commit dcca9aa ou plus récent).
+
 ## 1.1.2 — 2026-11-19
 
 - Le pied de chaque carte (état, numéro et durée du build, barre d’avancement) est collé en bas et aligné sur les cartes voisines, quelle que soit la version d’Alfred.

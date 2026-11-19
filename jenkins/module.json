@@ -813,5 +813,5 @@
   "setup": {
     "welcome": "Suivez d’un coup d’œil les jobs Jenkins qui comptent pour vous, lisez leurs logs et relancez-les. Il vous faut l’adresse de votre Jenkins, votre identifiant et un jeton d’API."
   },
-  "version": "1.1.2"
+  "version": "1.1.3"
 }
