@@ -12,11 +12,10 @@ import {
   openForm,
   Page,
   Row,
-  SelectControl,
   Text,
   usePageState,
 } from "@alfred/ui";
-import { functions, shell, useAsync, usePeerMessage } from "@alfred/sdk";
+import { functions, shell, useAsync, usePageContext, usePeerMessage } from "@alfred/sdk";
 import { CarteDeploiement } from "../lib/CarteDeploiement";
 import { ouvrirExecution } from "../lib/Execution";
 import {
@@ -24,7 +23,6 @@ import {
   aDesParametres,
   avecInstance,
   cleSelection,
-  type Compte,
   type Deploiement,
   type EtatDeploiement,
   formulaireParametres,
@@ -40,12 +38,12 @@ const FILTRES = [
 ] as const;
 
 export default function Deploiements() {
-  const [compte, setCompte] = usePageState<string>("compte", "");
+  // Chaque onglet est la page d’un compte Prefect : Alfred lui donne son instance.
+  const compte = usePageContext()?.instance ?? "";
   const [recherche, setRecherche] = usePageState<string>("recherche", "");
   const [filtre, setFiltre] = usePageState<string>("filtre", "tous");
   const [selection, setSelection] = usePageState<string | null>("selection", null);
 
-  const comptes = useAsync(() => functions.call<{ comptes: Compte[] }>("comptes-prefect").then((r) => r.comptes), []);
   const liste = useAsync(
     () =>
       functions.call<{ total: number; deploiements: Deploiement[] }>("lister-deploiements", { ...avecInstance(compte), limite: 200 }),
@@ -101,9 +99,6 @@ export default function Deploiements() {
     void shell.setPanelVisible(true);
   };
 
-  const listeComptes = comptes.data ?? [];
-  const nomCompte = listeComptes.length > 1 ? listeComptes.find((c) => (compte ? c.id === compte : c.default))?.label : undefined;
-
   const texte = recherche.trim().toLowerCase();
   const visibles = deploiements.filter((d) => {
     if (texte && ![d.nom, d.flux, d.pool ?? "", ...d.tags].some((t) => t.toLowerCase().includes(texte))) return false;
@@ -138,15 +133,6 @@ export default function Deploiements() {
 
   const bar = (
     <Row gap="md" wrap>
-      {listeComptes.length > 1 ? (
-        <SelectControl aria-label="Compte Prefect" value={compte} onChange={(event) => setCompte(event.target.value)}>
-          {listeComptes.map((c) => (
-            <option key={c.id} value={c.default ? "" : c.id}>
-              {c.label}
-            </option>
-          ))}
-        </SelectControl>
-      ) : null}
       {deploiements.length > 0 ? (
         <ChoiceGroup appearance="segmented" label="Filtrer les déploiements">
           {FILTRES.map((f) => (
@@ -224,7 +210,6 @@ export default function Deploiements() {
               key={d.id}
               deploiement={d}
               etat={etats.data?.get(d.id)}
-              compte={nomCompte}
               maintenant={maintenant}
               onLancer={async () => {
                 await lancer(compte, d.id);

@@ -2271,7 +2271,7 @@
   "name": "Prefect",
   "pages": [
     {
-      "description": "Cartes des déploiements Prefect d’une instance : dernière exécution, lancement, historique et logs.",
+      "description": "Cartes des déploiements Prefect d’un compte : dernière exécution, lancement, historique et logs.",
       "icon": "rocket",
       "id": "deploiements",
       "placement": {
@@ -2284,7 +2284,6 @@
           "prefect"
         ],
         "functions": [
-          "comptes-prefect",
           "lister-deploiements",
           "lire-dernieres-executions",
           "lire-execution",
@@ -2324,11 +2323,13 @@
       "color": "blue",
       "icon": "icons/principal.svg",
       "id": "principal",
-      "label": "Prefect"
+      "instancesAs": "tabs",
+      "label": "Prefect",
+      "perInstance": "prefect"
     }
   ],
   "setup": {
     "welcome": "Suivez vos déploiements Prefect d’un coup d’œil : dernière exécution, lancement en un clic, historique, tâches et logs. Il vous faut l’adresse de l’API Prefect et, pour Prefect Cloud, une clé d’API."
   },
-  "version": "1.0.0"
+  "version": "1.1.0"
 }

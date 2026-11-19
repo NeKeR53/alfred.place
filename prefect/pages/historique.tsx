@@ -49,7 +49,10 @@ const FILTRES: { id: string; label: string; etats?: string[] }[] = [
 
 export default function Historique() {
   const contexte = usePageContext();
-  const { instance, deploiement: id } = lireSelection(String((contexte?.selection as { id?: string } | null)?.id ?? ""));
+  const choisi = lireSelection(String((contexte?.selection as { id?: string } | null)?.id ?? ""));
+  // Le panneau suit le compte de l’onglet ; la sélection le rappelle aussi.
+  const instance = contexte?.instance ?? choisi.instance;
+  const id = choisi.deploiement;
   const [filtre, setFiltre] = usePageState<string>("filtre", "tous");
   const [limite, setLimite] = usePageState<number>("limite", PAS);
   const etats = FILTRES.find((f) => f.id === filtre)?.etats;
