@@ -1,3 +1,9 @@
+## 1.1.1 — 2026-11-19
+
+- La barre d’avancement s’affiche de nouveau sur chaque carte, verte pour un build réussi, quelle que soit la version d’Alfred.
+- Le pied de la carte, avec l’état (« Réussi · il y a 3 heures ») et la barre, est collé tout en bas ; les pieds d’une rangée s’alignent avec un Alfred récent (commit dcca9aa).
+- La carte est la même que celle de Prefect.
+
 ## 1.1.0 — 2026-11-19
 
 - Tous les jobs sont trouvés, quelle que soit la profondeur des dossiers (dossiers, dossiers d’organisation, pipelines multibranches).

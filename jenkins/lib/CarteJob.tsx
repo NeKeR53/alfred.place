@@ -1,5 +1,6 @@
 import { FileText, Play } from "lucide-react";
-import { type Action, FormattedValue, ProgressBar, Row, Section, Stack, StatusBadge, Surface, Text } from "@alfred/ui";
+import type { Action } from "@alfred/ui";
+import { CarteSuivi } from "./CarteSuivi";
 import { type Carte, duree, dossierDe, type EtatJob, etatAffiche, nomCourt, RESULTATS } from "./tableau";
 
 interface Props {
@@ -12,12 +13,12 @@ interface Props {
   autres: Action[];
 }
 
+/** Carte d’un job : les données Jenkins passées à la carte commune (`CarteSuivi`, la même que celle de Prefect). */
 export function CarteJob({ carte, etat, compte, maintenant, onLogs, onRelancer, autres }: Props) {
-  const affiche = etatAffiche(etat);
+  const nom = etat?.nom ?? nomCourt(carte.job);
   const dernier = etat?.dernier ?? null;
   const enCours = Boolean(dernier?.enCours);
   const precedent = etat?.dernierTermine;
-  const contexte = [compte, dossierDe(carte.job)].filter(Boolean).join(" · ");
 
   let avancement = 100;
   if (enCours && dernier?.debut) {
@@ -33,7 +34,7 @@ export function CarteJob({ carte, etat, compte, maintenant, onLogs, onRelancer, 
       label: "Relancer",
       icon: Play,
       disabled: !etat?.existe || etat?.desactive,
-      confirm: `Relancer le job « ${etat?.nom ?? nomCourt(carte.job)} » ?`,
+      confirm: `Relancer le job « ${nom} » ?`,
       confirmMessage: etat?.parametre
         ? "Il repartira avec les paramètres de son dernier build."
         : "Un nouveau build sera mis en file dans Jenkins.",
@@ -43,48 +44,33 @@ export function CarteJob({ carte, etat, compte, maintenant, onLogs, onRelancer, 
     ...autres,
   ];
 
-  // La barre d’avancement est collée au bas de la carte, quelle que soit la hauteur du contenu.
-  const barre = dernier ? (
-    <ProgressBar
-      label={
-        enCours
-          ? `Build n° ${dernier.numero} · estimé à ${duree(dernier.dureeEstimee)}`
-          : `Build n° ${dernier.numero} · ${duree(dernier.duree)}`
-      }
-      value={avancement}
-      tone={affiche.tone === "neutral" ? undefined : affiche.tone}
-      showValue={enCours}
-    />
-  ) : null;
+  const note = etat?.erreur
+    ? { texte: etat.erreur, tone: etat.existe ? ("warning" as const) : ("danger" as const) }
+    : !dernier && etat
+      ? { texte: "Aucun build pour l’instant." }
+      : enCours && precedent
+        ? { texte: `Build précédent : ${RESULTATS[precedent.resultat ?? ""]?.label.toLowerCase() ?? "inconnu"} (n° ${precedent.numero})` }
+        : null;
 
   return (
-    <Surface footer={barre}>
-      <Section title={etat?.nom ?? nomCourt(carte.job)} description={contexte || undefined} actions={actions}>
-        <Stack gap="sm">
-          <Row justify="between">
-            <StatusBadge tone={affiche.tone}>{affiche.label}</StatusBadge>
-            {fin ? (
-              <Text as="span" size="meta" tone="muted">
-                {enCours ? "lancé " : ""}
-                <FormattedValue value={fin} options={{ type: "relative" }} />
-              </Text>
-            ) : null}
-          </Row>
-          {etat?.erreur ? (
-            <Text size="meta" tone={etat.existe ? "warning" : "danger"}>
-              {etat.erreur}
-            </Text>
-          ) : !dernier && etat ? (
-            <Text size="meta" tone="muted">
-              Aucun build pour l’instant.
-            </Text>
-          ) : enCours && precedent ? (
-            <Text size="meta" tone="muted">
-              Build précédent : {RESULTATS[precedent.resultat ?? ""]?.label.toLowerCase() ?? "inconnu"} (n° {precedent.numero})
-            </Text>
-          ) : null}
-        </Stack>
-      </Section>
-    </Surface>
+    <CarteSuivi
+      titre={nom}
+      contexte={[compte, dossierDe(carte.job)].filter(Boolean).join(" · ")}
+      actions={actions}
+      etat={etatAffiche(etat)}
+      quand={fin ? { date: fin, prefixe: enCours ? "lancé" : undefined } : null}
+      note={note}
+      barre={
+        dernier
+          ? {
+              label: enCours
+                ? `Build n° ${dernier.numero} · estimé à ${duree(dernier.dureeEstimee)}`
+                : `Build n° ${dernier.numero} · ${duree(dernier.duree)}`,
+              valeur: avancement,
+              afficherValeur: enCours,
+            }
+          : null
+      }
+    />
   );
 }
