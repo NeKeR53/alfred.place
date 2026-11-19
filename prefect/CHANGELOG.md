@@ -1,3 +1,8 @@
+## 1.2.3 — 2026-11-19
+
+- Le pied de chaque carte (état, dernière exécution et durée, barre d’avancement) est collé en bas et aligné sur les cartes voisines, quelle que soit la version d’Alfred.
+- Un déploiement jamais lancé a une barre vide, comme les autres cartes.
+
 ## 1.2.2 — 2026-11-19
 
 - Tous les déploiements du compte s’affichent, même au-delà de 200 : la liste est lue page par page.

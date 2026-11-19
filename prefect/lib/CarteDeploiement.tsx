@@ -48,9 +48,7 @@ export function CarteDeploiement({ deploiement: d, etat, compte, maintenant, onL
   const prochaine = etat?.prochaine?.debutPrevu ? "prochaine prévue" : "";
   const note = etat?.erreur
     ? { texte: etat.erreur, tone: "warning" as const }
-    : !dernier && etat
-      ? { texte: "Aucune exécution pour l’instant." }
-      : anciennes.length > 0
+    : anciennes.length > 0
         ? { texte: `Avant : ${resume(anciennes)}${prochaine ? ` · ${prochaine}` : ""}` }
         : prochaine
           ? { texte: "Prochaine exécution prévue." }
@@ -79,7 +77,9 @@ export function CarteDeploiement({ deploiement: d, etat, compte, maintenant, onL
               valeur: avancement,
               afficherValeur: enCours && Boolean(etat?.dureeHabituelle),
             }
-          : null
+          : etat
+            ? { label: "Aucune exécution pour l’instant", valeur: 0 }
+            : null
       }
     />
   );
