@@ -115,7 +115,7 @@
       }
     },
     {
-      "description": "Liste les déploiements d’une instance Prefect, filtrables par nom : flow, pool de workers, étiquettes, planifications, paramètres par défaut, suspension et disponibilité.",
+      "description": "Liste tous les déploiements d’une instance Prefect, page par page (200 par demande, 2 000 au plus), filtrables par nom : flow, pool de workers, étiquettes, planifications, paramètres par défaut, suspension et disponibilité. Les déploiements suspendus ou jamais lancés y sont.",
       "effect": "read",
       "examples": [
         {
@@ -241,6 +241,7 @@
                 ]
               }
             ],
+            "incomplet": false,
             "total": 4
           }
         },
@@ -274,6 +275,7 @@
                 ]
               }
             ],
+            "incomplet": false,
             "total": 1
           }
         },
@@ -284,6 +286,7 @@
           "name": "Aucun déploiement trouvé",
           "output": {
             "deploiements": [],
+            "incomplet": false,
             "total": 0
           }
         }
@@ -296,8 +299,12 @@
             "type": "string"
           },
           "limite": {
-            "description": "Nombre de déploiements rendus au plus (100 par défaut, 200 au plus).",
+            "description": "Nombre de déploiements rendus au plus (2 000 par défaut et au plus).",
             "type": "integer"
+          },
+          "simulation": {
+            "description": "Réservé aux tests : liste les 260 déploiements d’un faux Prefect en mémoire (20 suspendus, 40 sans exécution) au lieu du compte.",
+            "type": "boolean"
           },
           "texte": {
             "description": "Partie du nom du déploiement ; vide, tous.",
@@ -391,6 +398,10 @@
             },
             "type": "array"
           },
+          "incomplet": {
+            "description": "Vrai si la limite a arrêté la liste avant le dernier déploiement.",
+            "type": "boolean"
+          },
           "total": {
             "type": "integer"
           }
@@ -414,6 +425,80 @@
             "limite": 20
           },
           "name": "Liste les déploiements de l’instance"
+        },
+        {
+          "expect": {
+            "equals": {
+              "deploiements.258.id": "dep-259",
+              "deploiements.259.id": "dep-260",
+              "deploiements.259.nom": "export-quotidien",
+              "incomplet": false,
+              "total": 260
+            },
+            "schema": true
+          },
+          "input": {
+            "simulation": true
+          },
+          "name": "Liste les 260 déploiements, au-delà de 200 (faux Prefect)"
+        },
+        {
+          "expect": {
+            "equals": {
+              "deploiements.200.enPause": true,
+              "deploiements.200.flux": "flux-201",
+              "deploiements.200.id": "dep-201"
+            },
+            "schema": true
+          },
+          "input": {
+            "simulation": true
+          },
+          "name": "Garde les suspendus et les flows au-delà de 200 (faux Prefect)"
+        },
+        {
+          "expect": {
+            "equals": {
+              "deploiements.230.flux": "flux-1",
+              "deploiements.230.id": "dep-231",
+              "deploiements.230.statut": "NOT_READY"
+            },
+            "schema": true
+          },
+          "input": {
+            "simulation": true
+          },
+          "name": "Garde les déploiements sans exécution ni planification (faux Prefect)"
+        },
+        {
+          "expect": {
+            "equals": {
+              "deploiements.249.id": "dep-250",
+              "incomplet": true,
+              "total": 260
+            },
+            "schema": true
+          },
+          "input": {
+            "limite": 250,
+            "simulation": true
+          },
+          "name": "Signale une liste coupée par la limite (faux Prefect)"
+        },
+        {
+          "expect": {
+            "equals": {
+              "deploiements.0.id": "dep-259",
+              "deploiements.1.id": "dep-260",
+              "total": 2
+            },
+            "schema": true
+          },
+          "input": {
+            "simulation": true,
+            "texte": "export"
+          },
+          "name": "Garde deux déploiements de même nom (faux Prefect)"
         }
       ],
       "tool": true,
@@ -2331,5 +2416,5 @@
   "setup": {
     "welcome": "Suivez vos déploiements Prefect d’un coup d’œil : dernière exécution, lancement en un clic, historique, tâches et logs. Il vous faut l’adresse de l’API Prefect et, pour Prefect Cloud, une clé d’API."
   },
-  "version": "1.2.1"
+  "version": "1.2.2"
 }

@@ -37,6 +37,20 @@ const FILTRES = [
   { id: "suspendus", label: "Suspendus" },
 ] as const;
 
+/** États de tous les déploiements, par lots de 60 (la limite de `lire-dernieres-executions`), un lot après l’autre
+ * pour ne pas surcharger Prefect. */
+async function lireEtats(compte: string, ids: string[]): Promise<Map<string, EtatDeploiement>> {
+  const etats = new Map<string, EtatDeploiement>();
+  for (let i = 0; i < ids.length; i += 60) {
+    const lot = await functions.call<{ deploiements: EtatDeploiement[] }>("lire-dernieres-executions", {
+      ...avecInstance(compte),
+      deploiements: ids.slice(i, i + 60),
+    });
+    for (const etat of lot.deploiements) etats.set(etat.id, etat);
+  }
+  return etats;
+}
+
 export default function Deploiements() {
   // Chaque onglet est la page d’un compte Prefect : Alfred lui donne son instance.
   const compte = usePageContext()?.instance ?? "";
@@ -48,7 +62,7 @@ export default function Deploiements() {
 
   const liste = useAsync(
     () =>
-      functions.call<{ total: number; deploiements: Deploiement[] }>("lister-deploiements", { ...avecInstance(compte), limite: 200 }),
+      functions.call<{ total: number; deploiements: Deploiement[] }>("lister-deploiements", { ...avecInstance(compte) }),
     [compte],
   );
   const deploiements = liste.data?.deploiements ?? [];
@@ -58,12 +72,7 @@ export default function Deploiements() {
     () =>
       deploiements.length === 0
         ? Promise.resolve(new Map<string, EtatDeploiement>())
-        : functions
-            .call<{ deploiements: EtatDeploiement[] }>("lire-dernieres-executions", {
-              ...avecInstance(compte),
-              deploiements: deploiements.slice(0, 60).map((d) => d.id),
-            })
-            .then((r) => new Map(r.deploiements.map((e) => [e.id, e]))),
+        : lireEtats(compte, deploiements.map((d) => d.id)),
     [compte, cleIds],
   );
 

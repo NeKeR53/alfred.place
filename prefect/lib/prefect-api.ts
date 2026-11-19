@@ -1,4 +1,5 @@
 import { client } from "@alfred/sdk";
+import { nomsDesFlows } from "./liste-deploiements";
 
 /** Client Prefect de l’instance demandée (instance par défaut si vide). */
 export function prefect(instance?: string | null) {
@@ -82,17 +83,9 @@ export function execution(run: FlowRunPrefect): Execution {
   };
 }
 
-/** Noms des flows, par identifiant. */
-export async function nomsFlows(instance: string | undefined, ids: string[]): Promise<Map<string, string>> {
-  const uniques = [...new Set(ids.filter(Boolean))];
-  if (uniques.length === 0) return new Map();
-  const flows = await filtrer<{ id: string; name: string }[]>(
-    instance,
-    "/flows/filter",
-    { flows: { id: { any_: uniques } }, limit: 200 },
-    "les flows",
-  );
-  return new Map(flows.map((flow) => [flow.id, flow.name]));
+/** Noms des flows, par identifiant (lus par lots de 200, la limite d’une demande Prefect). */
+export function nomsFlows(instance: string | undefined, ids: string[]): Promise<Map<string, string>> {
+  return nomsDesFlows((chemin, corps, quoi) => filtrer(instance, chemin, corps, quoi), ids);
 }
 
 export interface Planification {

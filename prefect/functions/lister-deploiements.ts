@@ -1,21 +1,28 @@
-import { decrireDeploiement, type DeploiementPrefect, filtrer, nomsFlows, prefect } from "../lib/prefect-api";
+import { posteFauxPrefect } from "../lib/faux-prefect";
+import { nomsDesFlows, type Poste, tousLesDeploiements } from "../lib/liste-deploiements";
+import { decrireDeploiement, filtrer } from "../lib/prefect-api";
 
-export default async function (input: { instance?: string; texte?: string; limite?: number }) {
-  const limite = Math.min(Math.max(input.limite ?? 100, 1), 200);
+/** Filtre envoyé au compte Prefect. */
+const posteCompte =
+  (instance?: string): Poste =>
+  (chemin, corps, quoi) =>
+    filtrer(instance, chemin, corps, quoi);
+
+export default async function (input: { instance?: string; texte?: string; limite?: number; simulation?: boolean }) {
+  const maximum = Math.min(Math.max(input.limite ?? 2000, 1), 2000);
   const texte = (input.texte ?? "").trim();
   const filtre = texte ? { deployments: { name: { like_: texte } } } : {};
+  const poste = input.simulation ? posteFauxPrefect : posteCompte(input.instance);
 
-  const [deploiements, total] = await Promise.all([
-    filtrer<DeploiementPrefect[]>(input.instance, "/deployments/filter", { ...filtre, sort: "NAME_ASC", limit: limite }, "les déploiements"),
-    prefect(input.instance)
-      .post<number>("/deployments/count", filtre)
-      .then((r) => (r.ok && typeof r.body === "number" ? r.body : null))
-      .catch(() => null),
+  const [{ deploiements, incomplet }, total] = await Promise.all([
+    tousLesDeploiements(poste, filtre, maximum),
+    poste<number>("/deployments/count", filtre, "le nombre de déploiements").catch(() => null),
   ]);
-  const flows = await nomsFlows(input.instance, deploiements.map((d) => d.flow_id));
+  const flows = await nomsDesFlows(poste, deploiements.map((d) => d.flow_id));
 
   return {
-    total: total ?? deploiements.length,
+    total: typeof total === "number" ? total : deploiements.length,
+    incomplet,
     deploiements: deploiements.map((d) => decrireDeploiement(d, flows)),
   };
 }

@@ -1,3 +1,9 @@
+## 1.2.2 — 2026-11-19
+
+- Tous les déploiements du compte s’affichent, même au-delà de 200 : la liste est lue page par page.
+- L’état de chaque déploiement est lu, pas seulement celui des 60 premiers ; les filtres En échec, En cours et Suspendus les voient tous.
+- Les déploiements suspendus, jamais lancés ou portant le même nom dans deux flows restent dans la liste.
+
 ## 1.2.1 — 2026-11-19
 
 - La carte d’un déploiement est exactement celle de Jenkins : mêmes boutons, même pied collé en bas avec l’état et la barre d’avancement (alignement avec un Alfred récent, commit dcca9aa).
