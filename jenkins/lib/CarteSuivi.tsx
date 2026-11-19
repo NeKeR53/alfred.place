@@ -4,8 +4,8 @@
  *
  * En haut, le titre, le contexte et les actions, puis au besoin une note (erreur, build précédent…). En bas, le pied :
  * la ligne d’état (« Réussi · il y a 2 heures ») et la barre d’avancement. Le pied est le dernier enfant de la
- * surface, hors de la section : il s’affiche avec n’importe quelle version d’Alfred, et une version récente le colle
- * au bas de la carte, aligné sur celui des cartes voisines.
+ * surface, hors de la section, poussé vers le bas (`marginTop: "auto"`) : il est collé au bas de la carte et aligné sur
+ * celui des cartes voisines avec n’importe quelle version d’Alfred.
  */
 import { type Action, FormattedValue, ProgressBar, Row, Section, Stack, StatusBadge, Surface, Text } from "@alfred/ui";
 
@@ -37,32 +37,35 @@ export function CarteSuivi({ titre, contexte, actions, etat, badges = [], quand,
           </Text>
         ) : null}
       </Section>
-      <Stack gap="sm">
-        <Row justify="between">
-          <Row gap="xs">
-            <StatusBadge tone={etat.tone}>{etat.label}</StatusBadge>
-            {badges.map((badge) => (
-              <StatusBadge key={badge.label} size="compact" tone={badge.tone}>
-                {badge.label}
-              </StatusBadge>
-            ))}
+      {/* Exception à la règle 4, voulue : sans ce style, un Alfred d’avant dcca9aa ne colle pas le pied au bas de la carte. */}
+      <div style={{ marginTop: "auto" }}>
+        <Stack gap="sm">
+          <Row justify="between">
+            <Row gap="xs">
+              <StatusBadge tone={etat.tone}>{etat.label}</StatusBadge>
+              {badges.map((badge) => (
+                <StatusBadge key={badge.label} size="compact" tone={badge.tone}>
+                  {badge.label}
+                </StatusBadge>
+              ))}
+            </Row>
+            {quand ? (
+              <Text as="span" size="meta" tone="muted">
+                {quand.prefixe ? `${quand.prefixe} ` : ""}
+                <FormattedValue value={quand.date} options={{ type: "relative" }} />
+              </Text>
+            ) : null}
           </Row>
-          {quand ? (
-            <Text as="span" size="meta" tone="muted">
-              {quand.prefixe ? `${quand.prefixe} ` : ""}
-              <FormattedValue value={quand.date} options={{ type: "relative" }} />
-            </Text>
+          {barre ? (
+            <ProgressBar
+              label={barre.label}
+              value={barre.valeur}
+              tone={etat.tone === "neutral" ? undefined : etat.tone}
+              showValue={Boolean(barre.afficherValeur)}
+            />
           ) : null}
-        </Row>
-        {barre ? (
-          <ProgressBar
-            label={barre.label}
-            value={barre.valeur}
-            tone={etat.tone === "neutral" ? undefined : etat.tone}
-            showValue={Boolean(barre.afficherValeur)}
-          />
-        ) : null}
-      </Stack>
+        </Stack>
+      </div>
     </Surface>
   );
 }

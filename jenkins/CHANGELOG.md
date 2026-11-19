@@ -1,3 +1,8 @@
+## 1.1.2 — 2026-11-19
+
+- Le pied de chaque carte (état, numéro et durée du build, barre d’avancement) est collé en bas et aligné sur les cartes voisines, quelle que soit la version d’Alfred.
+- Un job jamais lancé a une barre vide, comme les autres cartes.
+
 ## 1.1.1 — 2026-11-19
 
 - La barre d’avancement s’affiche de nouveau sur chaque carte, verte pour un build réussi, quelle que soit la version d’Alfred.

@@ -46,9 +46,7 @@ export function CarteJob({ carte, etat, compte, maintenant, onLogs, onRelancer, 
 
   const note = etat?.erreur
     ? { texte: etat.erreur, tone: etat.existe ? ("warning" as const) : ("danger" as const) }
-    : !dernier && etat
-      ? { texte: "Aucun build pour l’instant." }
-      : enCours && precedent
+    : enCours && precedent
         ? { texte: `Build précédent : ${RESULTATS[precedent.resultat ?? ""]?.label.toLowerCase() ?? "inconnu"} (n° ${precedent.numero})` }
         : null;
 
@@ -69,7 +67,9 @@ export function CarteJob({ carte, etat, compte, maintenant, onLogs, onRelancer, 
               valeur: avancement,
               afficherValeur: enCours,
             }
-          : null
+          : etat
+            ? { label: "Aucun build pour l’instant", valeur: 0 }
+            : null
       }
     />
   );
