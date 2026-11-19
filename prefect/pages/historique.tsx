@@ -7,6 +7,7 @@ import {
   Disclosure,
   EmptyState,
   FeedbackBanner,
+  FormattedValue,
   KeyValueList,
   List,
   ListItem,
@@ -29,12 +30,14 @@ import {
   type Deploiement,
   duree,
   etatAffiche,
+  type EtatDeploiement,
   type Execution,
   formulaireParametres,
   lancer,
   lireSelection,
   nomComplet,
   planification,
+  resume,
 } from "../lib/prefect";
 
 const PAS = 25;
@@ -63,6 +66,16 @@ export default function Historique() {
         : Promise.resolve({ deploiement: null }),
     [instance, id],
   );
+  // Bilan des exécutions précédentes et prochaine exécution, retirés de la carte pour la garder courte.
+  const bilan = useAsync(
+    () =>
+      id
+        ? functions
+            .call<{ deploiements: EtatDeploiement[] }>("lire-dernieres-executions", { ...avecInstance(instance), deploiements: [id] })
+            .then((r) => r.deploiements[0] ?? null)
+        : Promise.resolve(null),
+    [instance, id],
+  );
   const runs = useAsync(
     () =>
       id
@@ -85,10 +98,17 @@ export default function Historique() {
   }, [id, uneTourne, runs.reload]);
 
   usePeerMessage((message) => {
-    if ((message as { type?: string })?.type === "execution-modifiee") setTimeout(runs.reload, 1500);
+    if ((message as { type?: string })?.type === "execution-modifiee")
+      setTimeout(() => {
+        runs.reload();
+        bilan.reload();
+      }, 1500);
   });
   const apresAction = () => {
-    setTimeout(runs.reload, 1500);
+    setTimeout(() => {
+      runs.reload();
+      bilan.reload();
+    }, 1500);
     void shell.send({ type: "execution-modifiee" });
   };
 
@@ -144,6 +164,7 @@ export default function Historique() {
       onClick: () => {
         fiche.reload();
         runs.reload();
+        bilan.reload();
       },
     },
     {
@@ -175,6 +196,37 @@ export default function Historique() {
         </SelectControl>
       }
     >
+      <Section title="Détail">
+        <KeyValueList
+          items={[
+            { label: "Planification", value: planification(d) },
+            {
+              label: "Exécutions précédentes",
+              value: !bilan.data
+                ? bilan.error
+                  ? "Illisibles pour l’instant"
+                  : "…"
+                : bilan.data.recentes.length > 1
+                  ? resume(bilan.data.recentes.slice(1))
+                  : "Aucune",
+            },
+            {
+              label: "Prochaine exécution",
+              value: bilan.data?.prochaine?.debutPrevu ? (
+                <>
+                  <FormattedValue value={bilan.data.prochaine.debutPrevu} options={{ type: "datetime" }} /> (
+                  <FormattedValue value={bilan.data.prochaine.debutPrevu} options={{ type: "relative" }} />)
+                </>
+              ) : bilan.data ? (
+                "Aucune prévue"
+              ) : (
+                "…"
+              ),
+            },
+          ]}
+        />
+      </Section>
+
       <Section title="Exécutions" description={runs.data ? `${total} exécution${total > 1 ? "s" : ""}${filtre === "tous" ? " au total" : ""}` : undefined}>
         {runs.error && !runs.data ? (
           <FeedbackBanner tone="danger" action={<Button onClick={runs.reload}>Réessayer</Button>}>

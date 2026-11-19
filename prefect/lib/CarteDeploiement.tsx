@@ -1,7 +1,7 @@
 import { FileText, History, Play } from "lucide-react";
 import type { Action } from "@alfred/ui";
 import { CarteSuivi } from "./CarteSuivi";
-import { ACTIFS, type Deploiement, duree, type EtatDeploiement, etatAffiche, nomComplet, planification, resume } from "./prefect";
+import { ACTIFS, type Deploiement, duree, type EtatDeploiement, etatAffiche, nomComplet } from "./prefect";
 
 interface Props {
   deploiement: Deploiement;
@@ -44,15 +44,8 @@ export function CarteDeploiement({ deploiement: d, etat, compte, maintenant, onL
     ...autres,
   ];
 
-  const anciennes = (etat?.recentes ?? []).slice(1);
-  const prochaine = etat?.prochaine?.debutPrevu ? "prochaine prévue" : "";
-  const note = etat?.erreur
-    ? { texte: etat.erreur, tone: "warning" as const }
-    : anciennes.length > 0
-        ? { texte: `Avant : ${resume(anciennes)}${prochaine ? ` · ${prochaine}` : ""}` }
-        : prochaine
-          ? { texte: "Prochaine exécution prévue." }
-          : null;
+  // La carte reste courte : planification, exécutions précédentes et prochaine exécution sont dans le panneau Historique.
+  const note = etat?.erreur ? { texte: etat.erreur, tone: "warning" as const } : null;
 
   const badges = [
     ...(d.enPause ? [{ label: "Suspendu", tone: "neutral" as const }] : []),
@@ -62,7 +55,7 @@ export function CarteDeploiement({ deploiement: d, etat, compte, maintenant, onL
   return (
     <CarteSuivi
       titre={nomComplet(d)}
-      contexte={[compte, planification(d)].filter(Boolean).join(" · ")}
+      contexte={compte}
       actions={actions}
       etat={etat ? etatAffiche(dernier?.etat, dernier?.etatNom) : { label: "Chargement…", tone: "neutral" }}
       badges={badges}

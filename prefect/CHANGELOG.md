@@ -1,3 +1,9 @@
+## 1.2.4 — 2026-11-19
+
+- La carte d’un déploiement est plus courte : titre, actions, état et dernière exécution avec sa barre.
+- La planification, le bilan des exécutions précédentes et la prochaine exécution prévue sont dans le bloc « Détail » du panneau Historique.
+- Le pied de carte reste collé en bas avec un Alfred à jour (commit dcca9aa ou plus récent).
+
 ## 1.2.3 — 2026-11-19
 
 - Le pied de chaque carte (état, dernière exécution et durée, barre d’avancement) est collé en bas et aligné sur les cartes voisines, quelle que soit la version d’Alfred.
