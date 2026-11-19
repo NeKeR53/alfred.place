@@ -25,11 +25,26 @@ export interface PropsCarte {
   note?: { texte: string; tone?: "muted" | "warning" | "danger" } | null;
   /** Barre d’avancement : 100 une fois terminé. */
   barre?: { label: string; valeur: number; afficherValeur?: boolean } | null;
+  /** Clic sur la carte hors de ses boutons (ou Entrée et Espace) : ouvre le détail dans le panneau. */
+  onOuvrir?: () => void;
+  /** La carte de l’objet ouvert dans le panneau. */
+  selectionnee?: boolean;
 }
 
-export function CarteSuivi({ titre, contexte, actions, etat, badges = [], quand, note, barre }: PropsCarte) {
+export function CarteSuivi({
+  titre,
+  contexte,
+  actions,
+  etat,
+  badges = [],
+  quand,
+  note,
+  barre,
+  onOuvrir,
+  selectionnee = false,
+}: PropsCarte) {
   return (
-    <Surface>
+    <Surface onOpen={onOuvrir} openLabel={onOuvrir ? `Ouvrir le détail de ${titre}` : undefined} selected={selectionnee}>
       <Section title={titre} description={contexte || undefined} actions={actions}>
         {note ? (
           <Text size="meta" tone={note.tone ?? "muted"}>

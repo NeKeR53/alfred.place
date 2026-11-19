@@ -2356,7 +2356,7 @@
   "name": "Prefect",
   "pages": [
     {
-      "description": "Cartes des déploiements Prefect d’un compte : état et durée de la dernière exécution, lancement, logs en modale ; l’historique et le détail s’ouvrent dans le panneau.",
+      "description": "Cartes des déploiements Prefect d’un compte : état et durée de la dernière exécution, lancement, logs en modale ; un clic sur une carte ouvre son détail et son historique dans le panneau.",
       "icon": "rocket",
       "id": "deploiements",
       "placement": {
@@ -2417,5 +2417,5 @@
   "setup": {
     "welcome": "Suivez vos déploiements Prefect d’un coup d’œil : dernière exécution, lancement en un clic, historique, tâches et logs. Il vous faut l’adresse de l’API Prefect et, pour Prefect Cloud, une clé d’API."
   },
-  "version": "1.2.4"
+  "version": "1.2.5"
 }

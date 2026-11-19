@@ -1,3 +1,8 @@
+## 1.2.5 — 2026-11-19
+
+- Un clic sur une carte de déploiement, en dehors de ses boutons, ouvre son détail et son historique dans le panneau de droite ; la carte ouverte est marquée. Entrée et Espace font de même au clavier.
+- Demande un Alfred récent (commit 595054f) : sur une version plus ancienne, la carte n’est pas cliquable, « Voir l’historique » du menu « ⋯ » reste disponible.
+
 ## 1.2.4 — 2026-11-19
 
 - La carte d’un déploiement est plus courte : titre, actions, état et dernière exécution avec sa barre.

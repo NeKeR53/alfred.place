@@ -235,6 +235,7 @@ export default function Deploiements() {
                 actualiserTout();
               }}
               onHistorique={() => ouvrirHistorique(d)}
+              selectionnee={historiqueDemande && selection === cleSelection(compte, d.id)}
               autres={actionsCarte(d)}
             />
           ))}

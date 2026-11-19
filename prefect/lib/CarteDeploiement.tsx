@@ -11,12 +11,14 @@ interface Props {
   onLogs: () => unknown;
   onLancer: () => Promise<unknown>;
   onHistorique: () => unknown;
+  /** Carte ouverte dans le panneau Historique. */
+  selectionnee?: boolean;
   autres: Action[];
 }
 
 /** Carte d’un déploiement : les données Prefect passées à la carte commune (`CarteSuivi`, la même que celle de
  * Jenkins). Aucun extrait de log dans la carte : les logs s’ouvrent seulement dans la modale. */
-export function CarteDeploiement({ deploiement: d, etat, compte, maintenant, onLogs, onLancer, onHistorique, autres }: Props) {
+export function CarteDeploiement({ deploiement: d, etat, compte, maintenant, onLogs, onLancer, onHistorique, selectionnee = false, autres }: Props) {
   const dernier = etat?.dernier ?? null;
   const enCours = Boolean(dernier && ACTIFS.has(dernier.etat));
   const quand = dernier ? (enCours ? (dernier.debut ?? dernier.debutPrevu) : (dernier.fin ?? dernier.debut ?? dernier.debutPrevu)) : null;
@@ -61,6 +63,8 @@ export function CarteDeploiement({ deploiement: d, etat, compte, maintenant, onL
       badges={badges}
       quand={quand ? { date: quand, prefixe: enCours ? "lancée" : undefined } : null}
       note={note}
+      onOuvrir={() => void onHistorique()}
+      selectionnee={selectionnee}
       barre={
         dernier
           ? {
