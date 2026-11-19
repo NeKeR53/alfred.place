@@ -1,53 +1,37 @@
-import { erreurJenkins, jenkins } from "../lib/jenkins-api";
-
-interface NoeudJenkins {
-  _class?: string;
-  name: string;
-  fullName?: string;
-  url?: string;
-  color?: string;
-  jobs?: NoeudJenkins[];
-}
-
-const CHAMPS = "_class,name,fullName,url,color";
-// Quatre niveaux de dossiers : dossier / pipeline multibranche / branche…
-const ARBRE = `jobs[${CHAMPS},jobs[${CHAMPS},jobs[${CHAMPS},jobs[${CHAMPS}]]]]`;
+import { type LireDossier, type NoeudJenkins, parcourirJobs } from "../lib/arbre-jobs";
+import { lireFauxJenkins } from "../lib/faux-jenkins";
+import { cheminJob, erreurJenkins, jenkins } from "../lib/jenkins-api";
 
 function sansAccents(texte: string) {
   return texte.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
-export default async function (input: { instance?: string; texte?: string; limite?: number }) {
-  const reponse = await jenkins(input.instance).get<{ jobs?: NoeudJenkins[] }>("/api/json", { tree: ARBRE });
-  if (!reponse.ok) throw erreurJenkins(reponse.status, "la liste des jobs");
-
-  const trouves: { chemin: string; nom: string; dossier: string; etat: string; url: string }[] = [];
-  const parcourir = (noeuds: NoeudJenkins[] | undefined, parents: string[]) => {
-    for (const noeud of noeuds ?? []) {
-      const chemin = noeud.fullName ?? [...parents, noeud.name].join("/");
-      // Un job qui se lance a une couleur ; un dossier n’en a pas.
-      if (noeud.color !== undefined) {
-        const morceaux = chemin.split("/");
-        trouves.push({
-          chemin,
-          nom: decodeURIComponent(morceaux[morceaux.length - 1] ?? noeud.name),
-          dossier: morceaux.slice(0, -1).map((m) => decodeURIComponent(m)).join(" / "),
-          etat: noeud.color ?? "notbuilt",
-          url: noeud.url ?? "",
-        });
-      }
-      if (noeud.jobs) parcourir(noeud.jobs, chemin.split("/"));
-    }
+/** Lit un dossier du compte : trois niveaux par demande, gardés une minute (la recherche relit à chaque frappe). */
+function lireCompte(instance?: string): LireDossier {
+  const client = jenkins(instance);
+  return async (dossier, tree) => {
+    const reponse = await client.get<{ jobs?: NoeudJenkins[] }>(
+      `${dossier ? cheminJob(dossier) : ""}/api/json`,
+      { tree },
+      { cache: 60 },
+    );
+    if (!reponse.ok)
+      throw erreurJenkins(reponse.status, dossier ? `le dossier « ${decodeURIComponent(dossier)} »` : "la liste des jobs");
+    return reponse.body?.jobs ?? [];
   };
-  parcourir(reponse.body?.jobs, []);
+}
+
+export default async function (input: { instance?: string; texte?: string; limite?: number; simulation?: boolean }) {
+  const lire = input.simulation ? lireFauxJenkins : lireCompte(input.instance);
+  const { jobs, incomplet } = await parcourirJobs(lire);
 
   const mots = sansAccents(input.texte ?? "").split(/\s+/).filter(Boolean);
-  const retenus = trouves
+  const retenus = jobs
     .filter((job) => {
       const cible = sansAccents(decodeURIComponent(job.chemin));
       return mots.every((mot) => cible.includes(mot));
     })
     .sort((a, b) => a.chemin.localeCompare(b.chemin, "fr"));
 
-  return { total: retenus.length, jobs: retenus.slice(0, input.limite ?? 200) };
+  return { total: retenus.length, incomplet, jobs: retenus.slice(0, input.limite ?? 200) };
 }

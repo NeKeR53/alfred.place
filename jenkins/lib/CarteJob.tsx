@@ -43,8 +43,22 @@ export function CarteJob({ carte, etat, compte, maintenant, onLogs, onRelancer, 
     ...autres,
   ];
 
+  // La barre d’avancement est collée au bas de la carte, quelle que soit la hauteur du contenu.
+  const barre = dernier ? (
+    <ProgressBar
+      label={
+        enCours
+          ? `Build n° ${dernier.numero} · estimé à ${duree(dernier.dureeEstimee)}`
+          : `Build n° ${dernier.numero} · ${duree(dernier.duree)}`
+      }
+      value={avancement}
+      tone={affiche.tone === "neutral" ? undefined : affiche.tone}
+      showValue={enCours}
+    />
+  ) : null;
+
   return (
-    <Surface>
+    <Surface footer={barre}>
       <Section title={etat?.nom ?? nomCourt(carte.job)} description={contexte || undefined} actions={actions}>
         <Stack gap="sm">
           <Row justify="between">
@@ -56,18 +70,6 @@ export function CarteJob({ carte, etat, compte, maintenant, onLogs, onRelancer, 
               </Text>
             ) : null}
           </Row>
-          {dernier ? (
-            <ProgressBar
-              label={
-                enCours
-                  ? `Build n° ${dernier.numero} · estimé à ${duree(dernier.dureeEstimee)}`
-                  : `Build n° ${dernier.numero} · ${duree(dernier.duree)}`
-              }
-              value={avancement}
-              tone={affiche.tone === "neutral" ? undefined : affiche.tone}
-              showValue={enCours}
-            />
-          ) : null}
           {etat?.erreur ? (
             <Text size="meta" tone={etat.existe ? "warning" : "danger"}>
               {etat.erreur}

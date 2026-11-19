@@ -105,13 +105,14 @@
       }
     },
     {
-      "description": "Cherche des jobs Jenkins par leur nom ou leur dossier, en parcourant les dossiers et les pipelines multibranches (quatre niveaux au plus).",
+      "description": "Cherche des jobs Jenkins par leur nom ou leur dossier, à n’importe quelle profondeur de dossiers, de dossiers d’organisation et de pipelines multibranches : trois niveaux par demande, puis chaque dossier du dernier niveau est relu (200 demandes au plus, gardées une minute).",
       "effect": "read",
       "examples": [
         {
           "input": {},
           "name": "Cinq jobs",
           "output": {
+            "incomplet": false,
             "jobs": [
               {
                 "chemin": "api-facturation/main",
@@ -158,6 +159,7 @@
           },
           "name": "Recherche « factu »",
           "output": {
+            "incomplet": false,
             "jobs": [
               {
                 "chemin": "api-facturation/main",
@@ -176,6 +178,7 @@
           },
           "name": "Aucun job trouvé",
           "output": {
+            "incomplet": false,
             "jobs": [],
             "total": 0
           }
@@ -192,6 +195,10 @@
             "description": "Nombre de jobs rendus au plus (200 par défaut).",
             "type": "integer"
           },
+          "simulation": {
+            "description": "Réservé aux tests : cherche dans un faux Jenkins en mémoire (cinq niveaux de dossiers, un dossier refusé) au lieu du compte.",
+            "type": "boolean"
+          },
           "texte": {
             "description": "Mots cherchés dans le nom complet du job ; vide, tous les jobs.",
             "type": "string"
@@ -202,6 +209,10 @@
       },
       "output": {
         "properties": {
+          "incomplet": {
+            "description": "Vrai si des dossiers n’ont pas pu être lus (droits, erreur) ou si la limite de demandes a arrêté le parcours.",
+            "type": "boolean"
+          },
           "jobs": {
             "items": {
               "properties": {
@@ -255,6 +266,66 @@
           },
           "input": {},
           "name": "Liste les jobs du compte"
+        },
+        {
+          "expect": {
+            "equals": {
+              "jobs.0.chemin": "plateforme/equipes/paiement/services/api-paiement",
+              "jobs.0.dossier": "plateforme / equipes / paiement / services",
+              "total": 1
+            },
+            "schema": true
+          },
+          "input": {
+            "simulation": true,
+            "texte": "api paiement"
+          },
+          "name": "Trouve un job à quatre niveaux de dossiers (faux Jenkins)"
+        },
+        {
+          "expect": {
+            "equals": {
+              "jobs.0.chemin": "plateforme/equipes/paiement/services/batch/rapprochement-nocturne",
+              "jobs.0.nom": "rapprochement-nocturne",
+              "total": 1
+            },
+            "schema": true
+          },
+          "input": {
+            "simulation": true,
+            "texte": "rapprochement"
+          },
+          "name": "Trouve un job à cinq niveaux de dossiers (faux Jenkins)"
+        },
+        {
+          "expect": {
+            "equals": {
+              "jobs.0.chemin": "github-acme/facturation/feature%2Fexport-pdf",
+              "jobs.0.nom": "feature/export-pdf",
+              "jobs.1.chemin": "github-acme/facturation/main",
+              "total": 2
+            },
+            "schema": true
+          },
+          "input": {
+            "simulation": true,
+            "texte": "facturation"
+          },
+          "name": "Parcourt un dossier d’organisation et son pipeline multibranche (faux Jenkins)"
+        },
+        {
+          "expect": {
+            "equals": {
+              "incomplet": true,
+              "jobs.0.chemin": "front-web",
+              "total": 6
+            },
+            "schema": true
+          },
+          "input": {
+            "simulation": true
+          },
+          "name": "Trouve tous les jobs et signale le dossier refusé (faux Jenkins)"
         }
       ],
       "tool": false,
@@ -742,5 +813,5 @@
   "setup": {
     "welcome": "Suivez d’un coup d’œil les jobs Jenkins qui comptent pour vous, lisez leurs logs et relancez-les. Il vous faut l’adresse de votre Jenkins, votre identifiant et un jeton d’API."
   },
-  "version": "1.0.0"
+  "version": "1.1.0"
 }

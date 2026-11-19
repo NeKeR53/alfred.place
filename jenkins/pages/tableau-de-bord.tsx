@@ -12,7 +12,6 @@ import {
   LoadingSkeleton,
   openForm,
   openModal,
-  openSubpage,
   Page,
   Row,
   SelectControl,
@@ -31,6 +30,7 @@ import {
   type Compte,
   creerVue,
   deplacerCarte,
+  dossierDe,
   enregistrerOrdre,
   type EtatJob,
   etatAffiche,
@@ -150,13 +150,17 @@ export default function TableauDeBord() {
     setTimeout(etats.reload, 1500);
   };
 
+  // Le log s’ouvre en modale large au-dessus de la page, comme les logs d’une exécution Prefect.
   const ouvrirLogs = (carte: Carte, etat: EtatJob | undefined) => {
     const affiche = etatAffiche(etat);
     const urlBuild = etat?.dernier?.url;
-    void openSubpage({
-      title: etat?.nom ?? nomCourt(carte.job),
-      subtitle: etat?.dernier ? `Build n° ${etat.dernier.numero}` : undefined,
-      status: affiche,
+    const nom = etat?.nom ?? nomCourt(carte.job);
+    void openModal({
+      title: `Logs de « ${nom} »`,
+      description: [affiche.label, etat?.dernier ? `build n° ${etat.dernier.numero}` : null, dossierDe(carte.job) || null]
+        .filter(Boolean)
+        .join(" · "),
+      size: "wide",
       actions: [
         ...(urlBuild
           ? [{ label: "Ouvrir dans Jenkins", icon: ExternalLink, onClick: () => shell.openExternal(`${urlBuild}console`) }]
@@ -164,7 +168,7 @@ export default function TableauDeBord() {
         {
           label: "Relancer",
           icon: Play,
-          confirm: `Relancer le job « ${etat?.nom ?? nomCourt(carte.job)} » ?`,
+          confirm: `Relancer le job « ${nom} » ?`,
           success: "Build demandé",
           onClick: () => relancer(carte),
         },
