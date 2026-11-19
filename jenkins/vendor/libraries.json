@@ -1,0 +1,13 @@
+{
+  "source": "https://esm.sh",
+  "libraries": {
+    "sortablejs": {
+      "version": "1.15.6",
+      "entry": "af8539503f-sortablejs-1.15.6.mjs"
+    }
+  },
+  "files": {
+    "79bfc3755a-sortablejs.mjs": "de5c325b7ed44c8f45a7d53f5f5d58e16d2d4d18c2aee7cd2016a1ae94660520",
+    "af8539503f-sortablejs-1.15.6.mjs": "7c510312d03b96056471e3d0aecf787c87b145be82ce1722a8c2e416e84f2aa7"
+  }
+}
