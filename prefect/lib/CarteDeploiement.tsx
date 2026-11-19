@@ -1,5 +1,6 @@
 import { FileText, History, Play } from "lucide-react";
-import { type Action, FormattedValue, ProgressBar, Row, Section, Stack, StatusBadge, Surface, Text } from "@alfred/ui";
+import type { Action } from "@alfred/ui";
+import { CarteSuivi } from "./CarteSuivi";
 import { ACTIFS, type Deploiement, duree, type EtatDeploiement, etatAffiche, nomComplet, planification, resume } from "./prefect";
 
 interface Props {
@@ -13,15 +14,12 @@ interface Props {
   autres: Action[];
 }
 
-const court = (texte: string, max = 160) => (texte.length > max ? `${texte.slice(0, max - 1)}…` : texte);
-
-/** Carte d’un déploiement, sur le modèle de la carte d’un job Jenkins : état, contexte, barre d’avancement en bas. */
+/** Carte d’un déploiement : les données Prefect passées à la carte commune (`CarteSuivi`, la même que celle de
+ * Jenkins). Aucun extrait de log dans la carte : les logs s’ouvrent seulement dans la modale. */
 export function CarteDeploiement({ deploiement: d, etat, compte, maintenant, onLogs, onLancer, onHistorique, autres }: Props) {
   const dernier = etat?.dernier ?? null;
-  const affiche = etat ? etatAffiche(dernier?.etat, dernier?.etatNom) : { label: "Chargement…", tone: "neutral" as const };
   const enCours = Boolean(dernier && ACTIFS.has(dernier.etat));
   const quand = dernier ? (enCours ? (dernier.debut ?? dernier.debutPrevu) : (dernier.fin ?? dernier.debut ?? dernier.debutPrevu)) : null;
-  const contexte = [compte, planification(d)].filter(Boolean).join(" · ");
 
   let avancement = 100;
   if (enCours) {
@@ -31,8 +29,6 @@ export function CarteDeploiement({ deploiement: d, etat, compte, maintenant, onL
       avancement = Math.min(99, Math.max(1, Math.round((ecoule / etat.dureeHabituelle) * 100)));
     }
   }
-  const echec = dernier && ["FAILED", "CRASHED"].includes(dernier.etat) ? dernier.message : null;
-  const anciennes = (etat?.recentes ?? []).slice(1);
 
   const actions: Action[] = [
     { label: "Voir les logs", icon: FileText, disabled: !dernier, onClick: onLogs },
@@ -48,71 +44,43 @@ export function CarteDeploiement({ deploiement: d, etat, compte, maintenant, onL
     ...autres,
   ];
 
-  // La barre d’avancement est collée au bas de la carte, quelle que soit la hauteur du contenu.
-  const barre = dernier ? (
-    <ProgressBar
-      label={
-        enCours
-          ? `${dernier.nom} · ${etat?.dureeHabituelle ? `estimée à ${duree(etat.dureeHabituelle)}` : "durée inconnue"}`
-          : `${dernier.nom}${dernier.duree ? ` · ${duree(dernier.duree)}` : ""}`
-      }
-      value={avancement}
-      tone={affiche.tone === "neutral" ? undefined : affiche.tone}
-      showValue={enCours && Boolean(etat?.dureeHabituelle)}
-    />
-  ) : null;
+  const anciennes = (etat?.recentes ?? []).slice(1);
+  const prochaine = etat?.prochaine?.debutPrevu ? "prochaine prévue" : "";
+  const note = etat?.erreur
+    ? { texte: etat.erreur, tone: "warning" as const }
+    : !dernier && etat
+      ? { texte: "Aucune exécution pour l’instant." }
+      : anciennes.length > 0
+        ? { texte: `Avant : ${resume(anciennes)}${prochaine ? ` · ${prochaine}` : ""}` }
+        : prochaine
+          ? { texte: "Prochaine exécution prévue." }
+          : null;
+
+  const badges = [
+    ...(d.enPause ? [{ label: "Suspendu", tone: "neutral" as const }] : []),
+    ...(d.statut === "NOT_READY" ? [{ label: "Aucun worker", tone: "warning" as const }] : []),
+  ];
 
   return (
-    <Surface footer={barre}>
-      <Section title={nomComplet(d)} description={contexte || undefined} actions={actions}>
-        <Stack gap="sm">
-          <Row justify="between">
-            <Row gap="xs">
-              <StatusBadge tone={affiche.tone}>{affiche.label}</StatusBadge>
-              {d.enPause ? (
-                <StatusBadge size="compact" tone="neutral">
-                  Suspendu
-                </StatusBadge>
-              ) : null}
-              {d.statut === "NOT_READY" ? (
-                <StatusBadge size="compact" tone="warning">
-                  Aucun worker
-                </StatusBadge>
-              ) : null}
-            </Row>
-            {quand ? (
-              <Text as="span" size="meta" tone="muted">
-                {enCours ? "lancée " : ""}
-                <FormattedValue value={quand} options={{ type: "relative" }} />
-              </Text>
-            ) : null}
-          </Row>
-          {etat?.erreur ? (
-            <Text size="meta" tone="warning">
-              {etat.erreur}
-            </Text>
-          ) : !dernier && etat ? (
-            <Text size="meta" tone="muted">
-              Aucune exécution pour l’instant.
-            </Text>
-          ) : echec ? (
-            <Text size="meta" tone="danger">
-              {court(echec)}
-            </Text>
-          ) : null}
-          {anciennes.length > 0 || etat?.prochaine?.debutPrevu ? (
-            <Text size="meta" tone="muted">
-              {anciennes.length > 0 ? `Avant : ${resume(anciennes)}` : ""}
-              {anciennes.length > 0 && etat?.prochaine?.debutPrevu ? " · " : ""}
-              {etat?.prochaine?.debutPrevu ? (
-                <>
-                  {anciennes.length > 0 ? "prochaine" : "Prochaine"} <FormattedValue value={etat.prochaine.debutPrevu} options={{ type: "relative" }} />
-                </>
-              ) : null}
-            </Text>
-          ) : null}
-        </Stack>
-      </Section>
-    </Surface>
+    <CarteSuivi
+      titre={nomComplet(d)}
+      contexte={[compte, planification(d)].filter(Boolean).join(" · ")}
+      actions={actions}
+      etat={etat ? etatAffiche(dernier?.etat, dernier?.etatNom) : { label: "Chargement…", tone: "neutral" }}
+      badges={badges}
+      quand={quand ? { date: quand, prefixe: enCours ? "lancée" : undefined } : null}
+      note={note}
+      barre={
+        dernier
+          ? {
+              label: enCours
+                ? `${dernier.nom} · ${etat?.dureeHabituelle ? `estimée à ${duree(etat.dureeHabituelle)}` : "durée inconnue"}`
+                : `${dernier.nom}${dernier.duree ? ` · ${duree(dernier.duree)}` : ""}`,
+              valeur: avancement,
+              afficherValeur: enCours && Boolean(etat?.dureeHabituelle),
+            }
+          : null
+      }
+    />
   );
 }

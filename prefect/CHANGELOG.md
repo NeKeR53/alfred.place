@@ -1,3 +1,8 @@
+## 1.2.1 — 2026-11-19
+
+- La carte d’un déploiement est exactement celle de Jenkins : mêmes boutons, même pied collé en bas avec l’état et la barre d’avancement (alignement avec un Alfred récent, commit dcca9aa).
+- Plus aucun extrait de log ni message d’échec dans la carte : ils s’ouvrent seulement dans la modale des logs.
+
 ## 1.2.0 — 2026-11-19
 
 - La carte d’un déploiement reprend celle de Jenkins, avec la barre d’avancement collée au bas de la carte.
