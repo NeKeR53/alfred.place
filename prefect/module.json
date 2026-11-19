@@ -1,0 +1,2334 @@
+{
+  "clients": [
+    {
+      "client": {
+        "headers": {
+          "Accept": "application/json"
+        },
+        "label": "Prefect",
+        "methods": [
+          {
+            "id": "cle-api",
+            "label": "Prefect Cloud (clé d’API)",
+            "type": "bearer"
+          },
+          {
+            "id": "identifiant",
+            "label": "Serveur Prefect (identifiant et mot de passe)",
+            "type": "basic"
+          },
+          {
+            "id": "ouvert",
+            "label": "Serveur Prefect sans authentification",
+            "type": "none"
+          }
+        ],
+        "testPath": "/block_types/slug/secret"
+      },
+      "help": "Indiquez l’adresse de l’API : pour Prefect Cloud, https://api.prefect.cloud/api/accounts/<compte>/workspaces/<espace> avec une clé d’API (Profil → Clés d’API) ; pour un serveur Prefect, son adresse suivie de /api.",
+      "id": "prefect",
+      "label": "Prefect"
+    }
+  ],
+  "description": "Déploiements Prefect en cartes : dernière exécution, lancement, historique, tâches et logs.",
+  "functions": [
+    {
+      "description": "Liste les comptes Prefect reliés à l’espace (nom et identifiant, sans adresse ni secret).",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Un compte Prefect",
+          "output": {
+            "comptes": [
+              {
+                "default": true,
+                "id": "production",
+                "label": "Prefect de production"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "aucun": true
+          },
+          "name": "Aucun compte relié",
+          "output": {
+            "comptes": []
+          }
+        }
+      ],
+      "id": "comptes-prefect",
+      "input": {
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "comptes": {
+            "items": {
+              "properties": {
+                "default": {
+                  "type": "boolean"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "default"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "comptes"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "comptes"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Liste les comptes Prefect"
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "prefect"
+        ]
+      }
+    },
+    {
+      "description": "Liste les déploiements d’une instance Prefect, filtrables par nom : flow, pool de workers, étiquettes, planifications, paramètres par défaut, suspension et disponibilité.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Quatre déploiements",
+          "output": {
+            "deploiements": [
+              {
+                "description": "Charge les ventes de la veille dans l’entrepôt.",
+                "enPause": false,
+                "flux": "etl-ventes",
+                "fluxId": "b2a7d1c4-8e3f-4a6b-9c2d-1e0f3a4b5f01",
+                "id": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01",
+                "misAJour": "2026-11-12T09:14:00.000Z",
+                "nom": "quotidien",
+                "parametres": {
+                  "date": null,
+                  "pays": "FR"
+                },
+                "planifications": [
+                  "cron 0 6 * * * (Europe/Paris)"
+                ],
+                "pool": "k8s-prod",
+                "schemaParametres": {
+                  "properties": {
+                    "date": {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    "pays": {
+                      "default": "FR",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "statut": "READY",
+                "tags": [
+                  "prod",
+                  "ventes"
+                ]
+              },
+              {
+                "description": null,
+                "enPause": false,
+                "flux": "export-factures",
+                "fluxId": "b2a7d1c4-8e3f-4a6b-9c2d-1e0f3a4b5f02",
+                "id": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a02",
+                "misAJour": "2026-10-28T16:40:00.000Z",
+                "nom": "mensuel",
+                "parametres": {},
+                "planifications": [
+                  "cron 0 2 1 * * (Europe/Paris)"
+                ],
+                "pool": "k8s-prod",
+                "schemaParametres": {
+                  "properties": {},
+                  "type": "object"
+                },
+                "statut": "READY",
+                "tags": [
+                  "finance"
+                ]
+              },
+              {
+                "description": "Réentraîne le modèle de prévision à la demande.",
+                "enPause": false,
+                "flux": "entrainement-modele",
+                "fluxId": "b2a7d1c4-8e3f-4a6b-9c2d-1e0f3a4b5f03",
+                "id": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a03",
+                "misAJour": "2026-11-18T14:02:00.000Z",
+                "nom": "manuel",
+                "parametres": {
+                  "epochs": 10,
+                  "jeu": "v3"
+                },
+                "planifications": [],
+                "pool": "gpu",
+                "schemaParametres": {
+                  "properties": {
+                    "epochs": {
+                      "default": 10,
+                      "type": "integer"
+                    },
+                    "jeu": {
+                      "default": "v3",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "statut": "READY",
+                "tags": [
+                  "ml"
+                ]
+              },
+              {
+                "description": null,
+                "enPause": true,
+                "flux": "nettoyage-s3",
+                "fluxId": "b2a7d1c4-8e3f-4a6b-9c2d-1e0f3a4b5f04",
+                "id": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a04",
+                "misAJour": "2026-09-02T08:00:00.000Z",
+                "nom": "hebdo",
+                "parametres": {
+                  "prefixe": "tmp/"
+                },
+                "planifications": [
+                  "toutes les 7 jours"
+                ],
+                "pool": "process-local",
+                "schemaParametres": {
+                  "properties": {
+                    "prefixe": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "statut": "NOT_READY",
+                "tags": [
+                  "infra"
+                ]
+              }
+            ],
+            "total": 4
+          }
+        },
+        {
+          "input": {
+            "texte": "factures"
+          },
+          "name": "Recherche « factures »",
+          "output": {
+            "deploiements": [
+              {
+                "description": null,
+                "enPause": false,
+                "flux": "export-factures",
+                "fluxId": "b2a7d1c4-8e3f-4a6b-9c2d-1e0f3a4b5f02",
+                "id": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a02",
+                "misAJour": "2026-10-28T16:40:00.000Z",
+                "nom": "mensuel",
+                "parametres": {},
+                "planifications": [
+                  "cron 0 2 1 * * (Europe/Paris)"
+                ],
+                "pool": "k8s-prod",
+                "schemaParametres": {
+                  "properties": {},
+                  "type": "object"
+                },
+                "statut": "READY",
+                "tags": [
+                  "finance"
+                ]
+              }
+            ],
+            "total": 1
+          }
+        },
+        {
+          "input": {
+            "texte": "zzz"
+          },
+          "name": "Aucun déploiement trouvé",
+          "output": {
+            "deploiements": [],
+            "total": 0
+          }
+        }
+      ],
+      "id": "lister-deploiements",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte Prefect ; omis, celui par défaut.",
+            "type": "string"
+          },
+          "limite": {
+            "description": "Nombre de déploiements rendus au plus (100 par défaut, 200 au plus).",
+            "type": "integer"
+          },
+          "texte": {
+            "description": "Partie du nom du déploiement ; vide, tous.",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "deploiements": {
+            "items": {
+              "properties": {
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "enPause": {
+                  "type": "boolean"
+                },
+                "flux": {
+                  "description": "Nom du flow.",
+                  "type": "string"
+                },
+                "fluxId": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "misAJour": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nom": {
+                  "type": "string"
+                },
+                "parametres": {
+                  "description": "Paramètres par défaut.",
+                  "type": "object"
+                },
+                "planifications": {
+                  "description": "Planifications actives, décrites en clair.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "pool": {
+                  "description": "Pool de workers.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "schemaParametres": {
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "statut": {
+                  "description": "READY quand un worker interroge le pool, NOT_READY sinon.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tags": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "id",
+                "nom",
+                "flux",
+                "tags",
+                "enPause",
+                "planifications",
+                "parametres"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deploiements",
+          "total"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "deploiements",
+              "total"
+            ],
+            "schema": true
+          },
+          "input": {
+            "limite": 20
+          },
+          "name": "Liste les déploiements de l’instance"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "prefect"
+        ]
+      }
+    },
+    {
+      "description": "Lit, pour plusieurs déploiements Prefect, la dernière exécution, les huit plus récentes, le nombre en cours, la durée habituelle et la prochaine exécution planifiée.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "deploiements": [
+              "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01",
+              "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a02",
+              "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a03",
+              "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a04"
+            ]
+          },
+          "name": "Quatre déploiements",
+          "output": {
+            "deploiements": [
+              {
+                "dernier": {
+                  "debut": "2026-11-19T05:00:04.000Z",
+                  "debutPrevu": "2026-11-19T05:00:00.000Z",
+                  "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01",
+                  "duree": 447,
+                  "etat": "COMPLETED",
+                  "etatNom": "Completed",
+                  "fin": "2026-11-19T05:07:31.000Z",
+                  "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e01",
+                  "message": "All states completed.",
+                  "nom": "brave-falcon"
+                },
+                "dureeHabituelle": 440,
+                "enCours": 0,
+                "erreur": null,
+                "id": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01",
+                "prochaine": {
+                  "debutPrevu": "2026-11-20T05:00:00.000Z",
+                  "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e09",
+                  "nom": "lucky-wren"
+                },
+                "recentes": [
+                  {
+                    "debut": "2026-11-19T05:00:04.000Z",
+                    "etat": "COMPLETED",
+                    "etatNom": "Completed",
+                    "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e01",
+                    "nom": "brave-falcon"
+                  },
+                  {
+                    "debut": "2026-11-18T05:00:03.000Z",
+                    "etat": "COMPLETED",
+                    "etatNom": "Completed",
+                    "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e05",
+                    "nom": "jolly-lynx"
+                  },
+                  {
+                    "debut": "2026-11-17T05:00:05.000Z",
+                    "etat": "FAILED",
+                    "etatNom": "Failed",
+                    "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e06",
+                    "nom": "eager-moth"
+                  },
+                  {
+                    "debut": "2026-11-16T05:00:02.000Z",
+                    "etat": "COMPLETED",
+                    "etatNom": "Completed",
+                    "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e07",
+                    "nom": "proud-ibis"
+                  },
+                  {
+                    "debut": "2026-11-15T05:00:04.000Z",
+                    "etat": "COMPLETED",
+                    "etatNom": "Completed",
+                    "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e08",
+                    "nom": "tidy-crane"
+                  }
+                ]
+              },
+              {
+                "dernier": {
+                  "debut": "2026-11-01T01:00:02.000Z",
+                  "debutPrevu": "2026-11-01T01:00:00.000Z",
+                  "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a02",
+                  "duree": 132,
+                  "etat": "FAILED",
+                  "etatNom": "Failed",
+                  "fin": "2026-11-01T01:02:14.000Z",
+                  "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e02",
+                  "message": "Flow run encountered an exception: KeyError: 'montant_ttc'",
+                  "nom": "quiet-otter"
+                },
+                "dureeHabituelle": 610,
+                "enCours": 0,
+                "erreur": null,
+                "id": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a02",
+                "prochaine": {
+                  "debutPrevu": "2026-12-01T01:00:00.000Z",
+                  "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e11",
+                  "nom": "gentle-koala"
+                },
+                "recentes": [
+                  {
+                    "debut": "2026-11-01T01:00:02.000Z",
+                    "etat": "FAILED",
+                    "etatNom": "Failed",
+                    "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e02",
+                    "nom": "quiet-otter"
+                  },
+                  {
+                    "debut": "2026-10-01T00:00:03.000Z",
+                    "etat": "COMPLETED",
+                    "etatNom": "Completed",
+                    "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e10",
+                    "nom": "bold-heron"
+                  }
+                ]
+              },
+              {
+                "dernier": {
+                  "debut": "2026-11-19T06:52:00.000Z",
+                  "debutPrevu": "2026-11-19T06:51:40.000Z",
+                  "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a03",
+                  "duree": 540,
+                  "etat": "RUNNING",
+                  "etatNom": "Running",
+                  "fin": null,
+                  "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e03",
+                  "message": null,
+                  "nom": "swift-heron"
+                },
+                "dureeHabituelle": 1800,
+                "enCours": 1,
+                "erreur": null,
+                "id": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a03",
+                "prochaine": null,
+                "recentes": [
+                  {
+                    "debut": "2026-11-19T06:52:00.000Z",
+                    "etat": "RUNNING",
+                    "etatNom": "Running",
+                    "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e03",
+                    "nom": "swift-heron"
+                  },
+                  {
+                    "debut": "2026-11-14T10:20:00.000Z",
+                    "etat": "COMPLETED",
+                    "etatNom": "Completed",
+                    "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e12",
+                    "nom": "witty-seal"
+                  },
+                  {
+                    "debut": "2026-11-13T15:02:00.000Z",
+                    "etat": "CANCELLED",
+                    "etatNom": "Cancelled",
+                    "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e13",
+                    "nom": "keen-raven"
+                  }
+                ]
+              },
+              {
+                "dernier": {
+                  "debut": "2026-11-10T03:00:06.000Z",
+                  "debutPrevu": "2026-11-10T03:00:00.000Z",
+                  "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a04",
+                  "duree": 66,
+                  "etat": "COMPLETED",
+                  "etatNom": "Completed",
+                  "fin": "2026-11-10T03:01:12.000Z",
+                  "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e04",
+                  "message": null,
+                  "nom": "calm-badger"
+                },
+                "dureeHabituelle": 66,
+                "enCours": 0,
+                "erreur": null,
+                "id": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a04",
+                "prochaine": null,
+                "recentes": [
+                  {
+                    "debut": "2026-11-10T03:00:06.000Z",
+                    "etat": "COMPLETED",
+                    "etatNom": "Completed",
+                    "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e04",
+                    "nom": "calm-badger"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "deploiements": []
+          },
+          "name": "Aucun déploiement",
+          "output": {
+            "deploiements": []
+          }
+        }
+      ],
+      "id": "lire-dernieres-executions",
+      "input": {
+        "properties": {
+          "deploiements": {
+            "description": "Identifiants des déploiements, 60 au plus.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "instance": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "deploiements"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "deploiements": {
+            "items": {
+              "properties": {
+                "dernier": {
+                  "properties": {
+                    "debut": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "debutPrevu": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "deploiementId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "duree": {
+                      "description": "Secondes.",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "etat": {
+                      "description": "SCHEDULED, PENDING, RUNNING, COMPLETED, FAILED, CANCELLED, CANCELLING, CRASHED, PAUSED.",
+                      "type": "string"
+                    },
+                    "etatNom": {
+                      "type": "string"
+                    },
+                    "fin": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "nom": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "nom",
+                    "etat"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "dureeHabituelle": {
+                  "description": "Durée médiane des dernières exécutions réussies, en secondes.",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "enCours": {
+                  "type": "integer"
+                },
+                "erreur": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "prochaine": {
+                  "properties": {
+                    "debutPrevu": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "nom": {
+                      "type": "string"
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "recentes": {
+                  "items": {
+                    "properties": {
+                      "debut": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "etat": {
+                        "type": "string"
+                      },
+                      "etatNom": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "nom": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "etat"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "id",
+                "dernier",
+                "recentes",
+                "enCours",
+                "prochaine"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "deploiements"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "deploiements"
+            ],
+            "schema": true
+          },
+          "input": {
+            "deploiements": []
+          },
+          "name": "Lit une liste vide"
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "prefect"
+        ]
+      }
+    },
+    {
+      "description": "Historique des exécutions (flow runs) d’une instance Prefect, les plus récentes d’abord, filtrable par déploiement, états et nom, avec pagination.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Dernières exécutions de l’instance",
+          "output": {
+            "executions": [
+              {
+                "debut": "2026-11-19T06:52:00.000Z",
+                "debutPrevu": "2026-11-19T06:51:40.000Z",
+                "deploiement": "manuel",
+                "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a03",
+                "duree": 540,
+                "etat": "RUNNING",
+                "etatNom": "Running",
+                "fin": null,
+                "flux": "entrainement-modele",
+                "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e03",
+                "message": null,
+                "nom": "swift-heron",
+                "parametres": {
+                  "epochs": 12,
+                  "jeu": "v3"
+                }
+              },
+              {
+                "debut": "2026-11-19T05:00:04.000Z",
+                "debutPrevu": "2026-11-19T05:00:00.000Z",
+                "deploiement": "quotidien",
+                "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01",
+                "duree": 447,
+                "etat": "COMPLETED",
+                "etatNom": "Completed",
+                "fin": "2026-11-19T05:07:31.000Z",
+                "flux": "etl-ventes",
+                "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e01",
+                "message": "All states completed.",
+                "nom": "brave-falcon",
+                "parametres": {
+                  "date": null,
+                  "pays": "FR"
+                }
+              },
+              {
+                "debut": "2026-11-18T05:00:03.000Z",
+                "debutPrevu": "2026-11-18T05:00:00.000Z",
+                "deploiement": "quotidien",
+                "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01",
+                "duree": 431,
+                "etat": "COMPLETED",
+                "etatNom": "Completed",
+                "fin": "2026-11-18T05:07:14.000Z",
+                "flux": "etl-ventes",
+                "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e05",
+                "message": "All states completed.",
+                "nom": "jolly-lynx",
+                "parametres": {
+                  "date": null,
+                  "pays": "FR"
+                }
+              },
+              {
+                "debut": "2026-11-17T05:00:05.000Z",
+                "debutPrevu": "2026-11-17T05:00:00.000Z",
+                "deploiement": "quotidien",
+                "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01",
+                "duree": 95,
+                "etat": "FAILED",
+                "etatNom": "Failed",
+                "fin": "2026-11-17T05:01:40.000Z",
+                "flux": "etl-ventes",
+                "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e06",
+                "message": "Flow run encountered an exception: ConnectionError: entrepôt injoignable",
+                "nom": "eager-moth",
+                "parametres": {
+                  "date": null,
+                  "pays": "FR"
+                }
+              },
+              {
+                "debut": "2026-11-10T03:00:06.000Z",
+                "debutPrevu": "2026-11-10T03:00:00.000Z",
+                "deploiement": "hebdo",
+                "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a04",
+                "duree": 66,
+                "etat": "COMPLETED",
+                "etatNom": "Completed",
+                "fin": "2026-11-10T03:01:12.000Z",
+                "flux": "nettoyage-s3",
+                "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e04",
+                "message": null,
+                "nom": "calm-badger",
+                "parametres": {
+                  "prefixe": "tmp/"
+                }
+              },
+              {
+                "debut": "2026-11-01T01:00:02.000Z",
+                "debutPrevu": "2026-11-01T01:00:00.000Z",
+                "deploiement": "mensuel",
+                "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a02",
+                "duree": 132,
+                "etat": "FAILED",
+                "etatNom": "Failed",
+                "fin": "2026-11-01T01:02:14.000Z",
+                "flux": "export-factures",
+                "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e02",
+                "message": "Flow run encountered an exception: KeyError: 'montant_ttc'",
+                "nom": "quiet-otter",
+                "parametres": {}
+              }
+            ],
+            "total": 6
+          }
+        },
+        {
+          "input": {
+            "deploiement": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01"
+          },
+          "name": "Historique du déploiement quotidien",
+          "output": {
+            "executions": [
+              {
+                "debut": "2026-11-19T05:00:04.000Z",
+                "debutPrevu": "2026-11-19T05:00:00.000Z",
+                "deploiement": "quotidien",
+                "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01",
+                "duree": 447,
+                "etat": "COMPLETED",
+                "etatNom": "Completed",
+                "fin": "2026-11-19T05:07:31.000Z",
+                "flux": "etl-ventes",
+                "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e01",
+                "message": "All states completed.",
+                "nom": "brave-falcon",
+                "parametres": {
+                  "date": null,
+                  "pays": "FR"
+                }
+              },
+              {
+                "debut": "2026-11-18T05:00:03.000Z",
+                "debutPrevu": "2026-11-18T05:00:00.000Z",
+                "deploiement": "quotidien",
+                "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01",
+                "duree": 431,
+                "etat": "COMPLETED",
+                "etatNom": "Completed",
+                "fin": "2026-11-18T05:07:14.000Z",
+                "flux": "etl-ventes",
+                "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e05",
+                "message": "All states completed.",
+                "nom": "jolly-lynx",
+                "parametres": {
+                  "date": null,
+                  "pays": "FR"
+                }
+              },
+              {
+                "debut": "2026-11-17T05:00:05.000Z",
+                "debutPrevu": "2026-11-17T05:00:00.000Z",
+                "deploiement": "quotidien",
+                "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01",
+                "duree": 95,
+                "etat": "FAILED",
+                "etatNom": "Failed",
+                "fin": "2026-11-17T05:01:40.000Z",
+                "flux": "etl-ventes",
+                "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e06",
+                "message": "Flow run encountered an exception: ConnectionError: entrepôt injoignable",
+                "nom": "eager-moth",
+                "parametres": {
+                  "date": null,
+                  "pays": "FR"
+                }
+              }
+            ],
+            "total": 3
+          }
+        },
+        {
+          "input": {
+            "etats": [
+              "CRASHED"
+            ]
+          },
+          "name": "Aucune exécution plantée",
+          "output": {
+            "executions": [],
+            "total": 0
+          }
+        }
+      ],
+      "id": "lister-executions",
+      "input": {
+        "properties": {
+          "decalage": {
+            "description": "Nombre d’exécutions sautées, pour la pagination.",
+            "type": "integer"
+          },
+          "deploiement": {
+            "description": "Identifiant du déploiement ; omis, tous.",
+            "type": "string"
+          },
+          "etats": {
+            "description": "Types d’état gardés : COMPLETED, FAILED, RUNNING, CRASHED, CANCELLED, SCHEDULED, PENDING, PAUSED, CANCELLING.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "limite": {
+            "description": "50 par défaut, 200 au plus.",
+            "type": "integer"
+          },
+          "texte": {
+            "description": "Partie du nom de l’exécution.",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "executions": {
+            "items": {
+              "properties": {
+                "debut": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "debutPrevu": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "deploiement": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "deploiementId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "duree": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "etat": {
+                  "type": "string"
+                },
+                "etatNom": {
+                  "type": "string"
+                },
+                "fin": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "flux": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nom": {
+                  "type": "string"
+                },
+                "parametres": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "id",
+                "nom",
+                "etat",
+                "flux"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "executions",
+          "total"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "executions",
+              "total"
+            ],
+            "schema": true
+          },
+          "input": {
+            "limite": 5
+          },
+          "name": "Lit les cinq dernières exécutions"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "prefect"
+        ]
+      }
+    },
+    {
+      "description": "Lit une exécution Prefect en détail (la plus récente si aucune n’est donnée) : état et message, flow, déploiement, horaires, durée, paramètres, étiquettes, tentatives, pool, auteur, et ses tâches avec leur état et leur durée.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "execution": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e01"
+          },
+          "name": "Exécution réussie de etl-ventes",
+          "output": {
+            "execution": {
+              "cree": "2026-11-18T05:00:12.000Z",
+              "creePar": "Planification",
+              "debut": "2026-11-19T05:00:04.000Z",
+              "debutPrevu": "2026-11-19T05:00:00.000Z",
+              "deploiement": "quotidien",
+              "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01",
+              "duree": 447,
+              "etat": "COMPLETED",
+              "etatNom": "Completed",
+              "file": "default",
+              "fin": "2026-11-19T05:07:31.000Z",
+              "flux": "etl-ventes",
+              "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e01",
+              "message": "All states completed.",
+              "nom": "brave-falcon",
+              "parametres": {
+                "date": null,
+                "pays": "FR"
+              },
+              "pool": "k8s-prod",
+              "tags": [
+                "prod",
+                "ventes"
+              ],
+              "tentatives": 1
+            },
+            "taches": [
+              {
+                "debut": "2026-11-19T05:00:06.000Z",
+                "duree": 184,
+                "etat": "COMPLETED",
+                "etatNom": "Completed",
+                "fin": "2026-11-19T05:03:10.000Z",
+                "id": "c1a00000-0000-4000-8000-000000000001",
+                "nom": "extraire-ventes-0"
+              },
+              {
+                "debut": "2026-11-19T05:03:11.000Z",
+                "duree": 111,
+                "etat": "COMPLETED",
+                "etatNom": "Completed",
+                "fin": "2026-11-19T05:05:02.000Z",
+                "id": "c1a00000-0000-4000-8000-000000000002",
+                "nom": "transformer-0"
+              },
+              {
+                "debut": "2026-11-19T05:05:03.000Z",
+                "duree": 147,
+                "etat": "COMPLETED",
+                "etatNom": "Completed",
+                "fin": "2026-11-19T05:07:30.000Z",
+                "id": "c1a00000-0000-4000-8000-000000000003",
+                "nom": "charger-entrepot-0"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "execution": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e02"
+          },
+          "name": "Exécution en échec de export-factures",
+          "output": {
+            "execution": {
+              "cree": "2026-10-31T01:00:09.000Z",
+              "creePar": "Planification",
+              "debut": "2026-11-01T01:00:02.000Z",
+              "debutPrevu": "2026-11-01T01:00:00.000Z",
+              "deploiement": "mensuel",
+              "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a02",
+              "duree": 132,
+              "etat": "FAILED",
+              "etatNom": "Failed",
+              "file": "default",
+              "fin": "2026-11-01T01:02:14.000Z",
+              "flux": "export-factures",
+              "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e02",
+              "message": "Flow run encountered an exception: KeyError: 'montant_ttc'",
+              "nom": "quiet-otter",
+              "parametres": {},
+              "pool": "k8s-prod",
+              "tags": [
+                "finance"
+              ],
+              "tentatives": 1
+            },
+            "taches": [
+              {
+                "debut": "2026-11-01T01:00:04.000Z",
+                "duree": 106,
+                "etat": "COMPLETED",
+                "etatNom": "Completed",
+                "fin": "2026-11-01T01:01:50.000Z",
+                "id": "c1a00000-0000-4000-8000-000000000011",
+                "nom": "lire-factures-0"
+              },
+              {
+                "debut": "2026-11-01T01:01:51.000Z",
+                "duree": 22,
+                "etat": "FAILED",
+                "etatNom": "Failed",
+                "fin": "2026-11-01T01:02:13.000Z",
+                "id": "c1a00000-0000-4000-8000-000000000012",
+                "nom": "calculer-totaux-0"
+              },
+              {
+                "debut": null,
+                "duree": 0,
+                "etat": "PENDING",
+                "etatNom": "NotReady",
+                "fin": null,
+                "id": "c1a00000-0000-4000-8000-000000000013",
+                "nom": "ecrire-export-0"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "execution": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e03"
+          },
+          "name": "Entraînement en cours",
+          "output": {
+            "execution": {
+              "cree": "2026-11-19T06:51:40.000Z",
+              "creePar": "Alexandre",
+              "debut": "2026-11-19T06:52:00.000Z",
+              "debutPrevu": "2026-11-19T06:51:40.000Z",
+              "deploiement": "manuel",
+              "deploiementId": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a03",
+              "duree": 540,
+              "etat": "RUNNING",
+              "etatNom": "Running",
+              "file": "default",
+              "fin": null,
+              "flux": "entrainement-modele",
+              "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e03",
+              "message": null,
+              "nom": "swift-heron",
+              "parametres": {
+                "epochs": 12,
+                "jeu": "v3"
+              },
+              "pool": "gpu",
+              "tags": [
+                "ml"
+              ],
+              "tentatives": 1
+            },
+            "taches": [
+              {
+                "debut": "2026-11-19T06:52:03.000Z",
+                "duree": 157,
+                "etat": "COMPLETED",
+                "etatNom": "Completed",
+                "fin": "2026-11-19T06:54:40.000Z",
+                "id": "c1a00000-0000-4000-8000-000000000021",
+                "nom": "charger-jeu-0"
+              },
+              {
+                "debut": "2026-11-19T06:54:41.000Z",
+                "duree": 380,
+                "etat": "RUNNING",
+                "etatNom": "Running",
+                "fin": null,
+                "id": "c1a00000-0000-4000-8000-000000000022",
+                "nom": "entrainer-0"
+              }
+            ]
+          }
+        }
+      ],
+      "id": "lire-execution",
+      "input": {
+        "properties": {
+          "execution": {
+            "description": "Identifiant de l’exécution (flow run) ; omis, la plus récente.",
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "execution": {
+            "properties": {
+              "cree": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "creePar": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "debut": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "debutPrevu": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "deploiement": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "deploiementId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "duree": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "etat": {
+                "type": "string"
+              },
+              "etatNom": {
+                "type": "string"
+              },
+              "file": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "fin": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "flux": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "nom": {
+                "type": "string"
+              },
+              "parametres": {
+                "type": "object"
+              },
+              "pool": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tags": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "tentatives": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "nom",
+              "etat",
+              "flux",
+              "parametres",
+              "tags"
+            ],
+            "type": "object"
+          },
+          "taches": {
+            "items": {
+              "properties": {
+                "debut": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "duree": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "etat": {
+                  "type": "string"
+                },
+                "etatNom": {
+                  "type": "string"
+                },
+                "fin": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "nom",
+                "etat"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "execution",
+          "taches"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "execution.id",
+              "taches"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Lit la dernière exécution de l’instance"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "prefect"
+        ]
+      }
+    },
+    {
+      "description": "Lit les logs d’une exécution Prefect (la plus récente si aucune n’est donnée) dans l’ordre, les 1 000 dernières lignes au plus, avec leur niveau, leur tâche et leur source, filtrables par niveau minimal, et dit si l’exécution tourne encore.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "execution": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e01"
+          },
+          "name": "Logs d’une exécution réussie",
+          "output": {
+            "enCours": false,
+            "etat": "COMPLETED",
+            "lignes": [
+              {
+                "horodatage": "2026-11-19T05:00:04.120Z",
+                "message": "Beginning flow run 'brave-falcon' for flow 'etl-ventes'",
+                "niveau": 20,
+                "source": "prefect.flow_runs",
+                "tache": null
+              },
+              {
+                "horodatage": "2026-11-19T05:00:06.010Z",
+                "message": "Extraction des ventes du 18/11 pour FR",
+                "niveau": 20,
+                "source": "prefect.task_runs",
+                "tache": "extraire-ventes-0"
+              },
+              {
+                "horodatage": "2026-11-19T05:03:10.300Z",
+                "message": "48 213 lignes extraites",
+                "niveau": 20,
+                "source": "prefect.task_runs",
+                "tache": "extraire-ventes-0"
+              },
+              {
+                "horodatage": "2026-11-19T05:04:40.800Z",
+                "message": "312 lignes sans code magasin, ignorées",
+                "niveau": 30,
+                "source": "prefect.task_runs",
+                "tache": "transformer-0"
+              },
+              {
+                "horodatage": "2026-11-19T05:07:30.500Z",
+                "message": "Finished in state Completed()",
+                "niveau": 20,
+                "source": "prefect.task_runs",
+                "tache": "charger-entrepot-0"
+              },
+              {
+                "horodatage": "2026-11-19T05:07:31.020Z",
+                "message": "Finished in state Completed('All states completed.')",
+                "niveau": 20,
+                "source": "prefect.flow_runs",
+                "tache": null
+              }
+            ],
+            "tronque": false
+          }
+        },
+        {
+          "input": {
+            "execution": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e02"
+          },
+          "name": "Logs d’une exécution en échec",
+          "output": {
+            "enCours": false,
+            "etat": "FAILED",
+            "lignes": [
+              {
+                "horodatage": "2026-11-01T01:00:02.400Z",
+                "message": "Beginning flow run 'quiet-otter' for flow 'export-factures'",
+                "niveau": 20,
+                "source": "prefect.flow_runs",
+                "tache": null
+              },
+              {
+                "horodatage": "2026-11-01T01:01:50.100Z",
+                "message": "1 284 factures lues",
+                "niveau": 20,
+                "source": "prefect.task_runs",
+                "tache": "lire-factures-0"
+              },
+              {
+                "horodatage": "2026-11-01T01:02:13.700Z",
+                "message": "Task run failed with exception: KeyError('montant_ttc')\nTraceback (most recent call last):\n  File \"/app/flows/factures.py\", line 58, in calculer_totaux\n    total += ligne[\"montant_ttc\"]\nKeyError: 'montant_ttc'",
+                "niveau": 40,
+                "source": "prefect.task_runs",
+                "tache": "calculer-totaux-0"
+              },
+              {
+                "horodatage": "2026-11-01T01:02:14.050Z",
+                "message": "Finished in state Failed(\"Flow run encountered an exception: KeyError: 'montant_ttc'\")",
+                "niveau": 40,
+                "source": "prefect.flow_runs",
+                "tache": null
+              }
+            ],
+            "tronque": false
+          }
+        },
+        {
+          "input": {
+            "execution": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e03"
+          },
+          "name": "Logs d’un entraînement en cours",
+          "output": {
+            "enCours": true,
+            "etat": "RUNNING",
+            "lignes": [
+              {
+                "horodatage": "2026-11-19T06:52:00.300Z",
+                "message": "Beginning flow run 'swift-heron' for flow 'entrainement-modele'",
+                "niveau": 20,
+                "source": "prefect.flow_runs",
+                "tache": null
+              },
+              {
+                "horodatage": "2026-11-19T06:54:40.200Z",
+                "message": "Jeu v3 chargé : 1,2 M d’exemples",
+                "niveau": 20,
+                "source": "prefect.task_runs",
+                "tache": "charger-jeu-0"
+              },
+              {
+                "horodatage": "2026-11-19T06:58:12.900Z",
+                "message": "Époque 4/12 — perte 0,231",
+                "niveau": 20,
+                "source": "prefect.task_runs",
+                "tache": "entrainer-0"
+              }
+            ],
+            "tronque": false
+          }
+        }
+      ],
+      "id": "lire-logs-execution",
+      "input": {
+        "properties": {
+          "execution": {
+            "description": "Identifiant de l’exécution (flow run) ; omis, la plus récente.",
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "niveauMin": {
+            "description": "Niveau minimal : 10 debug, 20 info, 30 avertissement, 40 erreur, 50 critique.",
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "enCours": {
+            "type": "boolean"
+          },
+          "etat": {
+            "type": "string"
+          },
+          "lignes": {
+            "items": {
+              "properties": {
+                "horodatage": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "niveau": {
+                  "type": "integer"
+                },
+                "source": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tache": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "horodatage",
+                "niveau",
+                "message"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "tronque": {
+            "description": "Vrai si seules les 1 000 dernières lignes sont rendues.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "etat",
+          "enCours",
+          "tronque",
+          "lignes"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "lignes",
+              "etat"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Lit les logs de la dernière exécution"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "prefect"
+        ]
+      }
+    },
+    {
+      "description": "Lance une exécution d’un déploiement Prefect, avec ses paramètres par défaut ou ceux donnés (fusionnés avec les valeurs par défaut).",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "deploiement": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01"
+          },
+          "name": "Lancement du déploiement quotidien",
+          "output": {
+            "execution": {
+              "etat": "SCHEDULED",
+              "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e20",
+              "nom": "happy-panda"
+            },
+            "lance": true
+          }
+        },
+        {
+          "input": {
+            "deploiement": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a03",
+            "parametres": {
+              "epochs": 20
+            }
+          },
+          "name": "Entraînement avec d’autres paramètres",
+          "output": {
+            "execution": {
+              "etat": "SCHEDULED",
+              "id": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e21",
+              "nom": "noble-yak"
+            },
+            "lance": true
+          }
+        }
+      ],
+      "id": "lancer-deploiement",
+      "input": {
+        "properties": {
+          "deploiement": {
+            "description": "Identifiant du déploiement.",
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "parametres": {
+            "description": "Paramètres de l’exécution ; omis, ceux par défaut.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "deploiement"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "execution": {
+            "properties": {
+              "etat": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "nom": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "nom",
+              "etat"
+            ],
+            "type": "object"
+          },
+          "lance": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "lance",
+          "execution"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "lance": true
+            },
+            "schema": true
+          },
+          "input": {},
+          "name": "Lance un déploiement de test",
+          "target": {
+            "field": "deploiement",
+            "hint": "identifiant d’un déploiement sans danger à lancer",
+            "label": "Déploiement de test"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "prefect"
+        ]
+      }
+    },
+    {
+      "description": "Annule une exécution Prefect planifiée, en attente ou en cours.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "execution": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e03"
+          },
+          "name": "Annulation d’un entraînement en cours",
+          "output": {
+            "annulee": true,
+            "etat": "CANCELLING"
+          }
+        },
+        {
+          "input": {
+            "execution": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e09"
+          },
+          "name": "Annulation d’une exécution planifiée",
+          "output": {
+            "annulee": true,
+            "etat": "CANCELLED"
+          }
+        }
+      ],
+      "id": "annuler-execution",
+      "input": {
+        "properties": {
+          "execution": {
+            "description": "Identifiant de l’exécution (flow run).",
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "execution"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "annulee": {
+            "type": "boolean"
+          },
+          "etat": {
+            "description": "CANCELLED, ou CANCELLING le temps que le worker arrête l’exécution.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "annulee",
+          "etat"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "annulee": true
+            },
+            "schema": true
+          },
+          "input": {},
+          "name": "Annule une exécution de test",
+          "target": {
+            "field": "execution",
+            "hint": "identifiant d’un flow run planifié ou en cours, sans danger à annuler",
+            "label": "Exécution de test"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "prefect"
+        ]
+      }
+    },
+    {
+      "description": "Suspend ou reprend un déploiement Prefect : suspendu, ses planifications ne créent plus d’exécutions.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "deploiement": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01",
+            "suspendre": true
+          },
+          "name": "Suspension du déploiement quotidien",
+          "output": {
+            "enPause": true
+          }
+        },
+        {
+          "input": {
+            "deploiement": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a04",
+            "suspendre": false
+          },
+          "name": "Reprise du nettoyage hebdomadaire",
+          "output": {
+            "enPause": false
+          }
+        }
+      ],
+      "id": "suspendre-deploiement",
+      "input": {
+        "properties": {
+          "deploiement": {
+            "description": "Identifiant du déploiement.",
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "suspendre": {
+            "description": "Vrai pour suspendre, faux pour reprendre.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deploiement",
+          "suspendre"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "enPause": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enPause"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "enPause": false
+            },
+            "schema": true
+          },
+          "input": {
+            "suspendre": false
+          },
+          "name": "Reprend un déploiement de test",
+          "target": {
+            "field": "deploiement",
+            "hint": "identifiant d’un déploiement sans danger",
+            "label": "Déploiement de test"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "prefect"
+        ]
+      }
+    },
+    {
+      "description": "Lit un déploiement Prefect (le premier par ordre alphabétique si aucun n’est donné) : flow, description, pool de workers, étiquettes, planifications, paramètres par défaut, suspension et disponibilité ; null s’il n’existe pas.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "deploiement": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01"
+          },
+          "name": "Déploiement quotidien de etl-ventes",
+          "output": {
+            "deploiement": {
+              "description": "Charge les ventes de la veille dans l’entrepôt.",
+              "enPause": false,
+              "flux": "etl-ventes",
+              "fluxId": "b2a7d1c4-8e3f-4a6b-9c2d-1e0f3a4b5f01",
+              "id": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01",
+              "misAJour": "2026-11-12T09:14:00.000Z",
+              "nom": "quotidien",
+              "parametres": {
+                "date": null,
+                "pays": "FR"
+              },
+              "planifications": [
+                "cron 0 6 * * * (Europe/Paris)"
+              ],
+              "pool": "k8s-prod",
+              "schemaParametres": {
+                "properties": {
+                  "date": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "pays": {
+                    "default": "FR",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "statut": "READY",
+              "tags": [
+                "prod",
+                "ventes"
+              ]
+            }
+          }
+        },
+        {
+          "input": {
+            "deploiement": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a02"
+          },
+          "name": "Déploiement mensuel de export-factures",
+          "output": {
+            "deploiement": {
+              "description": null,
+              "enPause": false,
+              "flux": "export-factures",
+              "fluxId": "b2a7d1c4-8e3f-4a6b-9c2d-1e0f3a4b5f02",
+              "id": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a02",
+              "misAJour": "2026-10-28T16:40:00.000Z",
+              "nom": "mensuel",
+              "parametres": {},
+              "planifications": [
+                "cron 0 2 1 * * (Europe/Paris)"
+              ],
+              "pool": "k8s-prod",
+              "schemaParametres": {
+                "properties": {},
+                "type": "object"
+              },
+              "statut": "READY",
+              "tags": [
+                "finance"
+              ]
+            }
+          }
+        },
+        {
+          "input": {
+            "deploiement": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a03"
+          },
+          "name": "Entraînement manuel",
+          "output": {
+            "deploiement": {
+              "description": "Réentraîne le modèle de prévision à la demande.",
+              "enPause": false,
+              "flux": "entrainement-modele",
+              "fluxId": "b2a7d1c4-8e3f-4a6b-9c2d-1e0f3a4b5f03",
+              "id": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a03",
+              "misAJour": "2026-11-18T14:02:00.000Z",
+              "nom": "manuel",
+              "parametres": {
+                "epochs": 10,
+                "jeu": "v3"
+              },
+              "planifications": [],
+              "pool": "gpu",
+              "schemaParametres": {
+                "properties": {
+                  "epochs": {
+                    "default": 10,
+                    "type": "integer"
+                  },
+                  "jeu": {
+                    "default": "v3",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "statut": "READY",
+              "tags": [
+                "ml"
+              ]
+            }
+          }
+        }
+      ],
+      "id": "lire-deploiement",
+      "input": {
+        "properties": {
+          "deploiement": {
+            "description": "Identifiant du déploiement ; omis, le premier par ordre alphabétique.",
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "deploiement": {
+            "properties": {
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "enPause": {
+                "type": "boolean"
+              },
+              "flux": {
+                "type": "string"
+              },
+              "fluxId": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "misAJour": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "nom": {
+                "type": "string"
+              },
+              "parametres": {
+                "type": "object"
+              },
+              "planifications": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "pool": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "schemaParametres": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "statut": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tags": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "nom",
+              "flux",
+              "tags",
+              "enPause",
+              "planifications",
+              "parametres"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "deploiement"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "deploiement"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Lit un déploiement de l’instance"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "prefect"
+        ]
+      }
+    }
+  ],
+  "id": "prefect",
+  "name": "Prefect",
+  "pages": [
+    {
+      "description": "Cartes des déploiements Prefect d’une instance : dernière exécution, lancement, historique et logs.",
+      "icon": "rocket",
+      "id": "deploiements",
+      "placement": {
+        "kind": "tab",
+        "section": "principal"
+      },
+      "title": "Déploiements",
+      "uses": {
+        "clients": [
+          "prefect"
+        ],
+        "functions": [
+          "comptes-prefect",
+          "lister-deploiements",
+          "lire-dernieres-executions",
+          "lire-execution",
+          "lire-logs-execution",
+          "lancer-deploiement",
+          "suspendre-deploiement",
+          "annuler-execution"
+        ]
+      }
+    },
+    {
+      "description": "Historique des exécutions du déploiement choisi, avec leur état, leurs tâches et leurs logs.",
+      "icon": "history",
+      "id": "historique",
+      "placement": {
+        "kind": "panel",
+        "page": "prefect/deploiements"
+      },
+      "title": "Historique",
+      "uses": {
+        "clients": [
+          "prefect"
+        ],
+        "functions": [
+          "lire-deploiement",
+          "lister-executions",
+          "lire-execution",
+          "lire-logs-execution",
+          "lancer-deploiement",
+          "annuler-execution"
+        ]
+      }
+    }
+  ],
+  "sections": [
+    {
+      "color": "blue",
+      "icon": "icons/principal.svg",
+      "id": "principal",
+      "label": "Prefect"
+    }
+  ],
+  "setup": {
+    "welcome": "Suivez vos déploiements Prefect d’un coup d’œil : dernière exécution, lancement en un clic, historique, tâches et logs. Il vous faut l’adresse de l’API Prefect et, pour Prefect Cloud, une clé d’API."
+  },
+  "version": "1.0.0"
+}
