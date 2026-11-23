@@ -1,5 +1,5 @@
 import { aucunCompte } from "../lib/comptes-api";
-import { bitbucketClient, erreurBitbucket, normaliserDepot, type DepotBrut } from "../lib/bitbucket-api";
+import { bitbucketClient, erreurBitbucket, normaliserDepot, type DepotBrut, liste } from "../lib/bitbucket-api";
 
 interface BrancheBrute { id?: string; displayId?: string; isDefault?: boolean; latestCommit?: string }
 
@@ -21,7 +21,7 @@ export default async function ({ instance, projet, depot }: { instance?: string;
   if (!rDepot.ok) erreurBitbucket(rDepot);
   if (!rBranches.ok) erreurBitbucket(rBranches);
 
-  const branches = (rBranches.body?.values ?? []).map((branche) => ({
+  const branches = liste(rBranches.body?.values).map((branche) => ({
     nom: branche.displayId ?? branche.id ?? "",
     estDefaut: branche.isDefault === true,
     dernierCommit: branche.latestCommit ?? null,

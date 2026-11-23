@@ -1,57 +1,93 @@
-import { useState } from "react";
-import {
-  ArrowRightLeft,
-  Bot,
-  Clock,
-  ExternalLink,
-  Eye,
-  EyeOff,
-  FileText,
-  Link2,
-  MessageSquare,
-  PenLine,
-  Pencil,
-  Trash2,
-} from "lucide-react";
-import { ai, functions, shell, useAsync, usePeerMessage } from "@alfred/sdk";
+import { Row, Stack, Text } from "@alfred/kit";
+import { functions, shell, useAsync, usePeerMessage } from "@alfred/sdk";
+import { Clock, ExternalLink, Eye, EyeOff, Link2, MessageSquare, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
   type Action,
-  Avatar,
   Button,
-  Code,
-  confirmAction,
-  EmptyState,
-  FeedbackBanner,
+  Dialog,
   HtmlContent,
   InlineEdit,
-  IconButton,
-  KeyValueList,
   List,
-  ListItem,
-  LoadingSkeleton,
-  Markdown,
-  openForm,
-  openModal,
-  Row,
-  Section,
-  Stack,
+  type ListItemData,
+  PageSection,
+  PropertyRow,
+  RadioGroup,
   StatusBadge,
-  Tabs,
-  Text,
-  TextArea,
-  TextInput,
-} from "@alfred/ui";
+  useConfirm,
+  useOpenForm,
+} from "socle-ui";
 import { dateRelative, tailleLisible } from "./jira";
 import type { ChampTicket } from "./jira-champs";
 import { tonCategorie, tonPriorite } from "./affichage";
-import { type ContexteTicket, proposerSousTaches, redigerCommentaire, resumerTicket, suggererTriage } from "./assistant";
 
-const NIVEAUX: Record<string, { label: string; tone: "danger" | "warning" | "neutral" }> = {
-  critique: { label: "Critique", tone: "danger" },
-  important: { label: "Important", tone: "warning" },
-  normal: { label: "Normal", tone: "neutral" },
-  faible: { label: "Faible", tone: "neutral" },
-};
+/** Prévient la fiche ouverte qu’un changement fait ailleurs dans la page (l’état, depuis l’en-tête) doit être relu. */
+const abonnes = new Set<(cle: string) => void>();
+export function signalerModification(cle: string) {
+  for (const abonne of abonnes) abonne(cle);
+  void shell.send({ type: "ticket-modifie", cle });
+}
+
+export interface Transition {
+  id: string;
+  nom: string;
+  vers: string;
+  categorie: string;
+}
+
+/** Transitions proposées par Jira pour un ticket ; aucune : la page le dit, rien ne s’ouvre. */
+export async function lireTransitions(instance: string | undefined, cle: string): Promise<Transition[] | null> {
+  const { transitions } = await functions.call<{ transitions: Transition[] }>("transitionner-ticket", { instance, cle });
+  if (!Array.isArray(transitions) || transitions.length === 0) {
+    void shell.notify({ title: "Aucun changement d’état n’est proposé pour ce ticket", tone: "info" });
+    return null;
+  }
+  return transitions;
+}
+
+/** Modale « Changer l’état » : les transitions du ticket, en liste ; en choisir une l’applique. */
+export function ChoixEtat({
+  instance,
+  cle,
+  transitions,
+  onClose,
+}: {
+  instance: string | undefined;
+  cle: string;
+  transitions: Transition[];
+  onClose: () => void;
+}) {
+  return (
+    <Dialog
+      isOpen
+      title="Changer l’état"
+      description={`Ticket ${cle}`}
+      onOpenChange={(ouverte) => {
+        if (!ouverte) onClose();
+      }}
+      footer={<Button onPress={onClose}>Annuler</Button>}
+    >
+      <List
+        label="Transitions disponibles"
+        selectionMode="none"
+        items={transitions.map((transition) => ({
+          id: transition.id,
+          title: transition.nom,
+          status: { label: transition.vers, tone: tonCategorie(transition.categorie) },
+        }))}
+        onAction={async (id) => {
+          try {
+            await functions.call("transitionner-ticket", { instance, cle, transition: id });
+            signalerModification(cle);
+            onClose();
+          } catch (erreur) {
+            void shell.notify({ title: "Le changement d’état a échoué", description: (erreur as Error).message, tone: "error" });
+          }
+        }}
+      />
+    </Dialog>
+  );
+}
 
 interface Resume {
   cle: string;
@@ -99,33 +135,22 @@ export interface FicheComplete {
 
 type Onglet = "commentaires" | "liens" | "temps" | "historique" | "pieces";
 
-function ResumeTicket({ ticket, relation }: { ticket: Resume; relation?: string }) {
-  return (
-    <ListItem
-      title={
-        <Row gap="sm">
-          <Code>{ticket.cle}</Code>
-          <Text as="span">{ticket.titre}</Text>
-        </Row>
-      }
-      description={[relation, ticket.type].filter(Boolean).join(" · ") || undefined}
-      trailing={
-        ticket.statut ? (
-          <StatusBadge tone={tonCategorie(ticket.categorie)} size="compact">
-            {ticket.statut}
-          </StatusBadge>
-        ) : undefined
-      }
-    />
-  );
-}
+/** Un ticket lié, en élément de liste. */
+const resumeTicket = (ticket: Resume, relation?: string): ListItemData => ({
+  id: ticket.cle,
+  title: `${ticket.cle} · ${ticket.titre}`,
+  subtitle: [relation, ticket.type].filter(Boolean).join(" · ") || undefined,
+  status: ticket.statut ? { label: ticket.statut, tone: tonCategorie(ticket.categorie) } : undefined,
+});
 
 /**
- * Fiche complète d’un ticket Jira, comme dans Jira : description et activité à gauche,
- * tous les champs à droite, chacun modifiable sur place.
+ * Fiche complète d’un ticket Jira, en sections d’une `DetailPage` : résumé, description et activité ; tous les
+ * champs sont dans le panneau de droite, chacun modifiable sur place.
  */
 export function FicheTicket({ instance, cle }: { instance?: string; cle: string }) {
   const [onglet, setOnglet] = useState<Onglet>("commentaires");
+  const openForm = useOpenForm();
+  const confirm = useConfirm();
   const fiche = useAsync(
     () => functions.call<{ ticket: FicheComplete | null }>("lire-ticket", { instance, cle }),
     [instance, cle],
@@ -134,6 +159,15 @@ export function FicheTicket({ instance, cle }: { instance?: string; cle: string 
   usePeerMessage((message) => {
     if ((message as { type?: string })?.type === "ticket-modifie") fiche.reload();
   });
+  useEffect(() => {
+    const abonne = (modifie: string) => {
+      if (modifie === cle) fiche.reload();
+    };
+    abonnes.add(abonne);
+    return () => {
+      abonnes.delete(abonne);
+    };
+  }, [cle]);
   const ticket = fiche.data?.ticket;
   const recharger = () => fiche.reload();
   const appeler = async (fonction: string, entree: Record<string, unknown>) => {
@@ -141,83 +175,30 @@ export function FicheTicket({ instance, cle }: { instance?: string; cle: string 
     recharger();
     void shell.send({ type: "ticket-modifie", cle });
   };
+  const reussi = (title: string) => shell.notify({ title, tone: "success" });
 
-  // Criticité de ce ticket, jugée sur l’ordinateur.
-  const jugement = useAsync(
-    () =>
-      ticket
-        ? functions.call<{ resultats: Array<{ niveau: string; confiance: number; aVerifier: boolean; urgent?: boolean; bloquant?: boolean; frustration?: boolean }> }>(
-            "evaluer-criticite",
-            {
-              instance: instance ?? "",
-              complet: true,
-              tickets: [
-                {
-                  cle: ticket.cle,
-                  titre: ticket.titre,
-                  type: ticket.type,
-                  priorite: ticket.priorite,
-                  misAJour: ticket.misAJour,
-                  description: ticket.description,
-                  dernierCommentaire: ticket.commentaires[ticket.commentaires.length - 1]?.corps ?? "",
-                },
-              ],
-            },
-          )
-        : Promise.resolve({ resultats: [] }),
-    [ticket?.cle, ticket?.misAJour],
-  );
-  const [analyse, setAnalyse] = useState<{ resume: string; pointsCles: string[]; prochaineEtape: string } | null>(null);
-
-  if (fiche.error) {
+  if (fiche.error || !ticket) {
     return (
-      <FeedbackBanner tone="danger" action={<Button onClick={recharger}>Réessayer</Button>}>
-        {fiche.error.message}
-      </FeedbackBanner>
+      <PageSection
+        title="Ticket"
+        state={fiche.error ? "error" : fiche.loading ? "loading" : "ready"}
+        onRetry={recharger}
+        empty={!fiche.error && !fiche.loading ? { title: "Ticket introuvable" } : undefined}
+      >
+        {null}
+      </PageSection>
     );
-  }
-  if (!ticket) {
-    return fiche.loading ? <LoadingSkeleton /> : <EmptyState title="Ticket introuvable" />;
-  }
-
-  function changerEtat() {
-    return openModal({
-      title: "Changer l’état",
-      description: `Actuellement : ${ticket!.statut}`,
-      content: (fermer) => (
-        <List label="Transitions disponibles">
-          {ticket!.transitions.map((transition) => (
-            <ListItem
-              key={transition.id}
-              title={transition.nom}
-              trailing={
-                <StatusBadge tone={tonCategorie(transition.categorie)} size="compact">
-                  {transition.vers}
-                </StatusBadge>
-              }
-              onClick={async () => {
-                try {
-                  await appeler("transitionner-ticket", { transition: transition.id });
-                  fermer();
-                  void shell.notify({ title: `Ticket passé à « ${transition.vers} »`, tone: "success" });
-                } catch (erreur) {
-                  void shell.notify({ title: "Le changement d’état a échoué", description: (erreur as Error).message, tone: "error" });
-                }
-              }}
-            />
-          ))}
-        </List>
-      ),
-    });
   }
 
   const commenter = () =>
     openForm({
       title: "Ajouter un commentaire",
-      fields: [{ name: "texte", label: "Commentaire", type: "textarea" }],
+      fields: [{ name: "texte", label: "Commentaire", type: "textarea", isRequired: true }],
       submitLabel: "Publier",
-      success: "Commentaire ajouté",
-      onSubmit: (v) => appeler("commenter-ticket", { texte: v.texte }),
+      onSubmit: async (v) => {
+        await appeler("commenter-ticket", { texte: v.texte });
+        reussi("Commentaire ajouté");
+      },
     });
 
   const consigner = () =>
@@ -225,14 +206,21 @@ export function FicheTicket({ instance, cle }: { instance?: string; cle: string 
       title: "Consigner du temps",
       description: "Durées au format Jira : 30m, 1h 30m, 2d.",
       fields: [
-        { name: "duree", label: "Temps passé", placeholder: "1h 30m" },
-        { name: "jour", label: "Jour", type: "date", optional: true },
-        { name: "restant", label: "Temps restant", optional: true, placeholder: "2h" },
-        { name: "commentaire", label: "Ce qui a été fait", type: "textarea", optional: true },
+        { name: "duree", label: "Temps passé", isRequired: true, placeholder: "1h 30m" },
+        { name: "jour", label: "Jour", placeholder: "AAAA-MM-JJ" },
+        { name: "restant", label: "Temps restant", placeholder: "2h" },
+        { name: "commentaire", label: "Ce qui a été fait", type: "textarea" },
       ],
       submitLabel: "Consigner",
-      success: "Temps consigné",
-      onSubmit: (v) => appeler("consigner-temps", { duree: v.duree, jour: v.jour || undefined, restant: v.restant, commentaire: v.commentaire }),
+      onSubmit: async (v) => {
+        await appeler("consigner-temps", {
+          duree: v.duree,
+          jour: v.jour || undefined,
+          restant: v.restant ?? "",
+          commentaire: v.commentaire ?? "",
+        });
+        reussi("Temps consigné");
+      },
     });
 
   async function lier() {
@@ -241,38 +229,32 @@ export function FicheTicket({ instance, cle }: { instance?: string; cle: string 
       { instance },
     );
     const options = types.flatMap((t) => [
-      { value: `${t.nom}|sortant`, label: t.sortant },
-      { value: `${t.nom}|entrant`, label: t.entrant },
+      { id: `${t.nom}|sortant`, label: t.sortant },
+      { id: `${t.nom}|entrant`, label: t.entrant },
     ]);
     return openForm({
-      title: `Lier ${ticket!.cle} à un autre ticket`,
+      title: `Lier ${cle} à un autre ticket`,
       fields: [
-        { name: "relation", label: "Ce ticket", type: "select", options },
-        { name: "autre", label: "Ticket", placeholder: "ALF-12" },
+        { name: "relation", label: "Ce ticket", type: "select", isRequired: true, options },
+        { name: "autre", label: "Ticket", isRequired: true, placeholder: "ALF-12" },
       ],
       submitLabel: "Lier",
-      success: "Tickets liés",
-      onSubmit: (v) => {
-        const [type, sens] = v.relation.split("|");
-        return appeler("lier-tickets", { autre: v.autre, type, sens });
+      onSubmit: async (v) => {
+        const [type, sens] = String(v.relation).split("|");
+        await appeler("lier-tickets", { autre: v.autre, type, sens });
+        reussi("Tickets liés");
       },
     });
   }
 
-  const actions: Action[] = [
-    { label: "Changer l’état", icon: ArrowRightLeft, primary: true, hidden: ticket.transitions.length === 0, onClick: changerEtat },
-    { label: "Commenter", icon: MessageSquare, onClick: commenter },
-    { label: "Consigner du temps", icon: Clock, onClick: consigner },
-    { label: "Lier un ticket", icon: Link2, onClick: lier },
-    {
-      label: ticket.jeSuis ? "Ne plus suivre" : "Suivre le ticket",
-      icon: ticket.jeSuis ? EyeOff : Eye,
-      success: ticket.jeSuis ? "Vous ne suivez plus ce ticket" : "Vous suivez ce ticket",
-      onClick: () => appeler("suivre-ticket", { suivre: !ticket.jeSuis }),
-    },
-    { label: "Ouvrir dans Jira", icon: ExternalLink, hidden: !ticket.url, onClick: () => shell.openExternal(ticket.url ?? "") },
-  ];
-
+  const modifierDescription = () =>
+    openForm({
+      title: "Modifier la description",
+      fields: [{ name: "description", label: "Description", type: "textarea", minRows: 10, maxRows: 24 }],
+      initialValues: { description: ticket.description },
+      submitLabel: "Enregistrer",
+      onSubmit: (v) => appeler("modifier-champ", { champ: "description", valeur: v.description ?? "" }),
+    });
 
   const onglets: Array<{ id: Onglet; label: string }> = [
     { id: "commentaires", label: `Commentaires (${ticket.commentaires.length})` },
@@ -281,429 +263,247 @@ export function FicheTicket({ instance, cle }: { instance?: string; cle: string 
     { id: "historique", label: "Historique" },
     { id: "pieces", label: `Pièces jointes (${ticket.pieces.length})` },
   ];
+  const vide = (texte: string) => (
+    <Text tone="muted" size="meta">
+      {texte}
+    </Text>
+  );
 
   let activite;
   if (onglet === "commentaires") {
+    const commentaires = [...ticket.commentaires].reverse();
     activite =
-      ticket.commentaires.length === 0 ? (
-        <EmptyState size="compact" title="Aucun commentaire" />
+      commentaires.length === 0 ? (
+        vide("Aucun commentaire")
       ) : (
-        <Stack gap="lg">
-          {[...ticket.commentaires].reverse().map((commentaire) => (
-            <Stack key={commentaire.id} gap="xs">
-              <Row justify="between">
-                <Row gap="sm">
-                  <Avatar name={commentaire.auteur} size="sm" />
-                  <Text as="span" weight="strong">
-                    {commentaire.auteur}
-                  </Text>
-                  <Text as="span" size="meta" tone="muted">
-                    {dateRelative(commentaire.cree)}
-                    {commentaire.modifie ? " · modifié" : ""}
-                  </Text>
-                </Row>
-                <Row gap="xs">
-                  <IconButton
-                    label="Modifier le commentaire"
-                    size="small"
-                    onClick={() =>
-                      openForm({
-                        title: "Modifier le commentaire",
-                        fields: [{ name: "texte", label: "Commentaire", type: "textarea" }],
-                        initial: { texte: commentaire.corps },
-                        submitLabel: "Enregistrer",
-                        success: "Commentaire modifié",
-                        onSubmit: (v) => appeler("modifier-commentaire", { commentaire: commentaire.id, texte: v.texte }),
-                      })
-                    }
-                  >
-                    <Pencil size={14} aria-hidden="true" />
-                  </IconButton>
-                  <IconButton
-                    label="Supprimer le commentaire"
-                    size="small"
-                    tone="danger"
-                    onClick={async () => {
-                      const oui = await confirmAction({
-                        title: "Supprimer ce commentaire ?",
-                        message: "Cette action est définitive.",
-                        confirmLabel: "Supprimer",
-                        tone: "danger",
-                      });
-                      if (oui) await appeler("supprimer-commentaire", { commentaire: commentaire.id });
-                    }}
-                  >
-                    <Trash2 size={14} aria-hidden="true" />
-                  </IconButton>
-                </Row>
-              </Row>
-              {commentaire.html ? (
-                <HtmlContent html={commentaire.html} label={`Commentaire de ${commentaire.auteur}`} onLink={(url) => void shell.openExternal(url)} />
-              ) : (
-                <Text>{commentaire.corps}</Text>
-              )}
-            </Stack>
-          ))}
-        </Stack>
+        <List
+          label="Commentaires"
+          selectionMode="none"
+          leading="avatar"
+          items={commentaires.map((commentaire) => ({
+            id: commentaire.id,
+            title: commentaire.auteur,
+            subtitle: commentaire.corps,
+            meta: `${dateRelative(commentaire.cree)}${commentaire.modifie ? " · modifié" : ""}`,
+          }))}
+          itemActions={(item) => {
+            const commentaire = commentaires.find((c) => c.id === item.id);
+            if (!commentaire) return [];
+            return [
+              {
+                icon: <Pencil size={16} />,
+                label: "Modifier le commentaire",
+                onPress: () =>
+                  void openForm({
+                    title: "Modifier le commentaire",
+                    fields: [{ name: "texte", label: "Commentaire", type: "textarea", isRequired: true }],
+                    initialValues: { texte: commentaire.corps },
+                    submitLabel: "Enregistrer",
+                    onSubmit: async (v) => {
+                      await appeler("modifier-commentaire", { commentaire: commentaire.id, texte: v.texte });
+                      reussi("Commentaire modifié");
+                    },
+                  }),
+              },
+              {
+                icon: <Trash2 size={16} />,
+                label: "Supprimer le commentaire",
+                onPress: async () => {
+                  const oui = await confirm({
+                    title: "Supprimer ce commentaire ?",
+                    message: "Cette action est définitive.",
+                    confirmLabel: "Supprimer",
+                  });
+                  if (oui) await appeler("supprimer-commentaire", { commentaire: commentaire.id });
+                },
+              },
+            ];
+          }}
+        />
       );
   } else if (onglet === "liens") {
-    activite = (
-      <Stack gap="md">
-        {ticket.parent && (
-          <List label="Ticket parent">
-            <ResumeTicket ticket={ticket.parent} relation="Parent" />
-          </List>
-        )}
-        {ticket.sousTaches.length > 0 && (
-          <List label="Sous-tâches">
-            {ticket.sousTaches.map((t) => (
-              <ResumeTicket key={t.cle} ticket={t} relation="Sous-tâche" />
-            ))}
-          </List>
-        )}
-        {ticket.liens.length > 0 ? (
-          <List label="Tickets liés">
-            {ticket.liens.map((lien) => (
-              <ListItem
-                key={lien.id}
-                title={
-                  <Row gap="sm">
-                    <Code>{lien.cle}</Code>
-                    <Text as="span">{lien.titre}</Text>
-                  </Row>
-                }
-                description={lien.relation}
-                trailing={
-                  <Row gap="xs">
-                    <StatusBadge tone={tonCategorie(lien.categorie)} size="compact">
-                      {lien.statut}
-                    </StatusBadge>
-                    <IconButton
-                      label={`Retirer le lien avec ${lien.cle}`}
-                      size="small"
-                      onClick={() => appeler("supprimer-lien", { lien: lien.id })}
-                    >
-                      <Trash2 size={14} aria-hidden="true" />
-                    </IconButton>
-                  </Row>
-                }
-              />
-            ))}
-          </List>
-        ) : (
-          !ticket.parent && ticket.sousTaches.length === 0 && <EmptyState size="compact" title="Aucun lien" />
-        )}
-      </Stack>
-    );
+    const elements = [
+      ...(ticket.parent ? [resumeTicket(ticket.parent, "Parent")] : []),
+      ...ticket.sousTaches.map((t) => resumeTicket(t, "Sous-tâche")),
+      ...ticket.liens.map((lien) => ({ ...resumeTicket(lien, lien.relation), id: `lien:${lien.id}` })),
+    ];
+    activite =
+      elements.length === 0 ? (
+        vide("Aucun lien")
+      ) : (
+        <List
+          label="Tickets liés"
+          selectionMode="none"
+          items={elements}
+          itemActions={(item) =>
+            item.id.startsWith("lien:")
+              ? [
+                  {
+                    icon: <Trash2 size={16} />,
+                    label: `Retirer le lien avec ${item.title.split(" · ")[0]}`,
+                    onPress: () => void appeler("supprimer-lien", { lien: item.id.slice(5) }),
+                  },
+                ]
+              : []
+          }
+        />
+      );
   } else if (onglet === "temps") {
     activite = (
       <Stack gap="md">
-        <KeyValueList
-          items={[
-            { label: "Estimation initiale", value: ticket.temps.estimation || "—" },
-            { label: "Temps passé", value: ticket.temps.passe || "—" },
-            { label: "Temps restant", value: ticket.temps.restant || "—" },
-          ]}
-        />
+        <Stack gap="none">
+          <PropertyRow label="Estimation initiale" value={ticket.temps.estimation || undefined} />
+          <PropertyRow label="Temps passé" value={ticket.temps.passe || undefined} />
+          <PropertyRow label="Temps restant" value={ticket.temps.restant || undefined} />
+        </Stack>
         {ticket.temps.entrees.length > 0 ? (
-          <List label="Temps consigné">
-            {ticket.temps.entrees.map((entree) => (
-              <ListItem
-                key={entree.id}
-                leading={<Avatar name={entree.auteur} size="sm" />}
-                title={`${entree.auteur} · ${entree.duree}`}
-                description={entree.commentaire || undefined}
-                trailing={<Text as="span" size="meta" tone="muted">{dateRelative(entree.quand)}</Text>}
-              />
-            ))}
-          </List>
+          <List
+            label="Temps consigné"
+            selectionMode="none"
+            leading="avatar"
+            items={ticket.temps.entrees.map((entree) => ({
+              id: entree.id,
+              title: `${entree.auteur} · ${entree.duree}`,
+              subtitle: entree.commentaire || undefined,
+              meta: dateRelative(entree.quand),
+            }))}
+          />
         ) : (
-          <EmptyState size="compact" title="Aucun temps consigné" />
+          vide("Aucun temps consigné")
         )}
       </Stack>
     );
   } else if (onglet === "historique") {
     activite =
       ticket.historique.length === 0 ? (
-        <EmptyState size="compact" title="Aucune modification" />
+        vide("Aucune modification")
       ) : (
-        <List label="Historique du ticket">
-          {ticket.historique.map((h) => (
-            <ListItem
-              key={h.id}
-              leading={<Avatar name={h.auteur} size="sm" />}
-              title={`${h.auteur} · ${h.changements.map((c) => c.champ).join(", ")}`}
-              description={h.changements
-                .map((c) => `${c.champ} : ${c.de || "—"} → ${c.vers || "—"}`)
-                .join(" ; ")}
-              trailing={<Text as="span" size="meta" tone="muted">{dateRelative(h.quand)}</Text>}
-            />
-          ))}
-        </List>
+        <List
+          label="Historique du ticket"
+          selectionMode="none"
+          leading="avatar"
+          items={ticket.historique.map((h) => ({
+            id: h.id,
+            title: `${h.auteur} · ${h.changements.map((c) => c.champ).join(", ")}`,
+            subtitle: h.changements.map((c) => `${c.champ} : ${c.de || "—"} → ${c.vers || "—"}`).join(" ; "),
+            meta: dateRelative(h.quand),
+          }))}
+        />
       );
   } else {
     activite =
       ticket.pieces.length === 0 ? (
-        <EmptyState size="compact" title="Aucune pièce jointe" />
+        vide("Aucune pièce jointe")
       ) : (
-        <List label="Pièces jointes">
-          {ticket.pieces.map((piece) => (
-            <ListItem
-              key={piece.id}
-              title={piece.nom}
-              description={[tailleLisible(piece.taille), piece.auteur, dateRelative(piece.cree)].filter(Boolean).join(" · ")}
-              onClick={piece.url ? () => void shell.openExternal(piece.url ?? "") : undefined}
-            />
-          ))}
-        </List>
+        <List
+          label="Pièces jointes"
+          selectionMode="none"
+          items={ticket.pieces.map((piece) => ({
+            id: piece.id,
+            title: piece.nom,
+            subtitle: [tailleLisible(piece.taille), piece.auteur, dateRelative(piece.cree)].filter(Boolean).join(" · "),
+          }))}
+          onAction={(id) => {
+            const piece = ticket.pieces.find((p) => p.id === id);
+            if (piece?.url) void shell.openExternal(piece.url);
+          }}
+        />
       );
   }
 
-  const critique = jugement.data?.resultats[0];
-  const contexte: ContexteTicket = {
-    cle: ticket.cle,
-    titre: ticket.titre,
-    type: ticket.type,
-    statut: ticket.statut,
-    priorite: ticket.priorite,
-    assigne: ticket.assigne,
-    description: ticket.description,
-    commentaires: ticket.commentaires.map((c) => ({ auteur: c.auteur, corps: c.corps })),
-    champs: ticket.champs.filter((c) => c.affichage).map((c) => ({ nom: c.nom, affichage: c.affichage })),
-  };
-
-  async function proposerDecoupage() {
-    const { sousTaches } = await proposerSousTaches(contexte);
-    return openForm({
-      title: `Sous-tâches proposées pour ${ticket!.cle}`,
-      description: "Une sous-tâche par ligne. Modifiez, supprimez ou ajoutez des lignes avant de créer.",
-      fields: [
-        {
-          name: "lignes",
-          label: "Sous-tâches",
-          type: "textarea",
-        },
-      ],
-      initial: { lignes: sousTaches.map((t) => t.titre).join("\n") },
-      submitLabel: "Créer les sous-tâches",
-      success: "Sous-tâches créées",
-      onSubmit: async (v) => {
-        const titres = v.lignes.split("\n").map((l) => l.trim()).filter(Boolean);
-        for (const titre of titres) {
-          const detail = sousTaches.find((t) => t.titre === titre)?.description;
-          await functions.call("creer-ticket", {
-            instance,
-            projet: ticket!.projet,
-            resume: titre,
-            description: detail,
-            parent: ticket!.cle,
-          });
-        }
-        recharger();
-      },
-    });
-  }
-
-  async function suggerer() {
-    const champPriorite = ticket!.champs.find((c) => c.id === "priority");
-    const personnes = await functions
-      .call<{ utilisateurs: Array<{ id: string; nom: string }> }>("lister-assignables", { instance, projet: ticket!.projet })
-      .then((r) => r.utilisateurs)
-      .catch(() => []);
-    const priorites = (champPriorite?.options ?? []).map((o) => o.nom);
-    const avis = await suggererTriage(contexte, priorites, personnes);
-    const option = champPriorite?.options.find((o) => o.nom === avis.priorite);
-    const personne = personnes.find((p) => p.id === avis.assigne);
-    return openModal({
-      title: "Proposition de triage",
-      content: (
-        <Stack gap="md">
-          <KeyValueList
-            items={[
-              { label: "Priorité", value: avis.priorite || "—" },
-              { label: "Assigné", value: personne?.nom ?? "Aucune proposition" },
-            ]}
-          />
-          <Text>{avis.justification}</Text>
-        </Stack>
-      ),
-      actions: [
-        {
-          label: "Appliquer",
-          primary: true,
-          success: "Proposition appliquée",
-          onClick: async () => {
-            if (option) await appeler("modifier-champ", { champ: "priority", valeur: option.id });
-            if (personne) await appeler("modifier-champ", { champ: "assignee", valeur: personne.id });
-          },
-        },
-      ],
-    });
-  }
-
-  const confierAgent = () =>
-    openForm({
-      title: "Confier ce ticket à l’assistant",
-      description:
-        "Décrivez ce que vous voulez : je lis le ticket, ses pull requests et les pages liées, et je vous demande votre accord avant chaque changement.",
-      fields: [
-        {
-          name: "demande",
-          label: "Votre demande",
-          type: "textarea",
-          placeholder: "Fais le point sur ce ticket, retrouve la PR associée et passe-le en revue si elle est ouverte.",
-        },
-      ],
-      submitLabel: "Lancer",
-      onSubmit: async (v) => {
-        await ai.startAgent({
-          title: `${ticket!.cle} · ${ticket!.titre}`,
-          instruction: `Tu aides l’utilisateur sur le ticket Jira ${ticket!.cle} (compte « ${instance ?? ""} »). Sa demande : ${v.demande}\nPasse toujours instance = « ${instance ?? ""} » aux fonctions Jira. Réponds en français.`,
-          context: contexte,
-          functions: [
-            "lire-ticket",
-            "modifier-champ",
-            "commenter-ticket",
-            "transitionner-ticket",
-            "lier-tickets",
-            "consigner-temps",
-            "lister-assignables",
-            "creer-ticket",
-            "lister-tickets",
-            "evaluer-criticite",
-            "lister-prs",
-            "lire-pr",
-            "rechercher-pages",
-            "lire-page",
-          ],
-        });
-        recharger();
-      },
-    });
-
-  const actionsAssistant: Action[] = [
-    {
-      label: "Résumer le ticket",
-      icon: FileText,
-      onClick: async () => setAnalyse(await resumerTicket(contexte)),
-    },
-    {
-      label: "Rédiger un commentaire",
-      icon: PenLine,
-      onClick: async () => {
-        const { commentaire } = await redigerCommentaire(contexte, "");
-        return openForm({
-          title: "Commentaire proposé",
-          description: "Relisez et ajustez avant de publier.",
-          fields: [{ name: "texte", label: "Commentaire", type: "textarea" }],
-          initial: { texte: commentaire },
-          submitLabel: "Publier",
-          success: "Commentaire publié",
-          onSubmit: (val) => appeler("commenter-ticket", { texte: val.texte }),
-        });
-      },
-    },
-    { label: "Proposer des sous-tâches", onClick: proposerDecoupage },
-    { label: "Suggérer priorité et assigné", onClick: suggerer },
-    { label: "Confier à l’assistant", icon: Bot, primary: true, onClick: confierAgent },
-  ];
+  // Chaque onglet de l’activité a son action, à droite du titre : commenter, lier, consigner du temps.
+  const actionsActivite: Action[] =
+    onglet === "commentaires"
+      ? [{ id: "commenter", label: "Ajouter un commentaire", icon: <MessageSquare size={16} />, primary: true, onPress: commenter }]
+      : onglet === "liens"
+        ? [{ id: "lier", label: "Lier un ticket", icon: <Link2 size={16} />, primary: true, onPress: lier }]
+        : onglet === "temps"
+          ? [{ id: "consigner", label: "Consigner du temps", icon: <Clock size={16} />, primary: true, onPress: consigner }]
+          : onglet === "pieces"
+            ? [
+                {
+                  id: "ajouter-jira",
+                  label: "Ajouter dans Jira",
+                  icon: <ExternalLink size={16} />,
+                  primary: true,
+                  isHidden: !ticket.url,
+                  onPress: () => shell.openExternal(ticket.url ?? ""),
+                },
+              ]
+            : [];
 
   return (
-    <Stack gap="lg">
-      <Section
-        title="En bref"
-        description={[ticket.type, ticket.projetNom || ticket.projet, `créé ${dateRelative(ticket.cree)}`, `mis à jour ${dateRelative(ticket.misAJour)}`].filter(Boolean).join(" · ")}
-        actions={actions}
-      >
-        <Row gap="sm" wrap>
-          <StatusBadge tone={tonCategorie(ticket.statutCategorie)}>{ticket.statut}</StatusBadge>
-          {ticket.priorite && <StatusBadge tone={tonPriorite(ticket.priorite)}>{`Priorité ${ticket.priorite}`}</StatusBadge>}
-          <Text as="span" size="meta" tone="muted">
-            {`${ticket.observateurs} observateur${ticket.observateurs > 1 ? "s" : ""} · ${ticket.votes} vote${ticket.votes > 1 ? "s" : ""}`}
-          </Text>
-        </Row>
-      </Section>
-
-      <Section
-        title="Assistant"
-        description="Je lis le ticket et son fil pour vous aider ; rien n’est publié sans votre accord."
-        actions={actionsAssistant}
+    <>
+      <PageSection
+        title="Résumé"
+        description={[
+          ticket.type,
+          ticket.projetNom || ticket.projet,
+          `créé ${dateRelative(ticket.cree)}`,
+          `mis à jour ${dateRelative(ticket.misAJour)}`,
+          `${ticket.observateurs} observateur${ticket.observateurs > 1 ? "s" : ""}`,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+        actions={[
+          {
+            id: "suivre",
+            label: ticket.jeSuis ? "Ne plus suivre le ticket" : "Suivre le ticket",
+            icon: ticket.jeSuis ? <EyeOff size={16} /> : <Eye size={16} />,
+            onPress: async () => {
+              await appeler("suivre-ticket", { suivre: !ticket.jeSuis });
+              reussi(ticket.jeSuis ? "Vous ne suivez plus ce ticket" : "Vous suivez ce ticket");
+            },
+          },
+        ]}
       >
         <Stack gap="sm">
           <Row gap="sm" wrap>
-            {critique ? (
-              <StatusBadge tone={NIVEAUX[critique.niveau]?.tone ?? "neutral"}>
-                {`Criticité : ${NIVEAUX[critique.niveau]?.label ?? critique.niveau}${critique.aVerifier ? " (à vérifier)" : ""}`}
-              </StatusBadge>
-            ) : (
-              <Text as="span" size="meta" tone="muted">
-                {jugement.error ? jugement.error.message : "Criticité en cours d’évaluation…"}
-              </Text>
-            )}
-            {critique?.urgent && <StatusBadge tone="warning">À traiter aujourd’hui</StatusBadge>}
-            {critique?.bloquant && <StatusBadge tone="danger">Utilisateurs bloqués</StatusBadge>}
-            {critique?.frustration && <StatusBadge tone="warning">Demandeur agacé</StatusBadge>}
+            <StatusBadge tone={tonCategorie(ticket.statutCategorie)}>{ticket.statut}</StatusBadge>
+            {ticket.priorite ? (
+              <StatusBadge tone={tonPriorite(ticket.priorite)}>{`Priorité ${ticket.priorite}`}</StatusBadge>
+            ) : null}
           </Row>
-          {analyse && (
-            <Markdown>
-              {[analyse.resume, "", ...analyse.pointsCles.map((p) => `- ${p}`), "", `**Prochaine étape :** ${analyse.prochaineEtape}`].join("\n")}
-            </Markdown>
-          )}
+          <InlineEdit
+            label="Résumé"
+            value={ticket.titre}
+            isRequired
+            onSave={(valeur) => appeler("modifier-champ", { champ: "summary", valeur })}
+          />
         </Stack>
-      </Section>
+      </PageSection>
 
-      <Section title="Résumé">
-        <InlineEdit<string>
-          label="Résumé"
-          value={ticket.titre}
-          onSave={(valeur) => appeler("modifier-champ", { champ: "summary", valeur })}
-          renderEditor={(editeur) => (
-            <TextInput
-              aria-label={editeur.label}
-              value={editeur.value}
-              autoFocus
-              onChange={(e) => editeur.setValue(e.target.value)}
-              onBlur={() => editeur.commit()}
-            />
-          )}
-        >
-          <Text weight="strong">{ticket.titre}</Text>
-        </InlineEdit>
-      </Section>
+      <PageSection
+        title="Description"
+        actions={[{ id: "modifier", label: "Modifier la description", icon: <Pencil size={16} />, onPress: modifierDescription }]}
+      >
+        {ticket.descriptionHtml ? (
+          <HtmlContent html={ticket.descriptionHtml} label="Description du ticket" onLink={(url) => void shell.openExternal(url)} />
+        ) : ticket.description ? (
+          <Text>{ticket.description}</Text>
+        ) : (
+          <Text tone="muted">Aucune description : « Modifier la description » pour en écrire une.</Text>
+        )}
+      </PageSection>
 
-      <Section title="Description" description="Cliquez dans le texte pour le modifier ; Ctrl+Entrée enregistre.">
-        <InlineEdit<string>
-          label="Description"
-          mode="multiline"
-          value={ticket.description}
-          onSave={(valeur) => appeler("modifier-champ", { champ: "description", valeur })}
-          renderEditor={(editeur) => (
-            <TextArea
-              aria-label={editeur.label}
-              value={editeur.value}
-              rows={10}
-              autoFocus
-              onChange={(e) => editeur.setValue(e.target.value)}
-              onBlur={() => editeur.commit()}
-            />
-          )}
-        >
-          {ticket.descriptionHtml ? (
-            <HtmlContent html={ticket.descriptionHtml} label="Description du ticket" onLink={(url) => void shell.openExternal(url)} />
-          ) : ticket.description ? (
-            <Text>{ticket.description}</Text>
-          ) : (
-            <Text tone="muted">Aucune description : cliquez pour en écrire une.</Text>
-          )}
-        </InlineEdit>
-      </Section>
-
-      <Section title="Activité">
+      <PageSection title="Activité" actions={actionsActivite}>
         <Stack gap="md">
-          <Tabs<Onglet> label="Activité du ticket" items={onglets} activeId={onglet} onChange={setOnglet} />
+          <RadioGroup
+            label="Activité du ticket"
+            hideLabel
+            orientation="horizontal"
+            value={onglet}
+            onChange={(id) => setOnglet(id as Onglet)}
+          >
+            {onglets.map((element) => (
+              <RadioGroup.Option key={element.id} value={element.id}>
+                {element.label}
+              </RadioGroup.Option>
+            ))}
+          </RadioGroup>
           {activite}
         </Stack>
-      </Section>
-    </Stack>
+      </PageSection>
+    </>
   );
 }

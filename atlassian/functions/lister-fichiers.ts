@@ -1,5 +1,5 @@
 import { aucunCompte } from "../lib/comptes-api";
-import { bitbucketClient, cheminEncode, erreurBitbucket } from "../lib/bitbucket-api";
+import { bitbucketClient, cheminEncode, erreurBitbucket, liste } from "../lib/bitbucket-api";
 
 interface CommitBrut {
   id?: string;
@@ -56,7 +56,7 @@ export default async function ({
   );
   if (modifs.ok) Object.assign(derniers, modifs.body?.files ?? {});
 
-  const fichiers = (reponse.body?.children ?? [])
+  const fichiers = liste(reponse.body?.children)
     .map((enfant) => ({
       nom: enfant.path?.name ?? "",
       chemin: enfant.path?.toString ?? enfant.path?.name ?? "",

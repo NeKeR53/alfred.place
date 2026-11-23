@@ -1,5 +1,5 @@
 import { aucunCompte } from "../lib/comptes-api";
-import { bitbucketClient, erreurBitbucket, normaliserDepot, type DepotBrut } from "../lib/bitbucket-api";
+import { bitbucketClient, erreurBitbucket, normaliserDepot, type DepotBrut, liste } from "../lib/bitbucket-api";
 
 interface Entree { instance?: string; recherche?: string; limite?: number; debut?: number }
 
@@ -21,7 +21,7 @@ export default async function (entree: Entree) {
   }>("/rest/api/1.0/repos", requete);
   if (!reponse.ok) erreurBitbucket(reponse);
 
-  const depots = (reponse.body?.values ?? []).map((depot) => normaliserDepot(depot));
+  const depots = liste(reponse.body?.values).map((depot) => normaliserDepot(depot));
   return {
     depots,
     total: reponse.body?.size ?? depots.length,

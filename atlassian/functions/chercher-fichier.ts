@@ -1,5 +1,5 @@
 import { aucunCompte } from "../lib/comptes-api";
-import { bitbucketClient, erreurBitbucket } from "../lib/bitbucket-api";
+import { bitbucketClient, erreurBitbucket, liste } from "../lib/bitbucket-api";
 
 function simplifier(texte: string): string {
   return texte.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -29,7 +29,7 @@ export default async function ({
     { cache: 120 },
   );
   if (!reponse.ok) erreurBitbucket(reponse);
-  const trouves = (reponse.body?.values ?? [])
+  const trouves = liste(reponse.body?.values)
     .filter((chemin) => {
       const cible = simplifier(chemin);
       return mots.every((mot) => cible.includes(mot));

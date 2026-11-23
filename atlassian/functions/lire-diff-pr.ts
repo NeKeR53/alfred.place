@@ -1,4 +1,4 @@
-import { bitbucketClient, cheminEncode, erreurBitbucket, resoudrePr } from "../lib/bitbucket-api";
+import { bitbucketClient, cheminEncode, erreurBitbucket, resoudrePr, liste } from "../lib/bitbucket-api";
 
 interface Ligne { line?: string }
 interface Segment { type?: "ADDED" | "REMOVED" | "CONTEXT"; lines?: Ligne[] }
@@ -21,18 +21,18 @@ export default async function (entree: {
     { contextLines: 3, whitespace: "ignore-all" },
   );
   if (!reponse.ok) erreurBitbucket(reponse);
-  const diff = reponse.body?.diffs?.[0];
+  const diff = liste<Diff>(reponse.body?.diffs)[0];
   if (!diff) return { texte: "", ajouts: 0, retraits: 0, binaire: false, tronque: false };
   if (diff.binary) return { texte: "", ajouts: 0, retraits: 0, binaire: true, tronque: false };
 
   let ajouts = 0;
   let retraits = 0;
   const lignes: string[] = [];
-  for (const bloc of diff.hunks ?? []) {
+  for (const bloc of liste<NonNullable<typeof diff.hunks>[number]>(diff.hunks)) {
     lignes.push(`@@ -${bloc.sourceLine ?? 0} +${bloc.destinationLine ?? 0} @@`);
-    for (const segment of bloc.segments ?? []) {
+    for (const segment of liste<NonNullable<typeof bloc.segments>[number]>(bloc.segments)) {
       const prefixe = segment.type === "ADDED" ? "+" : segment.type === "REMOVED" ? "-" : " ";
-      for (const ligne of segment.lines ?? []) {
+      for (const ligne of liste<NonNullable<typeof segment.lines>[number]>(segment.lines)) {
         if (prefixe === "+") ajouts += 1;
         if (prefixe === "-") retraits += 1;
         lignes.push(`${prefixe} ${ligne.line ?? ""}`);

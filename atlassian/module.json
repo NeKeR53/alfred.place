@@ -8,14 +8,20 @@
         "label": "Jira",
         "methods": [
           {
+            "help": "Dans Jira : votre avatar en haut à droite, Profil, puis « Jetons d’accès personnels » et « Créer un jeton ». Copiez-le tout de suite.",
             "id": "pat",
-            "label": "Jira Data Center (jeton personnel)",
-            "type": "bearer"
+            "label": "Jira de l’entreprise (jeton personnel)",
+            "tokenPage": "{url}/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens",
+            "type": "bearer",
+            "urlExample": "https://jira.entreprise.fr"
           },
           {
+            "help": "Pour Jira Cloud : votre adresse e-mail comme identifiant, et un jeton d’API (« Créer mon jeton ») à la place du mot de passe.",
             "id": "basic",
-            "label": "Jira (identifiant et mot de passe, ou jeton d’API)",
-            "type": "basic"
+            "label": "Jira Cloud, ou identifiant et mot de passe",
+            "tokenPage": "https://id.atlassian.com/manage-profile/security/api-tokens",
+            "type": "basic",
+            "urlExample": "https://acme.atlassian.net"
           }
         ],
         "testPath": "/rest/api/2/myself"
@@ -32,14 +38,17 @@
         "label": "Bitbucket",
         "methods": [
           {
+            "help": "Dans Bitbucket : votre avatar, Gérer le compte, puis « Jetons d’accès HTTP » et « Créer un jeton », avec le droit de lecture.",
             "id": "pat",
-            "label": "Bitbucket Data Center (jeton d’accès HTTP)",
-            "type": "bearer"
+            "label": "Bitbucket de l’entreprise (jeton d’accès HTTP)",
+            "type": "bearer",
+            "urlExample": "https://bitbucket.entreprise.fr"
           },
           {
             "id": "basic",
             "label": "Bitbucket (identifiant et mot de passe)",
-            "type": "basic"
+            "type": "basic",
+            "urlExample": "https://bitbucket.entreprise.fr"
           }
         ],
         "testPath": "/rest/api/1.0/projects?limit=1"
@@ -56,14 +65,18 @@
         "label": "Confluence",
         "methods": [
           {
+            "help": "Dans Confluence : votre avatar, Paramètres, puis « Jetons d’accès personnels » et « Créer un jeton ». Copiez-le tout de suite.",
             "id": "pat",
-            "label": "Confluence Data Center (jeton personnel)",
-            "type": "bearer"
+            "label": "Confluence de l’entreprise (jeton personnel)",
+            "tokenPage": "{url}/plugins/personalaccesstokens/usertokens.action",
+            "type": "bearer",
+            "urlExample": "https://confluence.entreprise.fr"
           },
           {
             "id": "basic",
             "label": "Confluence (identifiant et mot de passe, ou jeton d’API)",
-            "type": "basic"
+            "type": "basic",
+            "urlExample": "https://acme.atlassian.net/wiki"
           }
         ],
         "testPath": "/rest/api/user/current"
@@ -10236,6 +10249,693 @@
           "bitbucket"
         ]
       }
+    },
+    {
+      "description": "Dit à quelles règles Jira actives chaque ticket correspond : ses critères d’abord, puis la question de la règle, tranchée sur l’ordinateur (réponse gardée tant que ni le ticket ni la règle ne changent). Dix tickets au plus par appel.",
+      "effect": "read",
+      "id": "evaluer-regles",
+      "input": {
+        "properties": {
+          "instance": {
+            "type": "string"
+          },
+          "moi": {
+            "description": "Identifiant Jira de l’utilisateur, pour « assigne:moi ».",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "regle": {
+            "description": "Ne juger que cette règle, même inactive.",
+            "type": "string"
+          },
+          "tickets": {
+            "items": {
+              "properties": {
+                "assigne": {
+                  "type": "string"
+                },
+                "assigneId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "cle": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "etiquettes": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "misAJour": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "priorite": {
+                  "type": "string"
+                },
+                "projet": {
+                  "type": "string"
+                },
+                "statut": {
+                  "type": "string"
+                },
+                "statutCategorie": {
+                  "type": "string"
+                },
+                "titre": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "cle",
+                "titre"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "resultats": {
+            "items": {
+              "properties": {
+                "cle": {
+                  "type": "string"
+                },
+                "regles": {
+                  "items": {
+                    "properties": {
+                      "aVerifier": {
+                        "type": "boolean"
+                      },
+                      "action": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "nom": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "nom",
+                      "action",
+                      "aVerifier"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "cle",
+                "regles"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "resultats"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "resultats.0.cle": "TEST-1"
+            },
+            "nonEmpty": [
+              "resultats"
+            ],
+            "schema": true
+          },
+          "input": {
+            "instance": "test",
+            "tickets": [
+              {
+                "cle": "TEST-1",
+                "statutCategorie": "new",
+                "titre": "Production arrêtée"
+              }
+            ]
+          },
+          "name": "Juge un ticket sans règle à appliquer"
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Applique les règles Jira : cherche les tickets qui remplissent les critères de chaque règle automatique (ou de la règle demandée), pose sa question, puis fait son action une fois par ticket (lancer un agent avec la consigne, prévenir, commenter). Au premier passage d’une règle automatique, les tickets déjà présents sont seulement notés. Avec « simulation », dit ce qui serait fait sans rien faire.",
+      "effect": "write",
+      "id": "appliquer-regles",
+      "input": {
+        "properties": {
+          "regle": {
+            "description": "Identifiant d’une règle à appliquer tout de suite à tous ses tickets pas encore traités.",
+            "type": "string"
+          },
+          "simulation": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "actions": {
+            "items": {
+              "properties": {
+                "action": {
+                  "type": "string"
+                },
+                "cle": {
+                  "type": "string"
+                },
+                "compte": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "regle": {
+                  "type": "string"
+                },
+                "statut": {
+                  "type": "string"
+                },
+                "titre": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "regle",
+                "cle",
+                "action",
+                "statut"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "regles": {
+            "type": "integer"
+          },
+          "simulation": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "regles",
+          "actions",
+          "simulation"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "actions"
+            ],
+            "schema": true
+          },
+          "input": {
+            "simulation": true
+          },
+          "name": "Simule les règles automatiques"
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Tickets d’un tableau de projet (comme la page Projets de OneApp) : actifs (hors catégorie Terminé) ou terminés par pages, avec l’estimation initiale et le reste à faire en secondes, le rang partagé du board (Rank de Jira Software) et, sur demande, l’historique des statuts et des responsables.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "historique": true,
+            "instance": "acme",
+            "limite": 100,
+            "mode": "actifs",
+            "projets": [
+              "ATOM"
+            ]
+          },
+          "name": "Tickets actifs du projet ATOM avec historique",
+          "output": {
+            "debut": 0,
+            "limite": 100,
+            "rangDisponible": true,
+            "tickets": [
+              {
+                "assigne": "Hugo Bernard",
+                "assigneEmail": "hugo.bernard@acme.fr",
+                "assigneId": "hugo.bernard",
+                "assigneLogin": "hugo.bernard",
+                "cle": "ATOM-104",
+                "cree": "2026-11-13T09:30:00.000+0100",
+                "echeance": null,
+                "estimationSecondes": 144000,
+                "historique": [
+                  {
+                    "assigneId": "hugo.bernard",
+                    "le": "2026-11-13T09:30:00.000+0100",
+                    "statut": "À faire",
+                    "statutCategorie": "new"
+                  },
+                  {
+                    "le": "2026-11-16T10:15:00.000+0100",
+                    "statut": "En cours",
+                    "statutCategorie": "indeterminate"
+                  }
+                ],
+                "id": "10104",
+                "instance": "acme",
+                "misAJour": "2026-11-19T08:00:00.000+0100",
+                "priorite": "High",
+                "projet": "ATOM",
+                "projetNom": "Atom",
+                "rang": "0|i0003:",
+                "restantSecondes": 72000,
+                "statut": "En cours",
+                "statutCategorie": "indeterminate",
+                "titre": "Migration de la base vers la version 16",
+                "type": "Task",
+                "url": "https://jira.acme.fr/browse/ATOM-104"
+              }
+            ],
+            "total": 1
+          }
+        }
+      ],
+      "id": "lister-tickets-projet",
+      "input": {
+        "properties": {
+          "debut": {
+            "type": "integer"
+          },
+          "historique": {
+            "type": "boolean"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "limite": {
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "actifs",
+              "termines"
+            ],
+            "type": "string"
+          },
+          "projets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "debut": {
+            "type": "integer"
+          },
+          "limite": {
+            "type": "integer"
+          },
+          "rangDisponible": {
+            "type": "boolean"
+          },
+          "tickets": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tickets",
+          "total",
+          "debut",
+          "limite",
+          "rangDisponible"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "tickets",
+              "rangDisponible"
+            ],
+            "schema": true
+          },
+          "input": {
+            "limite": 5,
+            "mode": "actifs"
+          },
+          "name": "Liste les tickets actifs"
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "jira"
+        ]
+      }
+    },
+    {
+      "description": "Durée d’une journée de travail du suivi du temps de Jira (workingHoursPerDay), pour convertir les estimations en jours.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "instance": "acme"
+          },
+          "name": "Journée de 8 heures",
+          "output": {
+            "configure": true,
+            "heuresParJour": 8
+          }
+        }
+      ],
+      "id": "lire-suivi-temps",
+      "input": {
+        "properties": {
+          "instance": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "configure": {
+            "type": "boolean"
+          },
+          "heuresParJour": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "heuresParJour",
+          "configure"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "heuresParJour"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Lit la journée de travail"
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "jira"
+        ]
+      }
+    },
+    {
+      "description": "Écrit le suivi du temps natif d’un ticket Jira : estimation initiale et reste à faire, en secondes (null vide la valeur). Refusé si le champ Suivi du temps n’est pas modifiable sur le ticket.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "cle": "ATOM-104",
+            "instance": "acme",
+            "restantSecondes": 57600
+          },
+          "name": "Deux jours restants sur ATOM-104",
+          "output": {
+            "modifie": true
+          }
+        }
+      ],
+      "id": "modifier-suivi-temps",
+      "input": {
+        "properties": {
+          "cle": {
+            "type": "string"
+          },
+          "estimationSecondes": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "instance": {
+            "type": "string"
+          },
+          "restantSecondes": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "cle"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "modifie": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "modifie"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "modifie"
+            ],
+            "schema": true
+          },
+          "input": {
+            "cle": "",
+            "restantSecondes": 3600
+          },
+          "name": "Écrit le reste à faire d’un ticket de test",
+          "target": {
+            "field": "cle",
+            "hint": "Clé d’un ticket jetable, par exemple TEST-1",
+            "label": "Ticket de test"
+          }
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "jira"
+        ]
+      }
+    },
+    {
+      "description": "Place un ticket juste après un autre (apres) ou juste avant (avant) dans le classement partagé du board (Rank de Jira Software).",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "apres": "ATOM-102",
+            "cle": "ATOM-112",
+            "instance": "acme"
+          },
+          "name": "ATOM-112 après ATOM-102",
+          "output": {
+            "classe": true
+          }
+        }
+      ],
+      "id": "classer-ticket",
+      "input": {
+        "properties": {
+          "apres": {
+            "type": "string"
+          },
+          "avant": {
+            "type": "string"
+          },
+          "cle": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cle"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "classe": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "classe"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "classe"
+            ],
+            "schema": true
+          },
+          "input": {
+            "avant": "",
+            "cle": ""
+          },
+          "name": "Classe un ticket de test",
+          "target": {
+            "field": "cle",
+            "hint": "Clé d’un ticket jetable, par exemple TEST-1",
+            "label": "Ticket de test"
+          }
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "jira"
+        ]
+      }
+    },
+    {
+      "description": "Fait passer un ticket Jira dans une étape d’un tableau de projet (todo, doing, suspended, done) par la transition qui y mène, avec un commentaire facultatif ; refusé si aucune transition n’y mène ou si elle exige des champs.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "cle": "ATOM-102",
+            "commentaire": "Priorité remontée au point d’équipe.",
+            "etape": "doing",
+            "instance": "acme"
+          },
+          "name": "ATOM-102 démarré, avec justification",
+          "output": {
+            "transition": "Démarrer",
+            "vers": "En cours"
+          }
+        }
+      ],
+      "id": "passer-ticket",
+      "input": {
+        "properties": {
+          "cle": {
+            "type": "string"
+          },
+          "commentaire": {
+            "type": "string"
+          },
+          "etape": {
+            "enum": [
+              "todo",
+              "doing",
+              "suspended",
+              "done"
+            ],
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cle",
+          "etape"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "transition": {
+            "type": "string"
+          },
+          "vers": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "transition",
+          "vers"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "transition"
+            ],
+            "schema": true
+          },
+          "input": {
+            "cle": "",
+            "etape": "doing"
+          },
+          "name": "Passe un ticket de test en cours",
+          "target": {
+            "field": "cle",
+            "hint": "Clé d’un ticket jetable, par exemple TEST-1",
+            "label": "Ticket de test"
+          }
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "jira"
+        ]
+      }
     }
   ],
   "id": "atlassian",
@@ -10257,14 +10957,14 @@
       }
     },
     {
-      "description": "Dépôts Bitbucket : favoris, branches, fichiers du projet, pull requests et commentaires.",
-      "icon": "git-branch",
+      "description": "Tous les dépôts Bitbucket du compte, avec recherche.",
+      "icon": "library",
       "id": "bitbucket",
       "placement": {
         "kind": "tab",
         "section": "bitbucket"
       },
-      "title": "Bitbucket",
+      "title": "Dépôts",
       "uses": {
         "clients": [
           "bitbucket"
@@ -10297,12 +10997,12 @@
       "title": "Détails"
     },
     {
-      "description": "Fiche du dépôt ouvert, comme la colonne de droite de GitHub : description, adresses de clonage, branches, pull requests.",
+      "description": "Fiche du dépôt ouvert : description, branches, pull requests.",
       "icon": "info",
       "id": "a-propos",
       "placement": {
         "kind": "panel",
-        "page": "atlassian/bitbucket"
+        "page": "atlassian/depot-ouvert"
       },
       "title": "À propos"
     },
@@ -10330,6 +11030,61 @@
         "page": "atlassian/support"
       },
       "title": "Demande"
+    },
+    {
+      "description": "Règles Jira : des critères et une question tranchée sur l’ordinateur, puis une action (lancer un agent avec une consigne, prévenir, commenter).",
+      "icon": "workflow",
+      "id": "regles",
+      "placement": {
+        "kind": "tab",
+        "section": "jira"
+      },
+      "title": "Règles"
+    },
+    {
+      "description": "Dépôts Bitbucket mis en favoris, à ouvrir d’un clic.",
+      "icon": "star",
+      "id": "favoris",
+      "placement": {
+        "kind": "tab",
+        "section": "bitbucket"
+      },
+      "title": "Favoris",
+      "uses": {
+        "clients": [
+          "bitbucket"
+        ]
+      }
+    },
+    {
+      "description": "Pull requests où l’on vous demande une revue, tous dépôts confondus.",
+      "icon": "git-pull-request",
+      "id": "a-traiter",
+      "placement": {
+        "kind": "tab",
+        "section": "bitbucket"
+      },
+      "title": "À traiter",
+      "uses": {
+        "clients": [
+          "bitbucket"
+        ]
+      }
+    },
+    {
+      "description": "Le dépôt Bitbucket ouvert : code, pull requests, branches et commits, et la pull request consultée.",
+      "icon": "book-marked",
+      "id": "depot-ouvert",
+      "placement": {
+        "kind": "tab",
+        "section": "bitbucket"
+      },
+      "title": "Dépôt ouvert",
+      "uses": {
+        "clients": [
+          "bitbucket"
+        ]
+      }
     }
   ],
   "schedules": [
@@ -10377,6 +11132,13 @@
       "input": {
         "notifier": true
       }
+    },
+    {
+      "description": "Applique toutes les dix minutes les règles Jira automatiques aux tickets qui arrivent.",
+      "everyMinutes": 10,
+      "function": "appliquer-regles",
+      "id": "regles-jira",
+      "input": {}
     }
   ],
   "sections": [
@@ -10420,5 +11182,5 @@
   "setup": {
     "welcome": "Retrouvez ici vos tickets Jira, vos dépôts Bitbucket et vos pages Confluence. Il vous faut l’adresse de chaque instance et un jeton personnel (ou votre identifiant et votre mot de passe). Les trois services se configurent séparément : vous pouvez n’en brancher qu’un."
   },
-  "version": "0.1.0"
+  "version": "1.0.0"
 }

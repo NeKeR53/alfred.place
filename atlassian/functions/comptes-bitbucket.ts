@@ -1,5 +1,6 @@
 import { client } from "@alfred/sdk";
 
 export default async function () {
-  return { comptes: await client("bitbucket").instances() };
+  const comptes = await client("bitbucket").instances();
+  return { comptes: Array.isArray(comptes) ? comptes : [] };
 }

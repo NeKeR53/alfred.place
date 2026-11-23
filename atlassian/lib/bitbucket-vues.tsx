@@ -1,22 +1,8 @@
-import { useEffect, useState } from "react";
-import { FileText, Folder } from "lucide-react";
+import { Notice, Row, Stack, Text } from "@alfred/kit";
 import { functions, shell, useAsync } from "@alfred/sdk";
-import {
-  Avatar,
-  Code,
-  DataTable,
-  EmptyState,
-  FeedbackBanner,
-  List,
-  ListItem,
-  LoadingSkeleton,
-  Markdown,
-  Row,
-  SearchCombobox,
-  Stack,
-  StatusBadge,
-  Text,
-} from "@alfred/ui";
+import { FileText, Folder } from "lucide-react";
+import { Avatar, Code, ComboBox, DiffView, EmptyState, List, Skeleton, StatusBadge, Table } from "socle-ui";
+import { Markdown } from "socle-ui/markdown";
 import { quand } from "./affichage";
 
 export interface Fichier {
@@ -77,46 +63,45 @@ export function ListeFichiers({
     (a, b) => Number(b.dossier) - Number(a.dossier) || a.nom.localeCompare(b.nom, "fr", { sensitivity: "base" }),
   );
   const parent = chemin.split("/").slice(0, -1).join("/");
-  const lignes: Array<Fichier & { parent?: boolean }> = chemin
-    ? [{ nom: "..", chemin: parent, dossier: true, taille: 0, commit: null, parent: true }, ...tries]
-    : tries;
+  const lignes: Array<Fichier & { id: string; parent?: boolean }> = [
+    ...(chemin ? [{ id: "..parent", nom: "..", chemin: parent, dossier: true, taille: 0, commit: null, parent: true }] : []),
+    ...tries.map((f) => ({ ...f, id: f.chemin || f.nom })),
+  ];
+  const ouvrir = (id: string) => {
+    const fichier = lignes.find((f) => f.id === id);
+    if (!fichier) return;
+    if (fichier.dossier) onDossier(fichier.chemin);
+    else onFichier(fichier);
+  };
   return (
-    <DataTable<Fichier & { parent?: boolean }>
+    <Table
       label="Fichiers du dépôt"
       rows={lignes}
-      rowKey={(f) => (f.parent ? "..parent" : f.chemin || f.nom)}
-      onRowClick={(f) => (f.dossier ? onDossier(f.chemin) : onFichier(f))}
+      density="compact"
+      selectionMode="single"
+      selectedKeys={[]}
+      onSelectionChange={(cles) => {
+        const id = [...cles][0];
+        if (id !== undefined) ouvrir(String(id));
+      }}
+      onAction={ouvrir}
+      rowIcon={(f) => (f.dossier ? <Folder size={16} aria-hidden="true" /> : <FileText size={16} aria-hidden="true" />)}
       columns={[
-        {
-          key: "nom",
-          header: "Nom",
-          render: (f) => (
-            <Row gap="sm">
-              {f.dossier ? <Folder size={16} aria-hidden="true" /> : <FileText size={16} aria-hidden="true" />}
-              <Text as="span">{f.nom}</Text>
-            </Row>
-          ),
-        },
-        {
-          key: "commit",
-          header: "Dernier commit",
-          render: (f) => (
-            <Text as="span" tone="muted">
-              {f.commit?.message ?? ""}
-            </Text>
-          ),
-        },
-        {
-          key: "date",
-          header: "Date",
-          align: "right",
-          render: (f) => (
-            <Text as="span" size="meta" tone="muted">
-              {f.commit ? quand(f.commit.date) : f.dossier ? "" : tailleTexte(f.taille)}
-            </Text>
-          ),
-        },
+        { id: "nom", label: "Nom" },
+        { id: "commit", label: "Dernier commit" },
+        { id: "date", label: "Date", align: "end", width: 120 },
       ]}
+      renderCell={(f, colonne) =>
+        colonne === "nom"
+          ? f.nom
+          : colonne === "commit"
+            ? (f.commit?.message ?? "")
+            : f.commit
+              ? quand(f.commit.date)
+              : f.dossier
+                ? ""
+                : tailleTexte(f.taille)
+      }
     />
   );
 }
@@ -135,43 +120,26 @@ export function AllerAuFichier({
   branche: string;
   onChoisir: (fichier: { chemin: string; nom: string }) => void;
 }) {
-  const [saisie, setSaisie] = useState("");
-  const [resultats, setResultats] = useState<Array<{ chemin: string; nom: string }>>([]);
-  const [cherche, setCherche] = useState(false);
-  useEffect(() => {
-    if (saisie.trim().length < 2) return;
-    const minuteur = setTimeout(() => {
-      setCherche(true);
-      functions
-        .call<{ fichiers: Array<{ chemin: string; nom: string }> }>("chercher-fichier", {
+  return (
+    <ComboBox
+      label="Aller au fichier"
+      hideLabel
+      width="md"
+      placeholder="Aller au fichier…"
+      value={null}
+      loadItems={async (recherche) => {
+        const reponse = await functions.call<{ fichiers: Array<{ chemin: string; nom: string }> }>("chercher-fichier", {
           instance,
           projet,
           depot,
           branche: branche || undefined,
-          recherche: saisie,
-        })
-        .then((reponse) => setResultats(reponse.fichiers))
-        .catch(() => setResultats([]))
-        .finally(() => setCherche(false));
-    }, 250);
-    return () => clearTimeout(minuteur);
-  }, [saisie, branche]);
-  return (
-    <SearchCombobox<{ chemin: string; nom: string }>
-      label="Aller au fichier"
-      value={saisie}
-      options={resultats}
-      loading={cherche}
-      minQueryLength={2}
-      onChange={setSaisie}
-      onSelect={(fichier) => {
-        setSaisie("");
-        onChoisir(fichier);
+          recherche,
+        });
+        return reponse.fichiers.map((f) => ({ id: f.chemin, label: f.chemin, description: f.nom }));
       }}
-      getOptionKey={(f) => f.chemin}
-      getOptionLabel={(f) => f.chemin}
-      placeholder="Aller au fichier…"
-      emptyMessage="Aucun fichier ne correspond."
+      onChange={(chemin) => {
+        if (chemin) onChoisir({ chemin, nom: chemin.split("/").pop() ?? chemin });
+      }}
     />
   );
 }
@@ -205,21 +173,19 @@ export function ContenuFichier({
       }),
     [instance, projet, depot, chemin, branche],
   );
-  if (fichier.loading && !fichier.data) return <LoadingSkeleton />;
-  if (fichier.error) return <FeedbackBanner tone="danger">{fichier.error.message}</FeedbackBanner>;
+  if (fichier.loading && !fichier.data) return <Skeleton shape="rect" width="100%" height={160} />;
+  if (fichier.error) return <Notice tone="danger">{fichier.error.message}</Notice>;
   const contenu = fichier.data?.contenu ?? "";
   return (
     <Stack gap="md">
-      {fichier.data?.tronque && (
-        <FeedbackBanner tone="warning">Le fichier est long : seule une partie s’affiche ici.</FeedbackBanner>
-      )}
-      {!discret && (
+      {fichier.data?.tronque ? <Notice tone="warning">Le fichier est long : seule une partie s’affiche ici.</Notice> : null}
+      {!discret ? (
         <Text size="meta" tone="muted">
           {`${fichier.data?.lignes ?? 0} lignes`}
         </Text>
-      )}
+      ) : null}
       {estMarkdown(nom) && contenu ? (
-        <Markdown onLink={(href) => void shell.openExternal(href)}>{contenu}</Markdown>
+        <Markdown onLinkPress={(href) => void shell.openExternal(href)}>{contenu}</Markdown>
       ) : (
         <Code block label={nom}>
           {contenu || "(fichier vide)"}
@@ -258,7 +224,7 @@ export function DernierCommit({
   const dernier = commits.data?.commits[0];
   if (!dernier) return null;
   return (
-    <Row gap="sm" justify="between">
+    <Row gap="sm" justify="between" wrap>
       <Row gap="sm">
         <Avatar name={dernier.auteur} size="sm" />
         <Text as="span" weight="strong">
@@ -284,17 +250,17 @@ export function Readme(props: { instance: string; projet: string; depot: string;
 export function ListeCommits({ commits }: { commits: Commit[] }) {
   if (commits.length === 0) return <EmptyState size="compact" title="Aucun commit" />;
   return (
-    <List label="Commits">
-      {commits.map((commit) => (
-        <ListItem
-          key={commit.id}
-          leading={<Avatar name={commit.auteur} size="sm" />}
-          title={commit.message.split("\n")[0] || "(sans message)"}
-          description={`${commit.auteur} · ${quand(commit.date)}`}
-          trailing={<Code>{commit.court}</Code>}
-        />
-      ))}
-    </List>
+    <List
+      label="Commits"
+      selectionMode="none"
+      leading="avatar"
+      items={commits.map((commit) => ({
+        id: commit.id,
+        title: commit.message.split("\n")[0] || "(sans message)",
+        subtitle: `${commit.auteur} · ${quand(commit.date)}`,
+        meta: commit.court,
+      }))}
+    />
   );
 }
 
@@ -320,31 +286,20 @@ export function DiffFichier({
   );
   return (
     <Stack gap="xs">
-      <Row gap="sm" justify="between">
-        <Row gap="sm">
-          <FileText size={16} aria-hidden="true" />
-          <Code>{chemin}</Code>
-          <StatusBadge size="compact" tone={nature === "ajouté" ? "success" : nature === "supprimé" ? "danger" : "neutral"}>
-            {nature}
-          </StatusBadge>
-        </Row>
-        {diff.data && !diff.data.binaire && (
-          <Row gap="xs">
-            <Text as="span" size="meta" tone="success">{`+${diff.data.ajouts}`}</Text>
-            <Text as="span" size="meta" tone="danger">{`−${diff.data.retraits}`}</Text>
-          </Row>
-        )}
+      <Row gap="sm">
+        <Code>{chemin}</Code>
+        <StatusBadge tone={nature === "ajouté" ? "success" : nature === "supprimé" ? "danger" : "neutral"}>{nature}</StatusBadge>
       </Row>
       {diff.error ? (
         <Text tone="danger">{diff.error.message}</Text>
       ) : !diff.data ? (
-        <LoadingSkeleton />
+        <Skeleton shape="rect" width="100%" height={120} />
       ) : diff.data.binaire ? (
         <Text tone="muted">Fichier binaire : pas d’aperçu des différences.</Text>
+      ) : diff.data.texte ? (
+        <DiffView label={`Modifications de ${chemin}`} patch={diff.data.texte} truncated={diff.data.tronque} defaultMode="unified" />
       ) : (
-        <Code block label={`Différences de ${chemin}`}>
-          {diff.data.texte || "(aucune différence)"}
-        </Code>
+        <Text tone="muted">Aucune différence.</Text>
       )}
     </Stack>
   );

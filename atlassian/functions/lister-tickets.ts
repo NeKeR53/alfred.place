@@ -23,6 +23,7 @@ interface TicketJira {
   self?: string;
   fields?: {
     summary?: string;
+    description?: string | null;
     status?: { name?: string; statusCategory?: { key?: string; name?: string } };
     assignee?: { displayName?: string; name?: string; accountId?: string };
     reporter?: { displayName?: string };
@@ -71,7 +72,7 @@ export default async function (entree: Entree) {
     jql,
     startAt: debut,
     maxResults: limite,
-    fields: "summary,status,assignee,reporter,priority,issuetype,project,duedate,updated,labels",
+    fields: "summary,description,status,assignee,reporter,priority,issuetype,project,duedate,updated,labels",
   });
   if (!reponse.ok) erreurAtlassian("Jira", reponse);
 
@@ -83,6 +84,7 @@ export default async function (entree: Entree) {
       id: issue.id,
       instance: entree.instance ?? null,
       titre: champs.summary ?? "(sans titre)",
+      description: typeof champs.description === "string" ? champs.description.slice(0, 2000) : "",
       projet: champs.project?.key ?? "",
       projetNom: champs.project?.name ?? "",
       type: champs.issuetype?.name ?? "",

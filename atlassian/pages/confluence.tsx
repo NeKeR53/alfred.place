@@ -1,30 +1,24 @@
+import { Notice, Row, Stack, Text } from "@alfred/kit";
+import { ai, db, functions, notifyActionError, semantic, shell, useAsync, usePageState } from "@alfred/sdk";
+import { ArrowLeft, Bot, ExternalLink, FileText, MessageCircleQuestion, RefreshCw, Star } from "lucide-react";
 import { useEffect, useState } from "react";
-import { ArrowLeft, BookOpen, Bot, ExternalLink, FileText, Home, MessageCircleQuestion, Paperclip, RefreshCw, Star } from "lucide-react";
-import { ai, db, functions, semantic, shell, useAsync } from "@alfred/sdk";
 import {
+  type Action,
   Button,
-  ChoiceButton,
-  ChoiceGroup,
-  EmptyState,
-  FeedbackBanner,
-  Grid,
+  DetailPage,
+  Dialog,
   HtmlContent,
   Link,
   List,
-  ListItem,
-  LoadingSkeleton,
-  Markdown,
-  openForm,
-  openModal,
   Page,
-  Row,
-  Section,
-  SelectControl,
-  Stack,
+  PageSection,
+  RadioGroup,
+  SearchField,
+  Select,
   StatusBadge,
-  Text,
-  usePageState,
-} from "@alfred/ui";
+  useOpenForm,
+} from "socle-ui";
+import { Markdown } from "socle-ui/markdown";
 import { quand } from "../lib/affichage";
 import { questionnerPage, resumerPage } from "../lib/assistant";
 import { texteBrut } from "../lib/ia";
@@ -92,19 +86,19 @@ function ListePages({
   label: string;
 }) {
   return (
-    <List label={label}>
-      {pages.map((page) => (
-        <ListItem
-          key={page.id}
-          leading={<FileText size={16} aria-hidden="true" />}
-          title={page.titre}
-          description={[avecEspace ? page.espace : "", page.auteur, page.misAJour ? `modifiée ${quand(page.misAJour)}` : ""]
+    <List
+      label={label}
+      selectionMode="none"
+      items={pages.map((page) => ({
+        id: page.id,
+        title: page.titre,
+        subtitle:
+          [avecEspace ? page.espace : "", page.auteur, page.misAJour ? `modifiée ${quand(page.misAJour)}` : ""]
             .filter(Boolean)
-            .join(" · ") || undefined}
-          onClick={() => onOuvrir(page.id)}
-        />
-      ))}
-    </List>
+            .join(" · ") || undefined,
+      }))}
+      onAction={onOuvrir}
+    />
   );
 }
 
@@ -115,15 +109,11 @@ export default function ConfluencePage() {
   }, []);
 
   const [compteChoisi, setCompteChoisi] = usePageState<string>("confluence.compte", "");
-  const [saisie, setSaisie] = usePageState<string>("confluence.recherche", "");
-  const [recherche, setRecherche] = useState(saisie.trim());
+  const [recherche, setRecherche] = usePageState<string>("confluence.recherche", "");
+  const openForm = useOpenForm();
+  const [fenetre, setFenetre] = useState<{ titre: string; texte: string; note?: string } | null>(null);
   const [espace, setEspace] = usePageState<string>("confluence.espace", "");
   const [pageId, setPageId] = usePageState<string>("confluence.page", "");
-
-  useEffect(() => {
-    const minuteur = setTimeout(() => setRecherche(saisie.trim()), 350);
-    return () => clearTimeout(minuteur);
-  }, [saisie]);
 
   const comptes = useAsync(() => functions.call<{ comptes: Compte[] }>("comptes-confluence"), []);
   const listeComptes = comptes.data?.comptes ?? [];
@@ -247,22 +237,32 @@ export default function ConfluencePage() {
     };
   }, [mode, recherche, compte]);
 
-  const demanderAssistant = {
+  const demanderAssistant: Action = {
+    id: "assistant",
     label: "Demander à l’assistant",
-    icon: Bot,
+    icon: <Bot size={16} />,
     primary: true,
-    onClick: () =>
+    onPress: () =>
       openForm({
         title: "Demander à l’assistant",
         description: "Je cherche dans vos espaces Confluence, je lis les pages utiles et je vous réponds avec leurs liens.",
-        fields: [{ name: "question", label: "Votre question", type: "textarea", placeholder: "Comment fait-on une mise en production ?" }],
+        fields: [
+          {
+            name: "question",
+            label: "Votre question",
+            type: "textarea",
+            isRequired: true,
+            placeholder: "Comment fait-on une mise en production ?",
+          },
+        ],
         submitLabel: "Demander",
-        onSubmit: (v) =>
-          ai.startAgent({
-            title: v.question.slice(0, 60),
+        onSubmit: async (v) => {
+          await ai.startAgent({
+            title: String(v.question).slice(0, 60),
             instruction: `Réponds à la question de l’utilisateur en cherchant dans Confluence (compte « ${compte} ») : cherche les pages pertinentes, lis-les, puis réponds en citant chaque page utilisée (titre et lien). Passe toujours instance = « ${compte} » aux fonctions. Réponds en français.\nQuestion : ${v.question}`,
             functions: ["rechercher-pages", "lire-page", "lister-espaces", "lister-pages-espace"],
-          }),
+          });
+        },
       }),
   };
 
@@ -273,7 +273,6 @@ export default function ConfluencePage() {
   function ouvrirEspace(cle: string) {
     setEspace(cle);
     setPageId("");
-    setSaisie("");
     setRecherche("");
   }
 
@@ -300,31 +299,38 @@ export default function ConfluencePage() {
     favoris.reload();
   }
 
-  if (comptes.loading && !comptes.data) {
-    return (
-      <Page>
-        <LoadingSkeleton />
-      </Page>
-    );
-  }
+  const modale = fenetre ? (
+    <Dialog
+      isOpen
+      size="lg"
+      title={fenetre.titre}
+      onOpenChange={(ouverte) => {
+        if (!ouverte) setFenetre(null);
+      }}
+      footer={<Button onPress={() => setFenetre(null)}>Fermer</Button>}
+    >
+      <Stack gap="md">
+        {fenetre.note ? <Notice tone="info">{fenetre.note}</Notice> : null}
+        <Markdown>{fenetre.texte}</Markdown>
+      </Stack>
+    </Dialog>
+  ) : null;
 
-  if (comptes.error) {
-    return (
-      <Page>
-        <FeedbackBanner tone="danger" action={<Button onClick={() => comptes.reload()}>Réessayer</Button>}>
-          {comptes.error.message}
-        </FeedbackBanner>
-      </Page>
-    );
-  }
+  if (comptes.loading && !comptes.data) return <Page state="loading">{null}</Page>;
 
-  if (listeComptes.length === 0) {
+  if (comptes.error || listeComptes.length === 0) {
     return (
-      <Page width="text">
-        <FeedbackBanner tone="warning">
-          Aucun compte Confluence n’est encore relié. Ouvrez Réglages, Modules, puis la fiche Atlassian pour ajouter
-          l’adresse de votre Confluence et votre jeton personnel.
-        </FeedbackBanner>
+      <Page width="text" state={comptes.error ? "error" : "ready"} onRetry={comptes.reload}>
+        <PageSection
+          title="Confluence"
+          empty={{
+            title: "Aucun compte Confluence relié",
+            description:
+              "Ouvrez Réglages, Modules, puis la fiche Atlassian pour ajouter l’adresse de votre Confluence et votre jeton personnel.",
+          }}
+        >
+          {null}
+        </PageSection>
       </Page>
     );
   }
@@ -335,388 +341,355 @@ export default function ConfluencePage() {
     const enfants = pageComplete?.enfants ?? [];
     const parent = ancetres[ancetres.length - 1];
     return (
-      <Page
-        width="text"
-        header={{
-          title: pageComplete?.titre ?? "Page Confluence",
-          subtitle: pageComplete
+      <DetailPage
+        title={pageComplete?.titre ?? "Page Confluence"}
+        back={{
+          label: parent ? parent.titre : "Confluence",
+          onPress: () => (parent ? setPageId(parent.id) : setPageId("")),
+        }}
+        meta={
+          pageComplete
             ? [
                 pageComplete.auteur ? `Modifiée par ${pageComplete.auteur}` : "",
                 dateLongue(pageComplete.misAJour),
                 pageComplete.version > 0 ? `version ${pageComplete.version}` : "",
-              ]
-                .filter(Boolean)
-                .join(" · ")
-            : undefined,
-          actions: [
-            {
-              label: parent ? `Retour à « ${parent.titre} »` : "Retour",
-              icon: ArrowLeft,
-              onClick: () => (parent ? setPageId(parent.id) : setPageId("")),
+              ].filter(Boolean)
+            : undefined
+        }
+        state={page.error ? "error" : page.loading && !pageComplete ? "loading" : !pageComplete ? "not-found" : "ready"}
+        onRetry={page.reload}
+        notFound={{ title: "Page introuvable", description: "Elle a peut-être été déplacée, ou vous n’y avez plus accès." }}
+        actions={[
+          {
+            id: "favori",
+            label: estFavorite ? "Retirer des favoris" : "Ajouter aux favoris",
+            icon: <Star size={16} />,
+            isDisabled: !pageComplete,
+            onPress: async () => {
+              await basculerFavori();
+              shell.notify({ title: estFavorite ? "Page retirée des favoris" : "Page ajoutée aux favoris", tone: "success" });
             },
-            {
-              label: estFavorite ? "Retirer des favoris" : "Ajouter aux favoris",
-              icon: Star,
-              disabled: !pageComplete,
-              success: estFavorite ? "Page retirée des favoris" : "Page ajoutée aux favoris",
-              onClick: basculerFavori,
+          },
+          {
+            id: "resumer",
+            label: "Résumer la page",
+            icon: <FileText size={16} />,
+            isDisabled: !pageComplete,
+            onPress: async () => {
+              if (!pageComplete) return;
+              const { resume, pointsCles } = await resumerPage(pageComplete.titre, texteBrut(pageComplete.html));
+              setFenetre({ titre: `Résumé : ${pageComplete.titre}`, texte: [resume, "", ...pointsCles.map((p) => `- ${p}`)].join("\n") });
             },
-            {
-              label: "Résumer la page",
-              icon: FileText,
-              disabled: !pageComplete,
-              onClick: async () => {
-                const { resume, pointsCles } = await resumerPage(pageComplete!.titre, texteBrut(pageComplete!.html));
-                return openModal({
-                  title: `Résumé : ${pageComplete!.titre}`,
-                  size: "wide",
-                  content: <Markdown>{[resume, "", ...pointsCles.map((p) => `- ${p}`)].join("\n")}</Markdown>,
-                });
-              },
+          },
+          {
+            id: "question",
+            label: "Poser une question sur la page",
+            icon: <MessageCircleQuestion size={16} />,
+            isDisabled: !pageComplete,
+            onPress: async () => {
+              if (!pageComplete) return;
+              let reponse: { reponse: string; trouve: boolean; question: string } | null = null;
+              const rempli = await openForm({
+                title: "Poser une question sur la page",
+                description: "Je réponds en m’appuyant uniquement sur cette page.",
+                fields: [{ name: "question", label: "Question", type: "textarea", isRequired: true }],
+                submitLabel: "Demander",
+                onSubmit: async (v) => {
+                  const question = String(v.question);
+                  reponse = { ...(await questionnerPage(pageComplete.titre, texteBrut(pageComplete.html), question)), question };
+                },
+              });
+              const lue = reponse as { reponse: string; trouve: boolean; question: string } | null;
+              if (!rempli || !lue) return;
+              setFenetre({
+                titre: lue.question.length > 70 ? `${lue.question.slice(0, 70)}…` : lue.question,
+                texte: lue.reponse,
+                note: lue.trouve ? undefined : "La page ne répond pas directement à cette question.",
+              });
             },
-            {
-              label: "Poser une question sur la page",
-              icon: MessageCircleQuestion,
-              disabled: !pageComplete,
-              onClick: () =>
-                openForm({
-                  title: "Poser une question sur la page",
-                  description: "Je réponds en m’appuyant uniquement sur cette page.",
-                  fields: [{ name: "question", label: "Question", type: "textarea" }],
-                  submitLabel: "Demander",
-                  onSubmit: async (v) => {
-                    const { reponse, trouve } = await questionnerPage(pageComplete!.titre, texteBrut(pageComplete!.html), v.question);
-                    void openModal({
-                      title: v.question.length > 70 ? `${v.question.slice(0, 70)}…` : v.question,
-                      size: "wide",
-                      content: (
-                        <Stack gap="md">
-                          {!trouve && <FeedbackBanner tone="info">La page ne répond pas directement à cette question.</FeedbackBanner>}
-                          <Markdown>{reponse}</Markdown>
-                        </Stack>
-                      ),
-                    });
-                  },
-                }),
-            },
-            {
-              label: "Ouvrir dans Confluence",
-              icon: ExternalLink,
-              hidden: !pageComplete?.url,
-              onClick: () => shell.openExternal(pageComplete?.url ?? ""),
-            },
-            { label: "Actualiser", onClick: () => page.reload() },
-          ],
-        }}
+          },
+          {
+            id: "confluence",
+            label: "Ouvrir dans Confluence",
+            icon: <ExternalLink size={16} />,
+            isHidden: !pageComplete?.url,
+            onPress: () => shell.openExternal(pageComplete?.url ?? ""),
+          },
+          { id: "actualiser", label: "Actualiser", icon: <RefreshCw size={16} />, onPress: () => page.reload() },
+        ]}
+        onActionError={notifyActionError}
       >
-        <Stack gap="lg">
-          {page.error && (
-            <FeedbackBanner tone="danger" action={<Button onClick={() => page.reload()}>Réessayer</Button>}>
-              {page.error.message}
-            </FeedbackBanner>
-          )}
-          {page.loading && !pageComplete && <LoadingSkeleton />}
-          {!page.loading && !pageComplete && !page.error && (
-            <EmptyState title="Page introuvable" description="Elle a peut-être été déplacée, ou vous n’y avez plus accès." />
-          )}
-          {pageComplete && (
-            <>
-              <Row gap="xs" wrap>
-                <Link
-                  onClick={() => {
-                    setEspace(pageComplete.espaceCle);
-                    setPageId("");
-                  }}
-                >
-                  {pageComplete.espace || "Espace"}
-                </Link>
-                {ancetres.map((ancetre) => (
-                  <Row gap="xs" key={ancetre.id}>
-                    <Text as="span" tone="muted">
-                      ›
-                    </Text>
-                    <Link onClick={() => setPageId(ancetre.id)}>{ancetre.titre}</Link>
-                  </Row>
-                ))}
-              </Row>
-              {pageComplete.etiquettes.length > 0 && (
+        {pageComplete ? (
+          <>
+            <DetailPage.Section title="Contenu">
+              <Stack gap="md">
                 <Row gap="xs" wrap>
-                  {pageComplete.etiquettes.map((etiquette) => (
-                    <StatusBadge key={etiquette} tone="neutral" size="compact">
-                      {etiquette}
-                    </StatusBadge>
+                  <Link
+                    onPress={() => {
+                      setEspace(pageComplete.espaceCle);
+                      setPageId("");
+                    }}
+                  >
+                    {pageComplete.espace || "Espace"}
+                  </Link>
+                  {ancetres.map((ancetre) => (
+                    <Row gap="xs" key={ancetre.id}>
+                      <Text as="span" tone="muted">
+                        ›
+                      </Text>
+                      <Link onPress={() => setPageId(ancetre.id)}>{ancetre.titre}</Link>
+                    </Row>
                   ))}
                 </Row>
-              )}
-              <HtmlContent
-                html={pageComplete.html}
-                label={`Contenu de la page ${pageComplete.titre}`}
-                onLink={(url) => void shell.openExternal(url)}
-              />
-              {enfants.length > 0 && (
-                <Section title={`Sous-pages (${enfants.length})`}>
-                  <List label="Sous-pages">
-                    {enfants.map((enfant) => (
-                      <ListItem
-                        key={enfant.id}
-                        leading={<FileText size={16} aria-hidden="true" />}
-                        title={enfant.titre}
-                        onClick={() => setPageId(enfant.id)}
-                      />
+                {pageComplete.etiquettes.length > 0 ? (
+                  <Row gap="xs" wrap>
+                    {pageComplete.etiquettes.map((etiquette) => (
+                      <StatusBadge key={etiquette} tone="neutral">
+                        {etiquette}
+                      </StatusBadge>
                     ))}
-                  </List>
-                </Section>
-              )}
-              {pageComplete.pieces.length > 0 && (
-                <Section title={`Pièces jointes (${pageComplete.pieces.length})`}>
-                  <List label="Pièces jointes">
-                    {pageComplete.pieces.map((piece) => (
-                      <ListItem
-                        key={piece.id}
-                        leading={<Paperclip size={16} aria-hidden="true" />}
-                        title={piece.nom}
-                        description={taille(piece.taille) || undefined}
-                        onClick={piece.url ? () => void shell.openExternal(piece.url ?? "") : undefined}
-                      />
-                    ))}
-                  </List>
-                </Section>
-              )}
-              {pageComplete.messageVersion && (
-                <Text size="meta" tone="muted">
-                  {`Dernière modification : ${pageComplete.messageVersion}`}
-                </Text>
-              )}
-            </>
-          )}
-        </Stack>
-      </Page>
+                  </Row>
+                ) : null}
+                <HtmlContent
+                  html={pageComplete.html}
+                  label={`Contenu de la page ${pageComplete.titre}`}
+                  onLink={(url) => void shell.openExternal(url)}
+                />
+                {pageComplete.messageVersion ? (
+                  <Text size="meta" tone="muted">
+                    {`Dernière modification : ${pageComplete.messageVersion}`}
+                  </Text>
+                ) : null}
+              </Stack>
+            </DetailPage.Section>
+            {enfants.length > 0 ? (
+              <DetailPage.Section title={`Sous-pages (${enfants.length})`}>
+                <List
+                  label="Sous-pages"
+                  selectionMode="none"
+                  items={enfants.map((enfant) => ({ id: enfant.id, title: enfant.titre }))}
+                  onAction={(id) => setPageId(id)}
+                />
+              </DetailPage.Section>
+            ) : null}
+            {pageComplete.pieces.length > 0 ? (
+              <DetailPage.Section title={`Pièces jointes (${pageComplete.pieces.length})`}>
+                <List
+                  label="Pièces jointes"
+                  selectionMode="none"
+                  items={pageComplete.pieces.map((piece) => ({
+                    id: piece.id,
+                    title: piece.nom,
+                    subtitle: taille(piece.taille) || undefined,
+                  }))}
+                  onAction={(id) => {
+                    const piece = pageComplete.pieces.find((element) => element.id === id);
+                    if (piece?.url) void shell.openExternal(piece.url);
+                  }}
+                />
+              </DetailPage.Section>
+            ) : null}
+          </>
+        ) : null}
+        {modale}
+      </DetailPage>
     );
   }
 
   const listeEspaces = espaces.data?.espaces ?? [];
   const barre = (
-    <Row gap="sm" wrap>
-      <ChoiceGroup label="Type de recherche" appearance="segmented">
-        <ChoiceButton label="Par les mots" variant="label" size="compact" selected={mode === "mots"} onClick={() => setMode("mots")}>
-          Par les mots
-        </ChoiceButton>
-        <ChoiceButton label="Par le sens" variant="label" size="compact" selected={mode === "sens"} onClick={() => setMode("sens")}>
-          Par le sens
-        </ChoiceButton>
-      </ChoiceGroup>
-      <SelectControl aria-label="Espace" value={espace} onChange={(evenement) => ouvrirEspace(evenement.target.value)}>
-        <option value="">Tous les espaces</option>
-        {listeEspaces.map((element) => (
-          <option key={element.cle} value={element.cle}>
-            {element.nom}
-          </option>
-        ))}
-      </SelectControl>
-      {listeComptes.length > 1 && (
-        <SelectControl aria-label="Compte Confluence" value={compte} onChange={(e) => changerCompte(e.target.value)}>
-          {listeComptes.map((element) => (
-            <option key={element.id} value={element.id}>
-              {element.label}
-            </option>
-          ))}
-        </SelectControl>
-      )}
+    <Row gap="sm">
+      <SearchField
+        label={espace ? "cet espace" : "les pages Confluence"}
+        onChange={({ text }) => setRecherche(text.trim())}
+      />
+      <RadioGroup label="Type de recherche" hideLabel orientation="horizontal" value={mode} onChange={setMode}>
+        <RadioGroup.Option value="mots">Par les mots</RadioGroup.Option>
+        <RadioGroup.Option value="sens">Par le sens</RadioGroup.Option>
+      </RadioGroup>
+      <Select
+        label="Espace"
+        hideLabel
+        width="sm"
+        value={espace}
+        options={[{ id: "", label: "Tous les espaces" }, ...listeEspaces.map((element) => ({ id: element.cle, label: element.nom }))]}
+        onChange={(id) => ouvrirEspace(id ?? "")}
+      />
+      {listeComptes.length > 1 ? (
+        <Select
+          label="Compte Confluence"
+          hideLabel
+          width="sm"
+          value={compte}
+          options={listeComptes.map((element) => ({ id: element.id, label: element.label }))}
+          onChange={(id) => id && changerCompte(id)}
+        />
+      ) : null}
     </Row>
   );
-  const recherchePage = {
-    label: espace ? "Rechercher dans cet espace" : "Rechercher une page",
-    value: saisie,
-    onChange: setSaisie,
-  };
-  const actualiser = {
+  const actualiser: Action = {
+    id: "actualiser",
     label: "Actualiser",
-    icon: RefreshCw,
-    onClick: () => {
+    icon: <RefreshCw size={16} />,
+    onPress: () => {
       pages.reload();
       favoris.reload();
       espaces.reload();
       detailEspace.reload();
     },
   };
+  const infoEspace = listeEspaces.find((e) => e.cle === espace);
+  const actions: Action[] = [
+    {
+      id: "espace-confluence",
+      label: "Ouvrir l’espace dans Confluence",
+      icon: <ExternalLink size={16} />,
+      isHidden: !espace || recherche !== "" || !infoEspace?.url,
+      onPress: () => shell.openExternal(infoEspace?.url ?? ""),
+    },
+    {
+      id: "retour",
+      label: "Retour à l’accueil",
+      icon: <ArrowLeft size={16} />,
+      isHidden: !espace || recherche !== "",
+      onPress: () => ouvrirEspace(""),
+    },
+    actualiser,
+    demanderAssistant,
+  ];
 
-  // ——— Résultats d’une recherche ———
+  let contenu;
   if (recherche && mode === "sens") {
     const sens = parLeSens.data;
-    return (
-      <Page search={recherchePage} bar={barre} actions={[actualiser, demanderAssistant]}>
-        <Stack gap="md">
-          {parLeSens.error && <FeedbackBanner tone="danger">{parLeSens.error.message}</FeedbackBanner>}
-          {sens?.etat === "absent" ? (
-            <FeedbackBanner tone="info">
-              La recherche par le sens n’est pas encore installée : ouvrez Réglages, Général, rubrique « Recherche par le sens ».
-            </FeedbackBanner>
-          ) : parLeSens.loading && !sens ? (
-            <LoadingSkeleton />
-          ) : (sens?.pages.length ?? 0) === 0 ? (
-            <EmptyState
-              title="Aucune page proche"
-              description="La recherche par le sens porte sur les pages que vous avez déjà ouvertes ici."
-            />
-          ) : (
-            <Section
-              title="Pages les plus proches de votre question"
-              description="Parmi les pages que vous avez déjà ouvertes, de la plus proche à la moins proche."
-            >
-              <ListePages pages={sens?.pages ?? []} onOuvrir={ouvrirPage} avecEspace label="Pages proches" />
-            </Section>
-          )}
-        </Stack>
-      </Page>
-    );
-  }
-
-  if (recherche) {
-    const resultats = pages.data?.pages ?? [];
-    return (
-      <Page search={recherchePage} bar={barre} actions={[actualiser, demanderAssistant]}>
-        <Stack gap="md">
-          {pages.error && <FeedbackBanner tone="danger">{pages.error.message}</FeedbackBanner>}
-          {pages.loading && !pages.data ? (
-            <LoadingSkeleton />
-          ) : resultats.length === 0 ? (
-            <EmptyState title="Aucune page trouvée" description="Essayez d’autres mots, ou un autre espace." />
-          ) : (
-            <Section title={`${resultats.length} résultat${resultats.length > 1 ? "s" : ""}`}>
-              <ListePages pages={resultats} onOuvrir={ouvrirPage} avecEspace={!espace} label="Résultats" />
-            </Section>
-          )}
-        </Stack>
-      </Page>
-    );
-  }
-
-  // ——— Un espace : sa page d’accueil et ses pages ———
-  if (espace) {
-    const detail = detailEspace.data;
-    const infoEspace = listeEspaces.find((e) => e.cle === espace);
-    return (
-      <Page
-        search={recherchePage}
-        bar={barre}
-        actions={[
-          {
-            label: "Ouvrir l’espace dans Confluence",
-            icon: ExternalLink,
-            hidden: !infoEspace?.url,
-            onClick: () => shell.openExternal(infoEspace?.url ?? ""),
-          },
-          actualiser,
-          demanderAssistant,
-        ]}
+    contenu = (
+      <PageSection
+        title="Pages les plus proches de votre question"
+        description="Parmi les pages que vous avez déjà ouvertes, de la plus proche à la moins proche."
+        state={parLeSens.error ? "error" : parLeSens.loading && !sens ? "loading" : "ready"}
+        onRetry={parLeSens.reload}
+        empty={
+          sens?.etat === "absent"
+            ? {
+                title: "Recherche par le sens non installée",
+                description: "Ouvrez Réglages, Général, rubrique « Recherche par le sens ».",
+              }
+            : sens && sens.pages.length === 0
+              ? {
+                  title: "Aucune page proche",
+                  description: "La recherche par le sens porte sur les pages que vous avez déjà ouvertes ici.",
+                }
+              : undefined
+        }
       >
-        <Stack gap="lg">
-          {detailEspace.error && <FeedbackBanner tone="danger">{detailEspace.error.message}</FeedbackBanner>}
-          {detailEspace.loading && !detail?.espace ? (
-            <LoadingSkeleton />
-          ) : !detail?.espace ? (
-            <EmptyState title="Espace introuvable" />
-          ) : (
-            <>
-              <Section title={detail.espace.nom} description={detail.espace.description || undefined}>
-                {detail.espace.accueil ? (
-                  <List label="Page d’accueil">
-                    <ListItem
-                      leading={<Home size={16} aria-hidden="true" />}
-                      title={detail.espace.accueil.titre}
-                      description="Page d’accueil de l’espace"
-                      onClick={() => ouvrirPage(detail.espace!.accueil!.id)}
-                    />
-                  </List>
-                ) : (
-                  <Text tone="muted">Cet espace n’a pas de page d’accueil.</Text>
-                )}
-              </Section>
-              <Section title={`Pages (${detail.pages.length})`}>
-                {detail.pages.length === 0 ? (
-                  <EmptyState size="compact" title="Aucune page" />
-                ) : (
-                  <List label="Pages de l’espace">
-                    {detail.pages.map((p) => (
-                      <ListItem
-                        key={p.id}
-                        leading={<FileText size={16} aria-hidden="true" />}
-                        title={p.titre}
-                        description={[p.auteur, p.misAJour ? `modifiée ${quand(p.misAJour)}` : ""].filter(Boolean).join(" · ") || undefined}
-                        trailing={
-                          p.sousPages > 0 ? (
-                            <Text as="span" size="meta" tone="muted">
-                              {`${p.sousPages} sous-page${p.sousPages > 1 ? "s" : ""}`}
-                            </Text>
-                          ) : undefined
-                        }
-                        onClick={() => ouvrirPage(p.id)}
-                      />
-                    ))}
-                  </List>
-                )}
-              </Section>
-            </>
-          )}
-        </Stack>
-      </Page>
+        <ListePages pages={sens?.pages ?? []} onOuvrir={ouvrirPage} avecEspace label="Pages proches" />
+      </PageSection>
+    );
+  } else if (recherche) {
+    const resultats = pages.data?.pages ?? [];
+    contenu = (
+      <PageSection
+        title={pages.data ? `${resultats.length} résultat${resultats.length > 1 ? "s" : ""}` : "Résultats"}
+        state={pages.error ? "error" : pages.loading && !pages.data ? "loading" : "ready"}
+        onRetry={pages.reload}
+        empty={
+          pages.data && resultats.length === 0
+            ? { title: "Aucune page trouvée", description: "Essayez d’autres mots, ou un autre espace." }
+            : undefined
+        }
+      >
+        <ListePages pages={resultats} onOuvrir={ouvrirPage} avecEspace={!espace} label="Résultats" />
+      </PageSection>
+    );
+  } else if (espace) {
+    const detail = detailEspace.data;
+    contenu =
+      detailEspace.error || (detailEspace.loading && !detail?.espace) || !detail?.espace ? (
+        <PageSection
+          title={infoEspace?.nom ?? "Espace"}
+          state={detailEspace.error ? "error" : detailEspace.loading ? "loading" : "ready"}
+          onRetry={detailEspace.reload}
+          empty={!detailEspace.loading && !detailEspace.error ? { title: "Espace introuvable" } : undefined}
+        >
+          {null}
+        </PageSection>
+      ) : (
+        <>
+          <PageSection title={detail.espace.nom} description={detail.espace.description || undefined}>
+            {detail.espace.accueil ? (
+              <List
+                label="Page d’accueil"
+                selectionMode="none"
+                items={[
+                  { id: detail.espace.accueil.id, title: detail.espace.accueil.titre, subtitle: "Page d’accueil de l’espace" },
+                ]}
+                onAction={ouvrirPage}
+              />
+            ) : (
+              <Text tone="muted">Cet espace n’a pas de page d’accueil.</Text>
+            )}
+          </PageSection>
+          <PageSection
+            title={`Pages (${detail.pages.length})`}
+            empty={detail.pages.length === 0 ? { title: "Aucune page" } : undefined}
+          >
+            <List
+              label="Pages de l’espace"
+              selectionMode="none"
+              items={detail.pages.map((p) => ({
+                id: p.id,
+                title: p.titre,
+                subtitle: [p.auteur, p.misAJour ? `modifiée ${quand(p.misAJour)}` : ""].filter(Boolean).join(" · ") || undefined,
+                meta: p.sousPages > 0 ? `${p.sousPages} sous-page${p.sousPages > 1 ? "s" : ""}` : undefined,
+              }))}
+              onAction={ouvrirPage}
+            />
+          </PageSection>
+        </>
+      );
+  } else {
+    const recentes = pages.data?.pages ?? [];
+    const listeFavoris = favoris.data ?? [];
+    contenu = (
+      <>
+        <PageSection
+          title="Récemment mises à jour"
+          state={pages.error ? "error" : pages.loading && !pages.data ? "loading" : "ready"}
+          onRetry={pages.reload}
+          empty={pages.data && recentes.length === 0 ? { title: "Aucune page récente" } : undefined}
+        >
+          <ListePages pages={recentes} onOuvrir={ouvrirPage} avecEspace label="Pages récentes" />
+        </PageSection>
+        <PageSection
+          title="Vos favoris"
+          empty={
+            listeFavoris.length === 0
+              ? { title: "Aucun favori", description: "Ouvrez une page puis l’étoile pour la retrouver ici." }
+              : undefined
+          }
+        >
+          <List
+            label="Pages favorites"
+            selectionMode="none"
+            items={listeFavoris.map((favori) => ({ id: favori.cle, title: favori.libelle, subtitle: favori.contexte ?? undefined }))}
+            onAction={ouvrirPage}
+          />
+        </PageSection>
+        <PageSection title="Espaces" empty={listeEspaces.length === 0 ? { title: "Aucun espace" } : undefined}>
+          <List
+            label="Espaces"
+            selectionMode="none"
+            items={listeEspaces.map((element) => ({ id: element.cle, title: element.nom, subtitle: element.cle }))}
+            onAction={ouvrirEspace}
+          />
+        </PageSection>
+      </>
     );
   }
 
-  // ——— Accueil : favoris, espaces, pages récentes ———
-  const recentes = pages.data?.pages ?? [];
-  const listeFavoris = favoris.data ?? [];
   return (
-    <Page search={recherchePage} bar={barre} actions={[actualiser, demanderAssistant]}>
-      <Grid minColumnWidth={360} gap="lg">
-        <Section title="Récemment mises à jour">
-          {pages.error ? (
-            <FeedbackBanner tone="danger">{pages.error.message}</FeedbackBanner>
-          ) : pages.loading && !pages.data ? (
-            <LoadingSkeleton />
-          ) : recentes.length === 0 ? (
-            <EmptyState size="compact" title="Aucune page récente" />
-          ) : (
-            <ListePages pages={recentes} onOuvrir={ouvrirPage} avecEspace label="Pages récentes" />
-          )}
-        </Section>
-        <Stack gap="lg">
-          <Section title="Vos favoris">
-            {listeFavoris.length === 0 ? (
-              <Text tone="muted">Ouvrez une page puis l’étoile pour la retrouver ici.</Text>
-            ) : (
-              <List label="Pages favorites">
-                {listeFavoris.map((favori) => (
-                  <ListItem
-                    key={favori.cle}
-                    leading={<Star size={16} aria-hidden="true" />}
-                    title={favori.libelle}
-                    description={favori.contexte ?? undefined}
-                    onClick={() => ouvrirPage(favori.cle)}
-                  />
-                ))}
-              </List>
-            )}
-          </Section>
-          <Section title="Espaces">
-            {listeEspaces.length === 0 ? (
-              <Text tone="muted">Aucun espace.</Text>
-            ) : (
-              <List label="Espaces">
-                {listeEspaces.map((element) => (
-                  <ListItem
-                    key={element.cle}
-                    leading={<BookOpen size={16} aria-hidden="true" />}
-                    title={element.nom}
-                    description={element.cle}
-                    onClick={() => ouvrirEspace(element.cle)}
-                  />
-                ))}
-              </List>
-            )}
-          </Section>
-        </Stack>
-      </Grid>
+    <Page toolbar={barre} actions={actions} onActionError={notifyActionError}>
+      {contenu}
+      {modale}
     </Page>
   );
 }

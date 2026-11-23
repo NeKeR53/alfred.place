@@ -1,4 +1,5 @@
-import { StatusBadge, Text, type StatusMap } from "@alfred/ui";
+import { Text } from "@alfred/kit";
+import { StatusBadge, type StatusMap } from "socle-ui";
 
 export interface DelaiCourt {
   nom: string;
@@ -96,11 +97,7 @@ export function badgeDelai(delai: DelaiCourt | null) {
     );
   }
   const { ton, libelle } = etatDelai(delai);
-  return (
-    <StatusBadge tone={ton} size="compact">
-      {libelle}
-    </StatusBadge>
-  );
+  return <StatusBadge tone={ton}>{libelle}</StatusBadge>;
 }
 
 /** Date et heure courtes, en français. */

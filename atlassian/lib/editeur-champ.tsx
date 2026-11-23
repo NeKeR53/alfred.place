@@ -1,15 +1,6 @@
-import { useEffect, useState } from "react";
 import { functions } from "@alfred/sdk";
-import {
-  FormField,
-  MultiSelectCombobox,
-  SearchCombobox,
-  SelectControl,
-  Stack,
-  Text,
-  TextArea,
-  TextInput,
-} from "@alfred/ui";
+import { useState } from "react";
+import { ComboBox, type ComboBoxItem, Select, TextArea, TextField } from "socle-ui";
 import type { ChampTicket } from "./jira-champs";
 
 /** Valeur en cours d’édition, lue par l’action « Enregistrer » de la modale. */
@@ -30,14 +21,26 @@ export function versLocal(iso: string): string {
   const deux = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${deux(date.getMonth() + 1)}-${deux(date.getDate())}T${deux(date.getHours())}:${deux(date.getMinutes())}`;
 }
-export function versJira(local: string): string {
-  if (!local) return "";
+export function versJira(saisie: string): string {
+  if (!saisie) return "";
+  const local = saisie.trim().replace(" ", "T");
   const date = new Date(local);
+  if (Number.isNaN(date.getTime())) return saisie;
   const decalage = -date.getTimezoneOffset();
   const abs = Math.abs(decalage);
   const deux = (n: number) => String(n).padStart(2, "0");
   return `${local}:00.000${decalage >= 0 ? "+" : "-"}${deux(Math.floor(abs / 60))}${deux(abs % 60)}`;
 }
+
+/** Personnes qu’on peut assigner dans le projet, pour une recherche de deux lettres au moins. */
+const chercherPersonnes = (instance: string | undefined, projet: string) => async (recherche: string) => {
+  const reponse = await functions.call<{ utilisateurs: Personne[] }>("lister-assignables", { instance, projet, recherche });
+  return reponse.utilisateurs.map((personne) => ({
+    id: personne.id,
+    label: personne.nom,
+    description: personne.email || undefined,
+  }));
+};
 
 /** Contrôle adapté au type d’un champ Jira : texte, liste, choix multiple, personne, sprint, date… */
 export function EditeurChamp({
@@ -58,145 +61,108 @@ export function EditeurChamp({
   };
   const texte = Array.isArray(valeur) ? (valeur[0] ?? "") : valeur;
   const liste = Array.isArray(valeur) ? valeur : valeur ? [valeur] : [];
-  const noms = new Map(champ.options.map((option) => [option.id, option.nom]));
-
-  // Personnes : recherche parmi celles qu’on peut assigner dans le projet.
-  const [recherche, setRecherche] = useState(champ.editeur === "personne" ? champ.affichage : "");
-  const [personnes, setPersonnes] = useState<Personne[]>([]);
-  const [cherche, setCherche] = useState(false);
-  useEffect(() => {
-    if (champ.editeur !== "personne" || recherche.trim().length < 2) return;
-    const minuteur = setTimeout(() => {
-      setCherche(true);
-      functions
-        .call<{ utilisateurs: Personne[] }>("lister-assignables", { instance, projet, recherche })
-        .then((reponse) => setPersonnes(reponse.utilisateurs))
-        .catch(() => setPersonnes([]))
-        .finally(() => setCherche(false));
-    }, 250);
-    return () => clearTimeout(minuteur);
-  }, [recherche]);
+  const commun = {
+    label: champ.nom,
+    isRequired: champ.requis,
+    description: champ.requis ? "Champ obligatoire." : undefined,
+  };
 
   // Sprints : ceux des tableaux du projet.
   const [sprints, setSprints] = useState<Array<{ id: string; nom: string; etat: string }> | null>(null);
-  useEffect(() => {
-    if (champ.editeur !== "sprint") return;
+  const [sprintsDemandes, setSprintsDemandes] = useState(false);
+  if (champ.editeur === "sprint" && !sprintsDemandes) {
+    setSprintsDemandes(true);
     functions
       .call<{ sprints: Array<{ id: string; nom: string; etat: string }> }>("lister-sprints", { instance, projet })
       .then((reponse) => setSprints(reponse.sprints))
       .catch(() => setSprints([]));
-  }, []);
+  }
 
-  let controle;
   switch (champ.editeur) {
     case "paragraphe":
-      controle = <TextArea value={texte} rows={8} onChange={(e) => setValeur(e.target.value)} />;
-      break;
+      return <TextArea {...commun} value={texte} minRows={8} onChange={setValeur} />;
     case "nombre":
-      controle = <TextInput value={texte} inputMode="decimal" onChange={(e) => setValeur(e.target.value)} />;
-      break;
+      return <TextField {...commun} value={texte} onChange={setValeur} />;
     case "date":
-      controle = <TextInput type="date" value={texte} onChange={(e) => setValeur(e.target.value)} />;
-      break;
+      return <TextField {...commun} value={texte} placeholder="AAAA-MM-JJ" onChange={setValeur} />;
     case "dateheure":
-      controle = (
-        <TextInput
-          type="datetime-local"
-          value={versLocal(texte)}
-          onChange={(e) => setValeur(versJira(e.target.value))}
+      return (
+        <TextField
+          {...commun}
+          value={versLocal(texte).replace("T", " ")}
+          placeholder="AAAA-MM-JJ HH:MM"
+          onChange={(saisie) => setValeur(versJira(saisie))}
         />
       );
-      break;
     case "choix":
-      controle = (
-        <SelectControl value={texte} onChange={(e) => setValeur(e.target.value)}>
-          {!champ.requis && <option value="">Aucun</option>}
-          {champ.options.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.nom}
-            </option>
-          ))}
-        </SelectControl>
+      return (
+        <Select
+          {...commun}
+          value={texte || (champ.requis ? null : "")}
+          options={[
+            ...(champ.requis ? [] : [{ id: "", label: "Aucun" }]),
+            ...champ.options.map((option) => ({ id: option.id, label: option.nom })),
+          ]}
+          onChange={(id) => setValeur(id ?? "")}
+        />
       );
-      break;
     case "choixMultiple":
-      controle = (
-        <MultiSelectCombobox
-          label={champ.nom}
-          values={liste}
-          options={champ.options.map((option) => option.id)}
-          formatOption={(id) => noms.get(id) ?? id}
-          onChange={(valeurs) => setValeur(valeurs)}
-          display="all"
+      return (
+        <ComboBox
+          {...commun}
+          selectionMode="multiple"
+          items={champ.options.map((option) => ({ id: option.id, label: option.nom }))}
+          value={liste}
+          onChange={setValeur}
           placeholder="Choisir…"
         />
       );
-      break;
     case "etiquettes":
-    case "personnes":
-      controle = (
-        <MultiSelectCombobox
-          label={champ.nom}
-          values={liste}
-          options={liste}
-          onChange={(valeurs) => setValeur(valeurs)}
-          valueMode="custom"
-          display="all"
+    case "personnes": {
+      const connus: ComboBoxItem[] = liste.map((id) => ({ id, label: id }));
+      return (
+        <ComboBox
+          {...commun}
+          selectionMode="multiple"
+          items={connus}
+          allowsCustomValue
+          onCreate={(saisie) => ({ id: saisie.trim(), label: saisie.trim() })}
+          value={liste}
+          onChange={setValeur}
           placeholder={champ.editeur === "personnes" ? "Identifiant, puis Entrée" : "Saisir, puis Entrée"}
         />
       );
-      break;
+    }
     case "personne":
-      controle = (
-        <Stack gap="xs">
-          <SearchCombobox<Personne>
-            label={champ.nom}
-            value={recherche}
-            options={personnes}
-            loading={cherche}
-            minQueryLength={2}
-            onChange={(saisie) => {
-              setRecherche(saisie);
-              if (!saisie) setValeur("");
-            }}
-            onSelect={(personne) => {
-              setRecherche(personne.nom);
-              setValeur(personne.id);
-            }}
-            getOptionKey={(personne) => personne.id}
-            getOptionLabel={(personne) => (personne.email ? `${personne.nom} · ${personne.email}` : personne.nom)}
-            placeholder="Tapez un nom…"
-            emptyMessage="Personne ne correspond."
-          />
-          <Text size="meta" tone="muted">
-            Videz le champ pour retirer la personne.
-          </Text>
-        </Stack>
+      return (
+        <ComboBox
+          {...commun}
+          description="Tapez un nom ; videz le champ pour retirer la personne."
+          loadItems={chercherPersonnes(instance, projet)}
+          selectedItems={texte ? [{ id: texte, label: champ.affichage || texte }] : []}
+          value={texte || null}
+          onChange={(id) => setValeur(id ?? "")}
+          placeholder="Tapez un nom…"
+        />
       );
-      break;
     case "sprint":
-      controle =
-        sprints === null ? (
-          <Text tone="muted">Chargement des sprints…</Text>
-        ) : (
-          <SelectControl value={texte} onChange={(e) => setValeur(e.target.value)}>
-            <option value="">Aucun sprint (backlog)</option>
-            {texte && !sprints.some((s) => s.id === texte) && <option value={texte}>{champ.affichage || texte}</option>}
-            {sprints.map((s) => (
-              <option key={s.id} value={s.id}>
-                {`${s.nom} · ${s.etat}`}
-              </option>
-            ))}
-          </SelectControl>
-        );
-      break;
+      return (
+        <Select
+          {...commun}
+          isDisabled={sprints === null}
+          placeholder={sprints === null ? "Chargement des sprints…" : undefined}
+          value={texte}
+          options={[
+            { id: "", label: "Aucun sprint (backlog)" },
+            ...(texte && sprints && !sprints.some((sprint) => sprint.id === texte)
+              ? [{ id: texte, label: champ.affichage || texte }]
+              : []),
+            ...(sprints ?? []).map((sprint) => ({ id: sprint.id, label: `${sprint.nom} · ${sprint.etat}` })),
+          ]}
+          onChange={(id) => setValeur(id ?? "")}
+        />
+      );
     default:
-      controle = <TextInput value={texte} onChange={(e) => setValeur(e.target.value)} />;
+      return <TextField {...commun} value={texte} onChange={setValeur} />;
   }
-
-  return (
-    <FormField label={champ.nom} hint={champ.requis ? "Champ obligatoire." : undefined}>
-      {controle}
-    </FormField>
-  );
 }

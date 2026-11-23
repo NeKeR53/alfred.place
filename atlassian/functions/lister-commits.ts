@@ -1,5 +1,5 @@
 import { aucunCompte } from "../lib/comptes-api";
-import { bitbucketClient, erreurBitbucket } from "../lib/bitbucket-api";
+import { bitbucketClient, erreurBitbucket, liste } from "../lib/bitbucket-api";
 
 interface CommitBrut {
   id: string;
@@ -35,7 +35,7 @@ export default async function ({
   );
   if (!reponse.ok) erreurBitbucket(reponse);
   return {
-    commits: (reponse.body?.values ?? []).map((c) => ({
+    commits: liste(reponse.body?.values).map((c) => ({
       id: c.id,
       court: c.displayId ?? c.id.slice(0, 11),
       message: c.message ?? "",

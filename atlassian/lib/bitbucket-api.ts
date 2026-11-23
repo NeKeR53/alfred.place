@@ -1,5 +1,13 @@
 import { client } from "@alfred/sdk";
 
+/**
+ * Une liste venue de Bitbucket, toujours un tableau : un serveur, une version ou un proxy
+ * qui répond autre chose (objet, texte, rien) donne une liste vide au lieu de faire planter la page.
+ */
+export function liste<T>(valeur: T[] | null | undefined): T[] {
+  return Array.isArray(valeur) ? (valeur as T[]) : [];
+}
+
 export function erreurBitbucket(reponse: { status: number; body?: unknown }): never {
   const corps = reponse.body as { errors?: Array<{ message?: string }>; message?: string } | string | undefined;
   let detail = "";
@@ -88,11 +96,11 @@ export function normaliserPr(pr: PrBrut) {
     cree: pr.createdDate ?? null,
     misAJour: pr.updatedDate ?? null,
     commentaires: pr.properties?.commentCount ?? null,
-    evaluateurs: (pr.reviewers ?? []).map((evaluateur) => ({
+    evaluateurs: liste<NonNullable<PrBrut["reviewers"]>[number]>(pr.reviewers).map((evaluateur) => ({
       nom: evaluateur.user?.displayName ?? "",
       statut: evaluateur.approved ? "approuvé" : evaluateur.status ?? "en attente",
     })),
-    url: urlBitbucket(pr.links?.self?.[0]?.href),
+    url: urlBitbucket(liste<{ href?: string }>(pr.links?.self)[0]?.href),
   };
 }
 
@@ -106,8 +114,8 @@ export function normaliserDepot(depot: DepotBrut, brancheDefaut?: string | null)
     archive: depot.archived === true,
     public: depot.public === true,
     brancheDefaut: brancheDefaut ?? null,
-    url: urlBitbucket(depot.links?.self?.[0]?.href),
-    clones: (depot.links?.clone ?? [])
+    url: urlBitbucket(liste<{ href?: string }>(depot.links?.self)[0]?.href),
+    clones: liste<{ href?: string; name?: string }>(depot.links?.clone)
       .filter((lien) => lien.href)
       .map((lien) => ({ nom: lien.name === "ssh" ? "SSH" : "HTTPS", url: lien.href ?? "" })),
   };

@@ -1,21 +1,8 @@
-import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
-import { functions, shell, useAsync } from "@alfred/sdk";
-import {
-  Button,
-  Code,
-  DataTable,
-  EmptyState,
-  FeedbackBanner,
-  LoadingSkeleton,
-  Page,
-  Pagination,
-  Row,
-  SelectControl,
-  Stack,
-  Text,
-  usePageState,
-} from "@alfred/ui";
+import { Row, Text } from "@alfred/kit";
+import { functions, shell, useAsync, usePageState } from "@alfred/sdk";
+import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { useEffect } from "react";
+import { Code, Page, PageSection, SearchField, Select, Table } from "socle-ui";
 import { badge, discret, tonCategorie } from "../lib/affichage";
 import { badgeDelai, type DemandeListe } from "../lib/support";
 import type { Compte } from "../lib/jira";
@@ -43,16 +30,9 @@ export default function SupportPage() {
   const [compteChoisi, setCompteChoisi] = usePageState<string>("support.compte", "");
   const [serviceChoisi, setServiceChoisi] = usePageState<string>("support.service", "");
   const [fileChoisie, setFileChoisie] = usePageState<string>("support.file", "");
-  const [recherche, setRecherche] = usePageState<string>("support.recherche", "");
+  const [texte, setTexte] = usePageState<string>("support.recherche", "");
   const [page, setPage] = usePageState<number>("support.page", 1);
   const [selection, setSelection] = usePageState<string | null>("support.selection", null);
-
-  // La recherche part une fois la frappe terminée, pas à chaque lettre.
-  const [texte, setTexte] = useState(recherche);
-  useEffect(() => {
-    const minuterie = setTimeout(() => setTexte(recherche.trim()), 350);
-    return () => clearTimeout(minuterie);
-  }, [recherche]);
 
   const comptes = useAsync(() => functions.call<{ comptes: Compte[] }>("comptes-jira"), []);
   const listeComptes = comptes.data?.comptes ?? [];
@@ -114,170 +94,183 @@ export default function SupportPage() {
     functions.call("relever-support", { notifier: false }).catch(() => undefined);
   }
 
-  if ((comptes.loading && !comptes.data) || (services.loading && !services.data)) {
+  const erreurDepart = comptes.error ?? services.error;
+  const chargement = (comptes.loading && !comptes.data) || (services.loading && !services.data);
+  if (chargement || erreurDepart) {
     return (
-      <Page>
-        <LoadingSkeleton />
+      <Page
+        state={erreurDepart ? "error" : "loading"}
+        onRetry={() => {
+          comptes.reload();
+          services.reload();
+        }}
+      >
+        {null}
       </Page>
     );
   }
 
-  const erreurDepart = comptes.error ?? services.error;
-  if (erreurDepart) {
+  if (listeComptes.length === 0 || listeServices.length === 0) {
     return (
-      <Page>
-        <FeedbackBanner
-          tone="danger"
-          action={
-            <Button
-              onClick={() => {
-                comptes.reload();
-                services.reload();
-              }}
-            >
-              Réessayer
-            </Button>
+      <Page width="text">
+        <PageSection
+          title="Support"
+          empty={
+            listeComptes.length === 0
+              ? {
+                  title: "Aucun compte Jira",
+                  description:
+                    "Ajoutez votre Jira dans la fiche du module Atlassian (Réglages, Modules) : vos demandes de support s’afficheront ici.",
+                }
+              : {
+                  title: "Aucun centre de services",
+                  description: "Ce compte Jira n’a pas de projet Jira Service Management, ou vous n’y êtes pas agent.",
+                }
           }
         >
-          {erreurDepart.message}
-        </FeedbackBanner>
+          {null}
+        </PageSection>
       </Page>
     );
   }
 
-  if (listeComptes.length === 0) {
-    return (
-      <Page width="text">
-        <EmptyState
-          title="Aucun compte Jira"
-          description="Ajoutez votre Jira dans la fiche du module Atlassian (Réglages, Modules) : vos demandes de support s’afficheront ici."
-        />
-      </Page>
-    );
-  }
-
-  if (listeServices.length === 0) {
-    return (
-      <Page width="text">
-        <EmptyState
-          title="Aucun centre de services"
-          description="Ce compte Jira n’a pas de projet Jira Service Management, ou vous n’y êtes pas agent."
-        />
-      </Page>
-    );
-  }
-
+  const pages = Math.max(1, Math.ceil(total / TAILLE));
+  const sansFile = !files.loading && listeFiles.length === 0 && !files.error;
   return (
     <Page
-      search={{
-        label: "Rechercher une demande",
-        value: recherche,
-        onChange: (valeur) => {
-          setRecherche(valeur);
-          setPage(1);
-        },
-      }}
-      bar={
+      toolbar={
         <Row gap="sm">
-          {listeServices.length > 1 && (
-            <SelectControl
-              aria-label="Centre de services"
+          <SearchField
+            label="les demandes"
+            onChange={({ text }) => {
+              setTexte(text.trim());
+              setPage(1);
+            }}
+          />
+          {listeServices.length > 1 ? (
+            <Select
+              label="Centre de services"
+              hideLabel
+              width="sm"
               value={service}
-              onChange={(evenement) => {
-                setServiceChoisi(evenement.target.value);
+              options={listeServices.map((s) => ({ id: s.id, label: s.projetNom }))}
+              onChange={(id) => {
+                if (!id) return;
+                setServiceChoisi(id);
                 setFileChoisie("");
                 setPage(1);
               }}
-            >
-              {listeServices.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.projetNom}
-                </option>
-              ))}
-            </SelectControl>
-          )}
-          {listeFiles.length > 0 && (
-            <SelectControl
-              aria-label="File d’attente"
+            />
+          ) : null}
+          {listeFiles.length > 0 ? (
+            <Select
+              label="File d’attente"
+              hideLabel
+              width="sm"
               value={file}
-              onChange={(evenement) => {
-                setFileChoisie(evenement.target.value);
+              options={listeFiles.map((f) => ({ id: f.id, label: f.nombre === null ? f.nom : `${f.nom} (${f.nombre})` }))}
+              onChange={(id) => {
+                if (!id) return;
+                setFileChoisie(id);
                 setPage(1);
               }}
-            >
-              {listeFiles.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.nombre === null ? f.nom : `${f.nom} (${f.nombre})`}
-                </option>
-              ))}
-            </SelectControl>
-          )}
-          {listeComptes.length > 1 && (
-            <SelectControl
-              aria-label="Compte Jira"
+            />
+          ) : null}
+          {listeComptes.length > 1 ? (
+            <Select
+              label="Compte Jira"
+              hideLabel
+              width="sm"
               value={compte}
-              onChange={(evenement) => {
-                setCompteChoisi(evenement.target.value);
+              options={listeComptes.map((c) => ({ id: c.id, label: c.label }))}
+              onChange={(id) => {
+                if (!id) return;
+                setCompteChoisi(id);
                 setServiceChoisi("");
                 setFileChoisie("");
                 setSelection(null);
                 setPage(1);
               }}
-            >
-              {listeComptes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </SelectControl>
-          )}
+            />
+          ) : null}
         </Row>
       }
-      actions={[{ label: "Actualiser", icon: RefreshCw, onClick: actualiser }]}
+      actions={[
+        { id: "actualiser", label: "Actualiser", icon: <RefreshCw size={16} />, onPress: actualiser },
+        {
+          id: "precedente",
+          label: "Page précédente",
+          icon: <ChevronLeft size={16} />,
+          isHidden: pages <= 1,
+          isDisabled: page <= 1,
+          onPress: () => setPage(Math.max(1, page - 1)),
+        },
+        {
+          id: "suivante",
+          label: "Page suivante",
+          icon: <ChevronRight size={16} />,
+          isHidden: pages <= 1,
+          isDisabled: page >= pages,
+          onPress: () => setPage(Math.min(pages, page + 1)),
+        },
+      ]}
       footer={
-        <Row align="center" justify="between">
-          <Text size="meta">{total === 0 ? "Aucune demande" : `${total} demande${total > 1 ? "s" : ""}`}</Text>
-          {total > TAILLE && <Pagination page={page} pageSize={TAILLE} total={total} onChange={setPage} />}
-        </Row>
+        <Text size="meta">
+          {`${total === 0 ? "Aucune demande" : `${total} demande${total > 1 ? "s" : ""}`}${pages > 1 ? ` · page ${page} sur ${pages}` : ""}`}
+        </Text>
       }
     >
-      <Stack gap="md">
-        {(files.error || demandes.error) && (
-          <FeedbackBanner tone="danger" action={<Button onClick={actualiser}>Réessayer</Button>}>
-            {(files.error ?? demandes.error)?.message}
-          </FeedbackBanner>
-        )}
-        {!files.loading && listeFiles.length === 0 && !files.error ? (
-          <EmptyState
-            size="compact"
-            title="Aucune file d’attente"
-            description="Ce centre de services n’a pas encore de file d’attente visible pour vous."
-          />
-        ) : (
-          <DataTable<DemandeListe>
-            label="Demandes"
-            columns={[
-              { key: "cle", header: "Clé", sortable: true, render: (ligne) => <Code>{ligne.cle}</Code> },
-              { key: "titre", header: "Demande", sortable: true },
-              { key: "client", header: "Client", sortable: true, render: (ligne) => discret(ligne.client) },
-              {
-                key: "statut",
-                header: "État",
-                sortable: true,
-                render: (ligne) => badge(ligne.statut, tonCategorie(ligne.statutCategorie)),
-              },
-              { key: "sla", header: "Délai", render: (ligne) => badgeDelai(ligne.sla) },
-              { key: "assigne", header: "Assigné", sortable: true, render: (ligne) => discret(ligne.assigne) },
-            ]}
-            rows={lignes}
-            rowKey={(ligne) => `${compte}|${ligne.cle}`}
-            selectedKey={selection}
-            onRowClick={ouvrir}
-            loading={demandes.loading || files.loading}
-            emptyTitle={texte ? "Aucun résultat" : "Aucune demande dans cette file"}
-          />
-        )}
-      </Stack>
+      <PageSection
+        title={listeFiles.find((f) => f.id === file)?.nom ?? "Demandes"}
+        state={files.error || demandes.error ? "error" : "ready"}
+        onRetry={actualiser}
+        empty={
+          sansFile
+            ? {
+                title: "Aucune file d’attente",
+                description: "Ce centre de services n’a pas encore de file d’attente visible pour vous.",
+              }
+            : demandes.data && lignes.length === 0
+              ? { title: texte ? "Aucun résultat" : "Aucune demande dans cette file" }
+              : undefined
+        }
+      >
+        <Table<DemandeListe & { id: string }>
+          label="Demandes"
+          columns={[
+            { id: "cle", label: "Clé", width: 110, sortable: true },
+            { id: "titre", label: "Demande", sortable: true },
+            { id: "client", label: "Client", width: 160, sortable: true },
+            { id: "statut", label: "État", width: 140, sortable: true },
+            { id: "sla", label: "Délai", width: 150 },
+            { id: "assigne", label: "Assigné", width: 140, sortable: true },
+          ]}
+          rows={lignes.map((ligne) => ({ ...ligne, id: `${compte}|${ligne.cle}` }))}
+          renderCell={(ligne, colonne) =>
+            colonne === "cle" ? (
+              <Code>{ligne.cle}</Code>
+            ) : colonne === "titre" ? (
+              ligne.titre
+            ) : colonne === "client" ? (
+              discret(ligne.client)
+            ) : colonne === "statut" ? (
+              badge(ligne.statut, tonCategorie(ligne.statutCategorie))
+            ) : colonne === "sla" ? (
+              badgeDelai(ligne.sla)
+            ) : (
+              discret(ligne.assigne)
+            )
+          }
+          selectionMode="single"
+          selectedKeys={selection ? [selection] : []}
+          onSelectionChange={(cles) => {
+            const id = String([...cles][0] ?? "");
+            const ligne = lignes.find((element) => `${compte}|${element.cle}` === id);
+            if (ligne) ouvrir(ligne);
+          }}
+          isLoading={demandes.loading || files.loading}
+        />
+      </PageSection>
     </Page>
   );
 }

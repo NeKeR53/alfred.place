@@ -1,5 +1,5 @@
 import { aucunCompte } from "../lib/comptes-api";
-import { bitbucketClient, erreurBitbucket, resoudrePr } from "../lib/bitbucket-api";
+import { bitbucketClient, erreurBitbucket, resoudrePr, liste } from "../lib/bitbucket-api";
 
 interface ChangementBrut {
   type?: string;
@@ -26,7 +26,7 @@ export default async function (entree: { instance?: string; projet?: string; dep
   );
   if (!reponse.ok) erreurBitbucket(reponse);
   return {
-    fichiers: (reponse.body?.values ?? []).map((c) => ({
+    fichiers: liste(reponse.body?.values).map((c) => ({
       chemin: c.path?.toString ?? "",
       ancien: c.srcPath?.toString ?? null,
       nature: TYPES[c.type ?? ""] ?? "modifié",

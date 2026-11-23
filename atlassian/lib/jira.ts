@@ -1,4 +1,4 @@
-import type { StatusMap } from "@alfred/ui";
+import type { StatusMap } from "socle-ui";
 
 export interface Compte {
   id: string;
@@ -11,6 +11,7 @@ export interface Ticket {
   id: string;
   instance: string | null;
   titre: string;
+  description?: string;
   projet: string;
   projetNom: string;
   type: string;
@@ -84,7 +85,6 @@ export const TRIS = [
   { value: "priorite", label: "Priorité" },
   { value: "echeance", label: "Échéance" },
   { value: "creation", label: "Création" },
-  { value: "criticite", label: "Critiques d’abord" },
 ];
 
 export interface Criteres {

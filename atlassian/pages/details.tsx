@@ -1,5 +1,5 @@
-import { functions, shell, useAsync, usePageContext, usePeerMessage } from "@alfred/sdk";
-import { Button, Divider, EmptyState, FeedbackBanner, LoadingSkeleton, Page, Stack, Text } from "@alfred/ui";
+import { functions, shell, useAsync, usePeerMessage, useSelection } from "@alfred/sdk";
+import { DetailPanel, type DetailField } from "socle-ui";
 import { ChampDirect } from "../lib/champ-direct";
 import type { FicheComplete } from "../lib/fiche-ticket";
 
@@ -12,9 +12,8 @@ function separer(identifiant: string): { instance: string; cle: string } {
 
 /** Colonne de droite du ticket ouvert : tous ses champs, chacun modifiable directement. */
 export default function DetailsTicket() {
-  const contexte = usePageContext();
-  const selection = (contexte?.selection ?? null) as { id?: string } | null;
-  const { instance, cle } = separer(selection?.id ?? "");
+  const selection = useSelection<{ id?: string } | string>();
+  const { instance, cle } = separer(typeof selection === "string" ? selection : (selection?.id ?? ""));
 
   const fiche = useAsync(
     () =>
@@ -31,74 +30,54 @@ export default function DetailsTicket() {
   const ticket = fiche.data?.ticket ?? null;
   const prevenir = () => void shell.send({ type: "ticket-modifie", cle });
 
-  if (!cle) {
-    return (
-      <Page>
-        <EmptyState size="compact" title="Aucun ticket ouvert" description="Ouvrez un ticket pour voir et modifier ses champs ici." />
-      </Page>
-    );
-  }
-
-  const remplis = (ticket?.champs ?? []).filter((c) => c.affichage || c.modifiable).filter((c) => c.affichage);
+  const remplis = (ticket?.champs ?? []).filter((c) => c.affichage);
   const vides = (ticket?.champs ?? []).filter((c) => !c.affichage && c.modifiable);
   const lecture = remplis.filter((c) => !c.modifiable);
   const modifiables = remplis.filter((c) => c.modifiable);
-
-  return (
-    <Page header={ticket ? { title: `Détails · ${ticket.cle}`, subtitle: "Chaque changement est enregistré aussitôt." } : undefined}>
-      {fiche.error ? (
-        <FeedbackBanner tone="danger" action={<Button onClick={() => fiche.reload()}>Réessayer</Button>}>
-          {fiche.error.message}
-        </FeedbackBanner>
-      ) : !ticket ? (
-        fiche.loading ? <LoadingSkeleton /> : <EmptyState size="compact" title="Ticket introuvable" />
-      ) : (
-        <Stack gap="md">
-          {modifiables.map((champ) => (
+  const champs = (liste: typeof remplis): DetailField[] =>
+    ticket
+      ? liste.map((champ) => ({
+          id: champ.id,
+          label: champ.nom,
+          value: (
             <ChampDirect
-              key={champ.id}
               champ={champ}
               instance={instance || undefined}
               cle={ticket.cle}
               projet={ticket.projet}
               apresEnregistrement={prevenir}
             />
-          ))}
-          {vides.length > 0 && (
-            <>
-              <Divider />
-              <Text size="meta" tone="muted">
-                Champs vides
-              </Text>
-              {vides.map((champ) => (
-                <ChampDirect
-                  key={champ.id}
-                  champ={champ}
-                  instance={instance || undefined}
-                  cle={ticket.cle}
-                  projet={ticket.projet}
-                  apresEnregistrement={prevenir}
-                />
-              ))}
-            </>
-          )}
-          {lecture.length > 0 && (
-            <>
-              <Divider />
-              {lecture.map((champ) => (
-                <ChampDirect
-                  key={champ.id}
-                  champ={champ}
-                  instance={instance || undefined}
-                  cle={ticket.cle}
-                  projet={ticket.projet}
-                  apresEnregistrement={prevenir}
-                />
-              ))}
-            </>
-          )}
-        </Stack>
-      )}
-    </Page>
+          ),
+        }))
+      : [];
+
+  return (
+    <DetailPanel
+      header={ticket ? { title: `Détails · ${ticket.cle}`, subtitle: "Chaque changement est enregistré aussitôt." } : undefined}
+      sections={
+        ticket
+          ? [
+              { id: "champs", title: "Champs", fields: champs(modifiables) },
+              ...(vides.length > 0
+                ? [{ id: "vides", title: "Champs vides", defaultCollapsed: true, fields: champs(vides) }]
+                : []),
+              ...(lecture.length > 0
+                ? [
+                    {
+                      id: "lecture",
+                      title: "En lecture seule",
+                      fields: lecture.map((champ) => ({ id: champ.id, label: champ.nom, value: champ.affichage })),
+                    },
+                  ]
+                : []),
+            ]
+          : undefined
+      }
+      isLoading={fiche.loading && !ticket}
+      hasError={Boolean(fiche.error)}
+      onRetry={fiche.reload}
+      isNotFound={Boolean(cle) && !fiche.loading && !fiche.error && !ticket}
+      emptyMessage="Ouvrez un ticket pour voir et modifier ses champs ici."
+    />
   );
 }

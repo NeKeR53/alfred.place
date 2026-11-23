@@ -1,5 +1,5 @@
 import { aucunCompte } from "../lib/comptes-api";
-import { bitbucketClient, erreurBitbucket, normaliserPr, type PrBrut } from "../lib/bitbucket-api";
+import { bitbucketClient, erreurBitbucket, normaliserPr, type PrBrut, liste } from "../lib/bitbucket-api";
 
 interface Activite {
   action?: string;
@@ -45,7 +45,7 @@ export default async function ({
   if (!rCommits.ok) erreurBitbucket(rCommits);
 
   const commentaires: Array<{ id: string; auteur: string; texte: string; cree: number | null }> = [];
-  for (const activite of rActivites.body?.values ?? []) {
+  for (const activite of liste<NonNullable<typeof rActivites.body?.values>[number]>(rActivites.body?.values)) {
     if (!activite.comment) continue;
     const commentaire = activite.comment;
     commentaires.push({
@@ -54,7 +54,7 @@ export default async function ({
       texte: commentaire.text ?? "",
       cree: commentaire.createdDate ?? activite.createdDate ?? null,
     });
-    for (const reponse of commentaire.comments ?? []) {
+    for (const reponse of liste<NonNullable<typeof commentaire.comments>[number]>(commentaire.comments)) {
       commentaires.push({
         id: String(reponse.id ?? commentaires.length),
         auteur: reponse.author?.displayName ?? "Quelqu’un",
@@ -64,7 +64,7 @@ export default async function ({
     }
   }
 
-  const commits = (rCommits.body?.values ?? []).map((commit) => ({
+  const commits = liste(rCommits.body?.values).map((commit) => ({
     id: commit.displayId ?? commit.id ?? "",
     message: commit.message ?? "",
     auteur: commit.author?.displayName ?? "",

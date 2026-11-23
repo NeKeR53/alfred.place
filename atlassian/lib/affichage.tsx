@@ -1,15 +1,12 @@
-import { StatusBadge, Text } from "@alfred/ui";
+import { Text } from "@alfred/kit";
+import { StatusBadge } from "socle-ui";
 
 type Ton = "neutral" | "warning" | "success" | "danger";
 
-/** Badge d’état compact, pour une cellule de tableau. */
+/** Étiquette d’état, pour une case de tableau. */
 export function badge(libelle: string, ton: Ton) {
   if (!libelle) return <Text as="span" tone="muted">—</Text>;
-  return (
-    <StatusBadge tone={ton} size="compact">
-      {libelle}
-    </StatusBadge>
-  );
+  return <StatusBadge tone={ton}>{libelle}</StatusBadge>;
 }
 
 /** Texte secondaire d’une cellule (« il y a 3 h », un projet). */

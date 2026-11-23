@@ -1,5 +1,5 @@
 import { aucunCompte } from "../lib/comptes-api";
-import { bitbucketClient, erreurBitbucket, normaliserPr, type PrBrut } from "../lib/bitbucket-api";
+import { bitbucketClient, erreurBitbucket, normaliserPr, type PrBrut, liste } from "../lib/bitbucket-api";
 
 interface Entree {
   instance?: string;
@@ -34,7 +34,7 @@ export default async function (entree: Entree) {
   if (!reponse.ok) erreurBitbucket(reponse);
 
   return {
-    prs: (reponse.body?.values ?? []).map((pr) => normaliserPr(pr)),
+    prs: liste(reponse.body?.values).map((pr) => normaliserPr(pr)),
     suivant: reponse.body?.isLastPage === false ? reponse.body?.nextPageStart ?? null : null,
   };
 }
