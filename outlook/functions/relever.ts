@@ -20,6 +20,15 @@ export default async function () {
   try {
     const tri = await functions.call<{ appliques: number }>("appliquer-regles", { depuis, limite: 50 });
     tries = tri.appliques;
+    // Puis les points d’entrée, sur ce qui reste dans la boîte de réception.
+    if ((await lireReglage("tri_points")) !== "0") {
+      try {
+        const parPoint = await functions.call<{ ranges: number }>("trier-points-entree", { depuis, limite: 50 });
+        tries += parPoint.ranges;
+      } catch (erreur) {
+        console.warn("Tri par point d’entrée non effectué", erreur);
+      }
+    }
     await db.execute(
       `INSERT INTO outlook_etat (cle, valeur, maj_le) VALUES ('dernier_tri', ?, datetime('now'))
        ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur, maj_le = excluded.maj_le`,

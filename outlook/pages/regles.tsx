@@ -1,7 +1,7 @@
+import { notifyActionError, functions, shell, useAsync } from "@alfred/sdk";
 import { Pencil, Play, Plus, Power, Trash2 } from "lucide-react";
-import { functions, shell, useAsync } from "@alfred/sdk";
-import { CollectionPage, FeedbackBanner, confirmAction, openForm } from "@alfred/ui";
-import { lireRegles, resumerActions, resumerConditions, type Regle } from "../lib/regles";
+import { type FormField, ListPage, useConfirm, useOpenForm } from "socle-ui";
+import { lireRegles, type Regle, resumerActions, resumerConditions } from "../lib/regles";
 
 interface Dossier {
   id: string;
@@ -15,6 +15,8 @@ interface Ligne extends Regle {
 }
 
 export default function ReglesPage() {
+  const openForm = useOpenForm();
+  const confirm = useConfirm();
   const dossiers = useAsync(
     () => functions.call<{ boite: string; dossiers: Dossier[] }>("lister-dossiers", {}),
     [],
@@ -22,94 +24,106 @@ export default function ReglesPage() {
   const listeDossiers = dossiers.data?.dossiers ?? [];
   const noms: Record<string, string> = {};
   for (const dossier of listeDossiers) noms[dossier.id] = dossier.nom;
+  const optionsDossiers = listeDossiers.map((dossier) => ({
+    id: dossier.id,
+    label: `${"— ".repeat(dossier.profondeur)}${dossier.nom}`,
+  }));
 
   const comptes = useAsync(() => functions.call<{ pret: boolean }>("comptes-outlook"), []);
   const pret = comptes.data?.pret === true;
 
-  function formulaire(regle?: Regle) {
-    const champs: Array<Record<string, unknown>> = [
-      { name: "nom", label: "Nom de la règle", placeholder: "Factures fournisseurs" },
+  const regles = useAsync(
+    async () =>
+      (await lireRegles()).map((regle) => ({
+        ...regle,
+        conditionTexte: resumerConditions(regle.conditions),
+        actionTexte: resumerActions(regle.actions, noms),
+      })),
+    [dossiers.data],
+  );
+
+  async function formulaire(regle?: Regle) {
+    const champs: FormField[] = [
+      { name: "nom", label: "Nom de la règle", isRequired: true, placeholder: "Factures fournisseurs" },
       {
         name: "expediteur",
         label: "Expéditeur contient",
-        optional: true,
         placeholder: "comptabilite",
-        hint: "Un nom ou une adresse, même partiel.",
+        description: "Un nom ou une adresse, même partiel.",
       },
-      { name: "objet", label: "Objet contient", optional: true, placeholder: "facture" },
+      { name: "objet", label: "Objet contient", placeholder: "facture" },
       {
         name: "sujet",
         label: "Le message parle de",
-        optional: true,
         placeholder: "factures fournisseurs",
-        hint: "En mots simples : je lis chaque message et je juge s’il en parle.",
+        description: "En mots simples : je lis chaque message et je juge s’il en parle.",
       },
-      { name: "marquerLu", label: "Marquer comme lu", type: "checkbox", optional: true },
+      { name: "marquerLu", label: "Marquer comme lu", type: "checkbox" },
     ];
-    if (listeDossiers.length > 0) {
+    if (optionsDossiers.length > 0) {
       champs.push({
         name: "deplacerVers",
         label: "Déplacer vers",
         type: "select",
-        optional: true,
-        options: listeDossiers.map((dossier) => ({
-          value: dossier.id,
-          label: `${"— ".repeat(dossier.profondeur)}${dossier.nom}`,
-        })),
-        validate: (_valeur: string, valeurs: Record<string, string>) =>
-          valeurs.marquerLu !== "1" && !valeurs.deplacerVers ? "Choisissez au moins une action." : undefined,
+        options: optionsDossiers,
+        validate: (_valeur, valeurs) =>
+          valeurs.marquerLu !== true && !valeurs.deplacerVers ? "Choisissez au moins une action." : undefined,
       });
     }
 
-    return openForm({
+    let enregistree: { id: string; nom: string } | null = null;
+    const rempli = await openForm({
       title: regle ? "Modifier la règle" : "Nouvelle règle",
       description: "Chaque nouveau message est trié au relevé. Précisez au moins une condition et une action.",
       fields: champs,
-      initial: {
+      initialValues: {
         nom: regle?.nom ?? "",
         expediteur: regle?.conditions.expediteur ?? "",
         objet: regle?.conditions.objet ?? "",
         sujet: regle?.conditions.sujet ?? "",
-        marquerLu: regle?.actions.marquerLu ? "1" : "0",
-        deplacerVers: regle?.actions.deplacerVers ?? "",
+        marquerLu: regle?.actions.marquerLu === true,
+        deplacerVers: regle?.actions.deplacerVers || null,
       },
       submitLabel: regle ? "Enregistrer" : "Créer",
-      success: regle ? "Règle modifiée" : "Règle créée",
       onSubmit: async (valeurs) => {
-        const enregistree = await functions.call<{ id: string }>("enregistrer-regle", {
+        const reponse = await functions.call<{ id: string }>("enregistrer-regle", {
           id: regle?.id,
           nom: valeurs.nom,
           actif: regle?.actif ?? true,
           conditions: {
-            expediteur: valeurs.expediteur,
-            objet: valeurs.objet,
-            sujet: valeurs.sujet,
+            expediteur: valeurs.expediteur ?? "",
+            objet: valeurs.objet ?? "",
+            sujet: valeurs.sujet ?? "",
             nonLu: regle?.conditions.nonLu === true,
           },
           actions: {
-            marquerLu: valeurs.marquerLu === "1",
-            deplacerVers: valeurs.deplacerVers,
+            marquerLu: valeurs.marquerLu === true,
+            deplacerVers: valeurs.deplacerVers ?? "",
           },
         });
-        if (!pret) return;
-        // Proposer aussitôt de ranger les messages déjà reçus.
-        setTimeout(() => void proposerApplication(enregistree.id, valeurs.nom), 300);
+        enregistree = { id: reponse.id, nom: String(valeurs.nom) };
+        shell.notify({ title: regle ? "Règle modifiée" : "Règle créée", tone: "success" });
+        regles.reload();
       },
     });
+    const faite = enregistree as { id: string; nom: string } | null;
+    // Proposer aussitôt de ranger les messages déjà reçus.
+    if (rempli && faite && pret) await proposerApplication(faite.id, faite.nom);
   }
 
   async function proposerApplication(id: string, nom: string) {
-    const oui = await confirmAction({
+    const oui = await confirm({
       title: `Appliquer « ${nom} » aux messages existants ?`,
       message: "Je parcours les 200 derniers messages de la boîte de réception et je range ceux qui correspondent.",
       confirmLabel: "Appliquer",
+      tone: "default",
     });
     if (!oui) return;
     const reponse = await functions.call<{ examines: number; appliques: number }>("appliquer-regles", {
       regle: id,
       limite: 200,
     });
-    await shell.notify({
+    shell.notify({
       title:
         reponse.appliques === 0
           ? "Aucun message à ranger"
@@ -120,33 +134,18 @@ export default function ReglesPage() {
   }
 
   function appliquer() {
-    const champs: Array<Record<string, unknown>> = [];
-    if (listeDossiers.length > 0) {
+    const champs: FormField[] = [];
+    if (optionsDossiers.length > 0) {
       champs.push({
         name: "dossier",
         label: "Dossier à parcourir",
         type: "select",
-        optional: true,
-        options: listeDossiers.map((dossier) => ({
-          value: dossier.id,
-          label: `${"— ".repeat(dossier.profondeur)}${dossier.nom}`,
-        })),
-        hint: "Sans choix, la boîte de réception est parcourue.",
+        options: optionsDossiers,
+        description: "Sans choix, la boîte de réception est parcourue.",
       });
     }
-    champs.push({
-      name: "limite",
-      label: "Nombre de messages",
-      type: "number",
-      optional: true,
-      placeholder: "50",
-    });
-    champs.push({
-      name: "simuler",
-      label: "Simuler sans rien modifier",
-      type: "checkbox",
-      optional: true,
-    });
+    champs.push({ name: "limite", label: "Nombre de messages", type: "number", placeholder: "50" });
+    champs.push({ name: "simuler", label: "Simuler sans rien modifier", type: "checkbox" });
 
     return openForm({
       title: "Appliquer les règles aux messages existants",
@@ -154,20 +153,17 @@ export default function ReglesPage() {
       fields: champs,
       submitLabel: "Appliquer",
       onSubmit: async (valeurs) => {
+        const simuler = valeurs.simuler === true;
         const reponse = await functions.call<{ examines: number; appliques: number }>("appliquer-regles", {
           dossier: valeurs.dossier || undefined,
           limite: Number(valeurs.limite || 50),
-          simuler: valeurs.simuler === "1",
+          simuler,
         });
-        await shell.notify({
-          title:
-            valeurs.simuler === "1"
-              ? `${reponse.examines} message${reponse.examines > 1 ? "s" : ""} examiné${reponse.examines > 1 ? "s" : ""}`
-              : `${reponse.appliques} message${reponse.appliques > 1 ? "s" : ""} trié${reponse.appliques > 1 ? "s" : ""}`,
-          description:
-            valeurs.simuler === "1"
-              ? "Aucune modification n’a été faite."
-              : "Les règles actives ont été appliquées.",
+        shell.notify({
+          title: simuler
+            ? `${reponse.examines} message${reponse.examines > 1 ? "s" : ""} examiné${reponse.examines > 1 ? "s" : ""}`
+            : `${reponse.appliques} message${reponse.appliques > 1 ? "s" : ""} trié${reponse.appliques > 1 ? "s" : ""}`,
+          description: simuler ? "Aucune modification n’a été faite." : "Les règles actives ont été appliquées.",
           tone: "info",
         });
       },
@@ -175,71 +171,63 @@ export default function ReglesPage() {
   }
 
   return (
-    <CollectionPage<Ligne>
-      label="Règles"
-      load={async () => {
-        const regles = await lireRegles();
-        return regles.map((regle) => ({
-          ...regle,
-          conditionTexte: resumerConditions(regle.conditions),
-          actionTexte: resumerActions(regle.actions, noms),
-        }));
-      }}
-      deps={[dossiers.data]}
-      rowKey={(regle) => regle.id}
+    <ListPage<Ligne>
+      title="Règles"
+      description={
+        comptes.error || (comptes.data && !pret)
+          ? "Vous pouvez préparer vos règles dès maintenant ; elles trieront vos messages dès qu’Outlook répondra sur votre PC Windows."
+          : undefined
+      }
+      rows={regles.data}
       columns={[
-        { key: "nom", header: "Règle" },
-        { key: "conditionTexte", header: "Condition" },
-        { key: "actionTexte", header: "Action" },
-        { key: "actif", header: "Active", type: "boolean" },
+        { id: "nom", label: "Règle" },
+        { id: "conditionTexte", label: "Condition" },
+        { id: "actionTexte", label: "Action" },
+        { id: "actif", label: "Active", type: "boolean" },
       ]}
-      search={{
-        label: "Rechercher une règle",
-        text: (regle) => `${regle.nom} ${regle.conditionTexte} ${regle.actionTexte}`,
-      }}
-      emptyTitle="Aucune règle"
-      emptyDescription="Une règle range automatiquement les messages qui lui ressemblent."
+      search={{ label: "les règles", text: (regle) => `${regle.nom} ${regle.conditionTexte} ${regle.actionTexte}` }}
+      empty={{ title: "Aucune règle", description: "Une règle range automatiquement les messages qui lui ressemblent." }}
       actions={[
-        { label: "Nouvelle règle", icon: Plus, primary: true, onClick: () => formulaire() },
+        { id: "nouvelle", label: "Nouvelle règle", icon: <Plus size={16} />, primary: true, onPress: () => formulaire() },
         {
+          id: "appliquer",
           label: "Appliquer aux messages existants",
-          icon: Play,
-          disabled: !pret,
-          onClick: appliquer,
+          icon: <Play size={16} />,
+          isDisabled: !pret,
+          onPress: appliquer,
         },
       ]}
       rowActions={(regle) => [
-        { label: "Modifier", icon: Pencil, onClick: () => formulaire(regle) },
+        { id: "modifier", label: "Modifier", icon: <Pencil size={16} />, onPress: () => formulaire(regle) },
         {
+          id: "activer",
           label: regle.actif ? "Désactiver" : "Activer",
-          icon: Power,
-          onClick: () =>
-            functions.call("enregistrer-regle", {
+          icon: <Power size={16} />,
+          onPress: async () => {
+            await functions.call("enregistrer-regle", {
               id: regle.id,
               nom: regle.nom,
               actif: !regle.actif,
               conditions: regle.conditions,
               actions: regle.actions,
-            }),
-          success: regle.actif ? "Règle désactivée" : "Règle activée",
+            });
+            shell.notify({ title: regle.actif ? "Règle désactivée" : "Règle activée", tone: "success" });
+          },
         },
         {
+          id: "supprimer",
           label: "Supprimer",
-          icon: Trash2,
+          icon: <Trash2 size={16} />,
           danger: true,
-          confirm: `Supprimer la règle « ${regle.nom} » ?`,
-          success: "Règle supprimée",
-          onClick: () => functions.call("supprimer-regle", { id: regle.id }),
+          confirm: { title: `Supprimer la règle « ${regle.nom} » ?`, confirmLabel: "Supprimer" },
+          onPress: () => functions.call("supprimer-regle", { id: regle.id }),
         },
       ]}
-      banner={
-        comptes.error || (comptes.data && !pret) ? (
-          <FeedbackBanner tone="warning">
-            Vous pouvez préparer vos règles dès maintenant ; elles trieront vos messages dès qu’Outlook répondra sur
-            votre PC Windows.
-          </FeedbackBanner>
-        ) : undefined
-      }
+      isLoading={regles.loading}
+      hasError={Boolean(regles.error)}
+      onRetry={regles.reload}
+      onActionError={notifyActionError}
+      onActionDone={regles.reload}
     />
   );
 }

@@ -26,6 +26,8 @@ export const REGLAGES_DEFAUT: Record<string, string> = {
   releve_active: "1",
   notifier: "1",
   marquer_lu_ouverture: "1",
+  tri_points: "1",
+  dossier_douteux: "",
 };
 
 function objetJson<T>(texte: string, defaut: T): T {

@@ -1,6 +1,6 @@
+import { db, functions, notifyActionError, shell, useAsync } from "@alfred/sdk";
 import { Mail } from "lucide-react";
-import { db, functions, shell, useAsync } from "@alfred/sdk";
-import { CollectionPage, FeedbackBanner } from "@alfred/ui";
+import { ListPage } from "socle-ui";
 import { raisonIndisponible } from "../lib/affichage";
 
 interface Message {
@@ -11,6 +11,7 @@ interface Message {
 }
 
 interface Correspondant {
+  id: string;
   adresse: string;
   nom: string;
   messages: number;
@@ -35,6 +36,7 @@ async function charger(): Promise<Correspondant[]> {
       const adresse = (message.expediteurAdresse || message.expediteur || "").toLowerCase();
       if (!adresse) continue;
       const fiche = parAdresse.get(adresse) ?? {
+        id: adresse,
         adresse,
         nom: message.expediteur || adresse,
         messages: 0,
@@ -53,7 +55,8 @@ async function charger(): Promise<Correspondant[]> {
 
 export default function CorrespondantsPage() {
   const comptes = useAsync(() => functions.call<{ pret: boolean }>("comptes-outlook"), []);
-  const pret = comptes.data?.pret === true;
+  const indisponible = Boolean(comptes.error) || (comptes.data !== undefined && comptes.data.pret !== true);
+  const correspondants = useAsync(charger, []);
 
   async function voirMessages(correspondant: Correspondant) {
     await db.execute(
@@ -65,39 +68,42 @@ export default function CorrespondantsPage() {
   }
 
   return (
-    <CollectionPage<Correspondant>
-      label="Correspondants"
-      load={charger}
-      rowKey={(correspondant) => correspondant.adresse}
+    <ListPage<Correspondant>
+      title="Correspondants"
+      rows={correspondants.data}
       columns={[
-        { key: "nom", header: "Nom" },
-        { key: "adresse", header: "Adresse", type: "email" },
-        { key: "messages", header: "Messages", type: "number" },
-        { key: "nonLus", header: "Non lus", type: "number" },
-        { key: "dernier", header: "Dernier message", type: "relative" },
+        { id: "nom", label: "Nom" },
+        { id: "adresse", label: "Adresse", type: "email" },
+        { id: "messages", label: "Messages", type: "number" },
+        { id: "nonLus", label: "Non lus", type: "number" },
+        { id: "dernier", label: "Dernier message", type: "relative" },
       ]}
-      search={{
-        label: "Rechercher un correspondant",
-        text: (correspondant) => `${correspondant.nom} ${correspondant.adresse}`,
-      }}
-      views={{
-        label: "Vue",
-        items: [
-          { id: "tous", label: "Tous", test: () => true },
-          { id: "nonLus", label: "Avec des non lus", test: (correspondant) => correspondant.nonLus > 0 },
-        ],
-      }}
-      emptyTitle="Aucun correspondant"
-      emptyDescription="Les personnes qui vous écrivent apparaissent ici, classées par nombre de messages."
-      onOpen={voirMessages}
-      rowActions={(correspondant) => [
-        { label: "Voir ses messages", icon: Mail, onClick: () => voirMessages(correspondant) },
+      search={{ label: "les correspondants", text: (correspondant) => `${correspondant.nom} ${correspondant.adresse}` }}
+      filters={[
+        {
+          id: "vue",
+          label: "Vue",
+          allLabel: "Tous",
+          options: [{ id: "nonLus", label: "Avec des non lus" }],
+          value: (correspondant) => (correspondant.nonLus > 0 ? "nonLus" : null),
+        },
       ]}
-      banner={
-        comptes.error || (comptes.data && !pret) ? (
-          <FeedbackBanner tone="warning">{raisonIndisponible(comptes.error)}</FeedbackBanner>
-        ) : undefined
+      empty={
+        indisponible
+          ? { title: "Outlook ne répond pas", description: raisonIndisponible(comptes.error) }
+          : {
+              title: "Aucun correspondant",
+              description: "Les personnes qui vous écrivent apparaissent ici, classées par nombre de messages.",
+            }
       }
+      onOpen={(correspondant) => void voirMessages(correspondant)}
+      rowActions={(correspondant) => [
+        { id: "messages", label: "Voir ses messages", icon: <Mail size={16} />, onPress: () => voirMessages(correspondant) },
+      ]}
+      isLoading={correspondants.loading}
+      hasError={Boolean(correspondants.error)}
+      onRetry={correspondants.reload}
+      onActionError={notifyActionError}
     />
   );
 }

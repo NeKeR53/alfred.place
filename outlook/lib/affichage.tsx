@@ -1,18 +1,15 @@
-import { StatusBadge, Text } from "@alfred/ui";
+import { Text } from "@alfred/kit";
+import { StatusBadge } from "socle-ui";
 
 type Ton = "neutral" | "warning" | "success" | "danger";
 
-/** Badge d’état compact, pour une cellule de tableau. */
+/** Étiquette d’état, pour une case de tableau. */
 export function badge(libelle: string, ton: Ton) {
   if (!libelle) return <Text as="span" tone="muted">—</Text>;
-  return (
-    <StatusBadge tone={ton} size="compact">
-      {libelle}
-    </StatusBadge>
-  );
+  return <StatusBadge tone={ton}>{libelle}</StatusBadge>;
 }
 
-/** Texte secondaire d’une cellule (« il y a 3 h », un projet). */
+/** Texte secondaire d’une case (« il y a 3 h », un projet). */
 export function discret(texte: string | null | undefined) {
   return (
     <Text as="span" tone="muted">
@@ -20,8 +17,6 @@ export function discret(texte: string | null | undefined) {
     </Text>
   );
 }
-
-
 
 /** Date relative courte, en français. */
 export function quand(valeur: string | number | null | undefined): string {

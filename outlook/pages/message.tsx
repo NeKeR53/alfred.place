@@ -1,16 +1,8 @@
-import { ExternalLink, FileText, Forward, FolderInput, Mail, MailOpen, PenLine, Reply, ReplyAll, Trash2 } from "lucide-react";
-import { functions, db, shell, useAsync } from "@alfred/sdk";
-import {
-  DetailPanel,
-  HtmlContent,
-  Image,
-  List,
-  ListItem,
-  Markdown,
-  openForm,
-  openModal,
-  type StatusMap,
-} from "@alfred/ui";
+import { announceChange, db, functions, loadPdf, notifyActionError, shell, useAsync, useSelection } from "@alfred/sdk";
+import { ExternalLink, FileText, FolderInput, Forward, Mail, MailOpen, PenLine, Reply, ReplyAll, Trash2 } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { Button, DetailPanel, Dialog, DocumentViewer, HtmlContent, List, type StatusMap, useOpenForm } from "socle-ui";
+import { Markdown } from "socle-ui/markdown";
 import { redigerReponse, resumerMessage } from "../lib/assistant";
 
 interface Piece {
@@ -57,7 +49,16 @@ function taille(octets: number): string {
   return `${(octets / (1024 * 1024)).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mo`;
 }
 
+/** Une modale ouverte depuis le panneau : l’aperçu d’une pièce, ou le résumé du message. */
+interface Fenetre {
+  titre: string;
+  contenu: ReactNode;
+}
+
 export default function MessagePanel() {
+  const id = useSelection<string>();
+  const openForm = useOpenForm();
+  const [fenetre, setFenetre] = useState<Fenetre | null>(null);
   const dossiers = useAsync(
     () => functions.call<{ boite: string; dossiers: Dossier[] }>("lister-dossiers", {}),
     [],
@@ -68,58 +69,58 @@ export default function MessagePanel() {
     [],
   );
   const signature = reglages.data?.[0]?.valeur ?? "";
+  const lecture = useAsync(
+    async () => (id ? (await functions.call<{ message: MessageDetail | null }>("lire-message", { id })).message : null),
+    [id],
+  );
+  const message = lecture.data;
 
-  async function charger(id: string): Promise<MessageDetail | null> {
-    const reponse = await functions.call<{ message: MessageDetail | null }>("lire-message", { id });
-    return reponse.message;
-  }
+  /** Après une écriture : la boîte de réception se relit, et le message aussi. */
+  const prevenir = async (title?: string) => {
+    if (title) shell.notify({ title, tone: "success" });
+    void announceChange();
+  };
 
-  function repondre(message: MessageDetail, mode: "repondre" | "tous") {
+  function repondre(cible: MessageDetail, mode: "repondre" | "tous") {
     return openForm({
       title: mode === "tous" ? "Répondre à tous" : "Répondre",
-      description: `À ${message.expediteur}`,
-      fields: [{ name: "texte", label: "Votre réponse", type: "textarea", placeholder: "Bonjour," }],
+      description: `À ${cible.expediteur}`,
+      fields: [{ name: "texte", label: "Votre réponse", type: "textarea", isRequired: true, placeholder: "Bonjour," }],
       submitLabel: "Envoyer",
-      success: "Réponse envoyée",
       onSubmit: async (valeurs) => {
-        await functions.call("repondre-message", {
-          id: message.id,
-          mode,
-          texte: valeurs.texte,
-          signature,
-        });
-        await shell.send({ type: "refresh" });
+        await functions.call("repondre-message", { id: cible.id, mode, texte: valeurs.texte, signature });
+        await prevenir("Réponse envoyée");
       },
     });
   }
 
-  function transferer(message: MessageDetail) {
+  function transferer(cible: MessageDetail) {
     return openForm({
       title: "Transférer le message",
       fields: [
         {
           name: "destinataires",
           label: "À",
+          isRequired: true,
           placeholder: "prenom@exemple.fr",
-          hint: "Séparez plusieurs adresses par des virgules.",
+          description: "Séparez plusieurs adresses par des virgules.",
         },
-        { name: "texte", label: "Mot d’accompagnement", type: "textarea", optional: true },
+        { name: "texte", label: "Mot d’accompagnement", type: "textarea" },
       ],
       submitLabel: "Transférer",
-      success: "Message transféré",
       onSubmit: async (valeurs) => {
         await functions.call("transferer-message", {
-          id: message.id,
+          id: cible.id,
           destinataires: valeurs.destinataires,
           texte: valeurs.texte,
           signature,
         });
-        await shell.send({ type: "refresh" });
+        await prevenir("Message transféré");
       },
     });
   }
 
-  function deplacer(message: MessageDetail) {
+  function deplacer(cible: MessageDetail) {
     return openForm({
       title: "Déplacer le message",
       fields: [
@@ -127,196 +128,251 @@ export default function MessagePanel() {
           name: "dossier",
           label: "Dossier",
           type: "select",
+          isRequired: true,
           options: listeDossiers.map((element) => ({
-            value: element.id,
+            id: element.id,
             label: `${"— ".repeat(element.profondeur)}${element.nom}`,
           })),
         },
       ],
       submitLabel: "Déplacer",
-      success: "Message déplacé",
       onSubmit: async (valeurs) => {
-        await functions.call("deplacer-message", { id: message.id, dossier: valeurs.dossier });
-        await shell.send({ type: "refresh" });
+        await functions.call("deplacer-message", { id: cible.id, dossier: valeurs.dossier });
+        await prevenir("Message déplacé");
       },
     });
   }
 
-  async function apercu(message: MessageDetail, piece: Piece) {
+  async function apercu(cible: MessageDetail, piece: Piece) {
     const reponse = await functions.call<{ piece: { dataUrl: string | null } | null }>("lire-piece-jointe", {
-      message: message.id,
+      message: cible.id,
       piece: piece.id,
     });
-    if (!reponse.piece?.dataUrl) {
-      await shell.notify({
-        title: "Aperçu indisponible",
-        description: "Cette pièce ne peut pas être affichée ici.",
-        tone: "info",
-      });
+    const source = reponse.piece?.dataUrl;
+    if (!source) {
+      shell.notify({ title: "Aperçu indisponible", description: "Cette pièce ne peut pas être affichée ici.", tone: "info" });
       return;
     }
-    await openModal({
-      title: piece.nom,
-      size: "wide",
-      content: <Image src={reponse.piece.dataUrl} alt={piece.nom} size="full" />,
+    setFenetre({
+      titre: piece.nom,
+      contenu: <DocumentViewer label={piece.nom} src={source} name={piece.nom} type={piece.type} loadPdf={loadPdf} />,
     });
   }
 
+  const resoudreImage = (cible: MessageDetail) => async (source: string) => {
+    if (!source.startsWith("cid:")) return null;
+    const cid = source.slice(4);
+    const piece = cible.pieces.find(
+      (element) => element.contentId === cid || element.contentId === `<${cid}>` || element.contentId === source,
+    );
+    if (!piece) return null;
+    const reponse = await functions.call<{ piece: { dataUrl: string | null } | null }>("lire-piece-jointe", {
+      message: cible.id,
+      piece: piece.id,
+    });
+    return reponse.piece?.dataUrl ?? null;
+  };
+
+  const modale = fenetre ? (
+    <Dialog
+      isOpen
+      size="xl"
+      title={fenetre.titre}
+      onOpenChange={(ouverte) => {
+        if (!ouverte) setFenetre(null);
+      }}
+      footer={<Button onPress={() => setFenetre(null)}>Fermer</Button>}
+    >
+      {fenetre.contenu}
+    </Dialog>
+  ) : null;
+
   return (
-    <DetailPanel<MessageDetail>
-      emptyTitle="Aucun message sélectionné"
-      notFoundTitle="Message introuvable"
-      load={charger}
-      title={(message) => message.objet}
-      subtitle={(message) =>
-        [message.expediteur, message.expediteurAdresse].filter(Boolean).join(" · ")
+    <DetailPanel
+      header={
+        message
+          ? {
+              title: message.objet || "(sans objet)",
+              subtitle: [message.expediteur, message.expediteurAdresse].filter(Boolean).join(" · "),
+              status: ETATS[message.lu ? "lu" : "non_lu"],
+              actions: [
+                {
+                  id: "rediger",
+                  label: "Rédiger une réponse avec l’assistant",
+                  icon: <PenLine size={16} />,
+                  onPress: async () => {
+                    let propose = "";
+                    const rempli = await openForm({
+                      title: "Rédiger une réponse",
+                      description:
+                        "Dites en quelques mots ce que vous voulez répondre, ou laissez vide : je propose un texte que vous relirez.",
+                      fields: [
+                        {
+                          name: "intention",
+                          label: "Ce que vous voulez dire",
+                          type: "textarea",
+                          placeholder: "D’accord pour jeudi, mais pas avant 14 h.",
+                        },
+                      ],
+                      submitLabel: "Rédiger",
+                      onSubmit: async (v) => {
+                        propose = (await redigerReponse(message, String(v.intention ?? ""))).reponse;
+                      },
+                    });
+                    if (!rempli) return;
+                    await openForm({
+                      title: `Réponse à ${message.expediteur}`,
+                      description: "Relisez et ajustez avant d’envoyer.",
+                      fields: [{ name: "texte", label: "Votre réponse", type: "textarea", isRequired: true }],
+                      initialValues: { texte: propose },
+                      submitLabel: "Envoyer",
+                      onSubmit: async (val) => {
+                        await functions.call("repondre-message", {
+                          id: message.id,
+                          mode: "repondre",
+                          texte: val.texte,
+                          signature,
+                        });
+                        await prevenir("Réponse envoyée");
+                      },
+                    });
+                  },
+                },
+                {
+                  id: "resumer",
+                  label: "Résumer le message",
+                  icon: <FileText size={16} />,
+                  onPress: async () => {
+                    const { resume, actions } = await resumerMessage(message);
+                    setFenetre({
+                      titre: `Résumé : ${message.objet}`,
+                      contenu: (
+                        <Markdown>
+                          {[
+                            resume,
+                            ...(actions.length > 0
+                              ? ["", "**Ce qui est attendu de vous**", ...actions.map((a) => `- ${a}`)]
+                              : []),
+                          ].join("\n")}
+                        </Markdown>
+                      ),
+                    });
+                  },
+                },
+                { id: "repondre", label: "Répondre", icon: <Reply size={16} />, onPress: () => repondre(message, "repondre") },
+                {
+                  id: "repondre-tous",
+                  label: "Répondre à tous",
+                  icon: <ReplyAll size={16} />,
+                  onPress: () => repondre(message, "tous"),
+                },
+                { id: "transferer", label: "Transférer", icon: <Forward size={16} />, onPress: () => transferer(message) },
+                {
+                  id: "lu",
+                  label: message.lu ? "Marquer comme non lu" : "Marquer comme lu",
+                  icon: message.lu ? <Mail size={16} /> : <MailOpen size={16} />,
+                  onPress: async () => {
+                    await functions.call("marquer-message", { id: message.id, lu: !message.lu });
+                    await prevenir();
+                  },
+                },
+                {
+                  id: "deplacer",
+                  label: "Déplacer",
+                  icon: <FolderInput size={16} />,
+                  isDisabled: listeDossiers.length === 0,
+                  onPress: () => deplacer(message),
+                },
+                {
+                  id: "outlook",
+                  label: "Ouvrir dans Outlook",
+                  icon: <ExternalLink size={16} />,
+                  isHidden: !message.url,
+                  onPress: () => shell.openExternal(message.url ?? ""),
+                },
+                {
+                  id: "supprimer",
+                  label: "Supprimer",
+                  icon: <Trash2 size={16} />,
+                  danger: true,
+                  confirm: {
+                    title: `Supprimer « ${message.objet} » ?`,
+                    message: "Le message ira dans la corbeille.",
+                    confirmLabel: "Supprimer",
+                  },
+                  onPress: async () => {
+                    await functions.call("supprimer-message", { id: message.id });
+                    await prevenir("Message supprimé");
+                  },
+                },
+              ],
+            }
+          : undefined
       }
-      status={{ value: (message) => (message.lu ? "lu" : "non_lu"), statuses: ETATS }}
-      fields={(message) => [
-        { label: "De", value: message.expediteur },
-        { label: "Adresse", value: message.expediteurAdresse },
-        { label: "À", value: message.destinataires.join(", ") },
-        { label: "Copie", value: message.copies.join(", "), hideEmpty: true },
-        { label: "Reçu", value: message.recu ?? "", type: "datetime" },
-      ]}
-      sections={(message) => [
-        {
-          title: "Message",
-          content: (
-            <HtmlContent
-              html={message.corps}
-              label={`Message de ${message.expediteur}`}
-              onLink={(url) => void shell.openExternal(url)}
-              resolveImage={async (source) => {
-                if (!source.startsWith("cid:")) return null;
-                const cid = source.slice(4);
-                const piece = message.pieces.find(
-                  (element) =>
-                    element.contentId === cid ||
-                    element.contentId === `<${cid}>` ||
-                    element.contentId === source,
-                );
-                if (!piece) return null;
-                const reponse = await functions.call<{ piece: { dataUrl: string | null } | null }>(
-                  "lire-piece-jointe",
-                  { message: message.id, piece: piece.id },
-                );
-                return reponse.piece?.dataUrl ?? null;
-              }}
-            />
-          ),
-        },
-        ...(message.pieces.length > 0
+      sections={
+        message
           ? [
               {
-                title: "Pièces jointes",
+                id: "fiche",
+                title: "Fiche",
+                fields: [
+                  { label: "De", value: message.expediteur },
+                  { label: "Adresse", value: message.expediteurAdresse, type: "email" },
+                  { label: "À", value: message.destinataires.join(", ") },
+                  { label: "Copie", value: message.copies.join(", "), hideEmpty: true },
+                  { label: "Reçu", value: message.recu, type: "datetime" },
+                ],
+              },
+              {
+                id: "message",
+                title: "Message",
                 content: (
-                  <List label="Pièces jointes du message">
-                    {message.pieces.map((piece) => (
-                      <ListItem
-                        key={piece.id}
-                        title={piece.nom}
-                        description={[taille(piece.taille), piece.type].filter(Boolean).join(" · ")}
-                        onClick={piece.type.startsWith("image/") ? () => void apercu(message, piece) : undefined}
-                      />
-                    ))}
-                  </List>
+                  <>
+                    <HtmlContent
+                      html={message.corps}
+                      label={`Message de ${message.expediteur}`}
+                      onLink={(url) => void shell.openExternal(url)}
+                      resolveImage={resoudreImage(message)}
+                    />
+                    {modale}
+                  </>
                 ),
               },
+              ...(message.pieces.length > 0
+                ? [
+                    {
+                      id: "pieces",
+                      title: "Pièces jointes",
+                      content: (
+                        <List
+                          label="Pièces jointes du message"
+                          selectionMode="none"
+                          items={message.pieces.map((piece) => ({
+                            id: piece.id,
+                            title: piece.nom,
+                            subtitle: [taille(piece.taille), piece.type, piece.type.startsWith("image/") ? "aperçu" : ""]
+                              .filter(Boolean)
+                              .join(" · "),
+                          }))}
+                          onAction={(cle) => {
+                            const piece = message.pieces.find((element) => element.id === cle);
+                            if (piece?.type.startsWith("image/")) void apercu(message, piece);
+                          }}
+                        />
+                      ),
+                    },
+                  ]
+                : []),
             ]
-          : []),
-      ]}
-      actions={(message) => [
-        {
-          label: "Rédiger une réponse avec l’assistant",
-          icon: PenLine,
-          onClick: () =>
-            openForm({
-              title: "Rédiger une réponse",
-              description: "Dites en quelques mots ce que vous voulez répondre, ou laissez vide : je propose un texte que vous relirez.",
-              fields: [{ name: "intention", label: "Ce que vous voulez dire", type: "textarea", optional: true, placeholder: "D’accord pour jeudi, mais pas avant 14 h." }],
-              submitLabel: "Rédiger",
-              onSubmit: async (v) => {
-                const { reponse } = await redigerReponse(message, v.intention);
-                void openForm({
-                  title: `Réponse à ${message.expediteur}`,
-                  description: "Relisez et ajustez avant d’envoyer.",
-                  fields: [{ name: "texte", label: "Votre réponse", type: "textarea" }],
-                  initial: { texte: reponse },
-                  submitLabel: "Envoyer",
-                  success: "Réponse envoyée",
-                  onSubmit: async (val) => {
-                    await functions.call("repondre-message", { id: message.id, mode: "repondre", texte: val.texte, signature });
-                    await shell.send({ type: "refresh" });
-                  },
-                });
-              },
-            }),
-        },
-        {
-          label: "Résumer le message",
-          icon: FileText,
-          onClick: async () => {
-            const { resume, actions } = await resumerMessage(message);
-            return openModal({
-              title: `Résumé : ${message.objet}`,
-              size: "wide",
-              content: (
-                <Markdown>
-                  {[resume, ...(actions.length > 0 ? ["", "**Ce qui est attendu de vous**", ...actions.map((a) => `- ${a}`)] : [])].join("\n")}
-                </Markdown>
-              ),
-            });
-          },
-        },
-        {
-          label: "Répondre",
-          icon: Reply,
-          onClick: () => repondre(message, "repondre"),
-        },
-        {
-          label: "Répondre à tous",
-          icon: ReplyAll,
-          onClick: () => repondre(message, "tous"),
-        },
-        {
-          label: "Transférer",
-          icon: Forward,
-          onClick: () => transferer(message),
-        },
-        {
-          label: message.lu ? "Marquer comme non lu" : "Marquer comme lu",
-          icon: message.lu ? Mail : MailOpen,
-          onClick: async () => {
-            await functions.call("marquer-message", { id: message.id, lu: !message.lu });
-            await shell.send({ type: "refresh" });
-          },
-        },
-        {
-          label: "Déplacer",
-          icon: FolderInput,
-          disabled: listeDossiers.length === 0,
-          onClick: () => deplacer(message),
-        },
-        {
-          label: "Ouvrir dans Outlook",
-          icon: ExternalLink,
-          hidden: !message.url,
-          onClick: () => shell.openExternal(message.url ?? ""),
-        },
-        {
-          label: "Supprimer",
-          icon: Trash2,
-          danger: true,
-          confirm: `Supprimer « ${message.objet} » ?`,
-          confirmMessage: "Le message ira dans la corbeille.",
-          success: "Message supprimé",
-          onClick: async () => {
-            await functions.call("supprimer-message", { id: message.id });
-            await shell.send({ type: "refresh" });
-          },
-        },
-      ]}
+          : undefined
+      }
+      isLoading={lecture.loading}
+      hasError={Boolean(lecture.error)}
+      onRetry={lecture.reload}
+      isNotFound={Boolean(id) && !lecture.loading && !lecture.error && message === null}
+      emptyMessage="Sélectionnez un message pour le lire ici."
+      onActionError={notifyActionError}
+      onActionDone={() => lecture.reload()}
     />
   );
 }

@@ -2344,6 +2344,452 @@
         }
       ],
       "tool": true
+    },
+    {
+      "description": "Liste les points d’entrée du tri Outlook : nom, description de ce qu’ils regroupent, dossier de destination et état actif.",
+      "effect": "read",
+      "id": "lister-points-entree",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "points": {
+            "items": {
+              "properties": {
+                "actif": {
+                  "type": "boolean"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "dossier": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "nom",
+                "description",
+                "dossier",
+                "actif"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "points"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "points"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Liste les points d’entrée enregistrés"
+        }
+      ],
+      "tool": true
+    },
+    {
+      "description": "Crée ou modifie un point d’entrée du tri Outlook : un nom court (« Factures »), une description de ce qu’il regroupe, et le dossier où ranger ses messages (facultatif : sans dossier, ils restent dans la boîte et se filtrent).",
+      "effect": "write",
+      "id": "enregistrer-point-entree",
+      "input": {
+        "properties": {
+          "actif": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "dossier": {
+            "description": "Identifiant du dossier Outlook de destination (lister-dossiers).",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifiant du point à modifier ; omis, un nouveau point est créé.",
+            "type": "string"
+          },
+          "nom": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "nom"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "id"
+            ],
+            "schema": true
+          },
+          "input": {
+            "actif": false,
+            "description": "messages de test",
+            "nom": "Point de test"
+          },
+          "name": "Crée un point d’entrée de test"
+        }
+      ],
+      "tool": true
+    },
+    {
+      "description": "Supprime un point d’entrée du tri Outlook. Les messages déjà rangés ne bougent pas.",
+      "effect": "write",
+      "id": "supprimer-point-entree",
+      "input": {
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "supprime": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "supprime"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "supprime"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Supprime le point choisi",
+          "target": {
+            "field": "id",
+            "hint": "identifiant d’un point jetable",
+            "label": "Point d’entrée de test"
+          }
+        }
+      ],
+      "tool": false
+    },
+    {
+      "description": "Classe des messages Outlook dans les points d’entrée actifs, en une décision prise sur l’ordinateur par message ; garde le résultat. Rend pour chacun le point retenu, la certitude et l’état : classé, douteux (à trancher) ou hors des points d’entrée.",
+      "effect": "write",
+      "id": "classer-messages",
+      "input": {
+        "properties": {
+          "messages": {
+            "items": {
+              "properties": {
+                "expediteur": {
+                  "type": "string"
+                },
+                "expediteurAdresse": {
+                  "type": "string"
+                },
+                "extrait": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objet": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            },
+            "maxItems": 100,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "resultats": {
+            "items": {
+              "properties": {
+                "certitude": {
+                  "type": "number"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "point": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "statut": {
+                  "enum": [
+                    "classe",
+                    "douteux",
+                    "aucun"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "point",
+                "nom",
+                "certitude",
+                "statut"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "resultats"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "schema": true
+          },
+          "input": {
+            "messages": [
+              {
+                "expediteur": "Comptabilité Dupont",
+                "expediteurAdresse": "compta@dupont.fr",
+                "extrait": "Bonjour, veuillez trouver ci-joint la facture du mois d’octobre.",
+                "id": "test-facture",
+                "objet": "Facture F-2026-118 à régler"
+              }
+            ]
+          },
+          "name": "Classe un message de facture"
+        }
+      ],
+      "tool": true
+    },
+    {
+      "description": "Trie les messages d’un dossier Outlook (la boîte de réception par défaut) par point d’entrée : chaque message classé avec certitude va dans le dossier de son point ; les cas douteux vont dans le dossier « à trier » s’il est réglé. En simulation ou pour de vrai ; peut se limiter aux messages reçus depuis une date.",
+      "effect": "write",
+      "id": "trier-points-entree",
+      "input": {
+        "properties": {
+          "depuis": {
+            "description": "Date ISO : seuls les messages reçus après sont traités.",
+            "type": "string"
+          },
+          "dossier": {
+            "description": "Dossier à parcourir ; omis, la boîte de réception.",
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "limite": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "simuler": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "details": {
+            "items": {
+              "properties": {
+                "action": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "point": {
+                  "type": "string"
+                },
+                "sujet": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "douteux": {
+            "type": "integer"
+          },
+          "examines": {
+            "type": "integer"
+          },
+          "ranges": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "examines",
+          "ranges",
+          "douteux"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "examines",
+              "ranges"
+            ],
+            "schema": true
+          },
+          "input": {
+            "limite": 20,
+            "simuler": true
+          },
+          "name": "Simule le tri des 20 derniers messages"
+        }
+      ],
+      "tool": true
+    },
+    {
+      "description": "Disponibilités d’une personne lues dans l’Outlook classique du poste (comme OneApp) : un caractère par demi-heure à partir de minuit du premier jour (0 libre, 1 provisoire, 2 occupé, 3 absent, 4 ailleurs, 5 inconnu), jamais les rendez-vous.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "debut": "2026-11-24",
+            "email": "lea.martin@acme.fr",
+            "jours": 1
+          },
+          "name": "Une journée absente",
+          "output": {
+            "debut": "2026-11-24",
+            "email": "lea.martin@acme.fr",
+            "jours": 1,
+            "minutesParCreneau": 30,
+            "statuts": "333333333333333333333333333333333333333333333333"
+          }
+        }
+      ],
+      "id": "lire-disponibilites",
+      "input": {
+        "properties": {
+          "debut": {
+            "description": "Premier jour, AAAA-MM-JJ.",
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "jours": {
+            "description": "1 à 180 jours (120 par défaut).",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "email",
+          "debut"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "debut": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "jours": {
+            "type": "integer"
+          },
+          "minutesParCreneau": {
+            "type": "integer"
+          },
+          "statuts": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "debut",
+          "jours",
+          "minutesParCreneau",
+          "statuts"
+        ],
+        "type": "object"
+      },
+      "runtime": "pwsh",
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "statuts"
+            ],
+            "schema": true
+          },
+          "input": {
+            "debut": "2026-11-23",
+            "email": "",
+            "jours": 1
+          },
+          "name": "Lit une journée",
+          "target": {
+            "field": "email",
+            "hint": "Adresse de l’annuaire Exchange",
+            "label": "Adresse d’une personne"
+          }
+        }
+      ],
+      "tool": false
     }
   ],
   "id": "outlook",
@@ -2407,6 +2853,16 @@
         "section": "principal"
       },
       "title": "Correspondants"
+    },
+    {
+      "description": "Les catégories de tri des messages : chaque nouveau message est classé dans l’une d’elles sur l’ordinateur, puis rangé dans son dossier.",
+      "icon": "signpost",
+      "id": "points-d-entree",
+      "placement": {
+        "kind": "tab",
+        "section": "principal"
+      },
+      "title": "Points d’entrée"
     }
   ],
   "schedules": [
@@ -2426,5 +2882,5 @@
       "label": "Outlook"
     }
   ],
-  "version": "0.1.0"
+  "version": "1.0.0"
 }

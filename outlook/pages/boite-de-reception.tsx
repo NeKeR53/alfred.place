@@ -1,25 +1,31 @@
+import { Notice, Row, Stack, Text } from "@alfred/kit";
+import {
+  ai,
+  badge,
+  db,
+  functions,
+  notifyActionError,
+  shell,
+  useAsync,
+  usePageState,
+  usePeerMessage,
+} from "@alfred/sdk";
+import { Bot, ChevronLeft, ChevronRight, RefreshCw, SquarePen } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Bot, RefreshCw, SquarePen } from "lucide-react";
-import { ai, functions, badge, db, shell, useAsync, usePeerMessage } from "@alfred/sdk";
-import { badge as pastille, discret, quand, raisonIndisponible } from "../lib/affichage";
-import { useJugements } from "../lib/progressif";
 import {
   Avatar,
-  Button,
-  DataTable,
-  EmptyState,
-  FeedbackBanner,
-  LoadingSkeleton,
   Page,
-  Row,
+  PageSection,
   SearchField,
-  SelectControl,
-  Stack,
-  Text,
-  openForm,
-  usePageState,
+  Select,
   type StatusMap,
-} from "@alfred/ui";
+  Table,
+  type TableColumn,
+  useOpenForm,
+} from "socle-ui";
+import { badge as pastille, discret, quand, raisonIndisponible } from "../lib/affichage";
+import { type Classement, lirePoints } from "../lib/points";
+import { useJugements } from "../lib/progressif";
 
 interface Compte {
   id: string;
@@ -67,13 +73,24 @@ const ETATS: StatusMap = {
 };
 
 const TAILLE = 40;
+/** Messages parcourus, au plus, quand la vue est filtrée par point d’entrée. */
+const BALAYAGE = 300;
+const DOUTEUX = "__douteux";
+const AUCUN = "__aucun";
+
+function correspondAuPoint(filtre: string, classement: Classement): boolean {
+  if (filtre === DOUTEUX) return classement.statut === "douteux";
+  if (filtre === AUCUN) return classement.statut === "aucun";
+  return classement.statut === "classe" && classement.point === filtre;
+}
 
 export default function BoitePage() {
-  const [saisie, setSaisie] = usePageState<string>("outlook.boite.recherche", "");
-  const [recherche, setRecherche] = useState(saisie.trim());
+  const [recherche, setRecherche] = usePageState<string>("outlook.boite.recherche", "");
+  const openForm = useOpenForm();
   const [dossier, setDossier] = usePageState<string>("outlook.boite.dossier", "");
   const [expediteur, setExpediteur] = usePageState<string>("outlook.boite.expediteur", "");
   const [vue, setVue] = usePageState<string>("outlook.boite.vue", "tous");
+  const [point, setPoint] = usePageState<string>("outlook.boite.point", "");
   const [page, setPage] = usePageState<number>("outlook.boite.page", 1);
   const [selection, setSelection] = usePageState<string | null>("outlook.boite.selection", null);
 
@@ -126,28 +143,56 @@ export default function BoitePage() {
     void db.execute("DELETE FROM outlook_reglages WHERE cle = 'expediteur_actif'").then(() => preferences.reload());
   }, [preferences.data]);
 
-  useEffect(() => {
-    const minuteur = setTimeout(() => {
-      setRecherche(saisie.trim());
-      setPage(1);
-    }, 350);
-    return () => clearTimeout(minuteur);
-  }, [saisie]);
+  const points = useAsync(() => lirePoints(true), []);
+  const listePoints = points.data ?? [];
+  const filtrePoint = point && (point === DOUTEUX || point === AUCUN || listePoints.some((p) => p.id === point)) ? point : "";
 
   const messages = useAsync(
     async () => {
       if (!compte || (!dossier && !boite)) return { messages: [] as Message[], suivant: false };
-      return functions.call<{ messages: Message[]; suivant: boolean }>("lister-messages", {
+      const criteres = {
         instance: compte,
         dossier: dossier || boite,
         recherche: recherche || undefined,
         expediteur: expediteur || undefined,
         nonLus: vue === "nonLus",
-        debut: (page - 1) * TAILLE,
-        limite: TAILLE,
-      });
+      };
+      if (!filtrePoint) {
+        return functions.call<{ messages: Message[]; suivant: boolean }>("lister-messages", {
+          ...criteres,
+          debut: (page - 1) * TAILLE,
+          limite: TAILLE,
+        });
+      }
+      // Filtre par point d’entrée : je parcours les derniers messages et je garde ceux de ce point.
+      const trouves: Message[] = [];
+      let debut = 0;
+      while (debut < BALAYAGE) {
+        const lot = await functions.call<{ messages: Message[]; suivant: boolean }>("lister-messages", {
+          ...criteres,
+          debut,
+          limite: 100,
+        });
+        for (let i = 0; i < lot.messages.length; i += 50) {
+          const tranche = lot.messages.slice(i, i + 50);
+          const { resultats } = await functions.call<{ resultats: Classement[] }>("classer-messages", {
+            messages: tranche.map((m) => ({
+              id: m.id,
+              objet: m.objet,
+              expediteur: m.expediteur,
+              expediteurAdresse: m.expediteurAdresse,
+              extrait: m.extrait,
+            })),
+          });
+          const gardes = new Set(resultats.filter((r) => correspondAuPoint(filtrePoint, r)).map((r) => r.id));
+          trouves.push(...tranche.filter((m) => gardes.has(m.id)));
+        }
+        if (!lot.suivant || lot.messages.length === 0) break;
+        debut += lot.messages.length;
+      }
+      return { messages: trouves.slice((page - 1) * TAILLE, page * TAILLE), suivant: trouves.length > page * TAILLE };
     },
-    [compte, dossier, boite, recherche, expediteur, vue, page],
+    [compte, dossier, boite, recherche, expediteur, vue, page, filtrePoint],
   );
 
   usePeerMessage(() => {
@@ -175,16 +220,34 @@ export default function BoitePage() {
     })),
   );
 
-  const expediteurs: Array<{ value: string; label: string }> = [];
+  // Point d’entrée de chaque message affiché (gardé en base : instantané une fois classé).
+  const classement = useJugements<Classement>(
+    "classer-messages",
+    {},
+    "messages",
+    listePoints.length === 0
+      ? []
+      : lignes.map((m) => ({
+          id: m.id,
+          objet: m.objet,
+          expediteur: m.expediteur,
+          expediteurAdresse: m.expediteurAdresse,
+          extrait: m.extrait,
+          misAJour: `${m.recu ?? ""}|${listePoints.map((p) => p.id + p.nom + p.description).join(",")}`,
+        })),
+    5,
+  );
+
+  const expediteurs: Array<{ id: string; label: string }> = [];
   const vus = new Set<string>();
   if (expediteur) {
     vus.add(expediteur);
-    expediteurs.push({ value: expediteur, label: nomChoisi || expediteur });
+    expediteurs.push({ id: expediteur, label: nomChoisi || expediteur });
   }
   for (const message of lignes) {
     if (!message.expediteurAdresse || vus.has(message.expediteurAdresse)) continue;
     vus.add(message.expediteurAdresse);
-    expediteurs.push({ value: message.expediteurAdresse, label: message.expediteur });
+    expediteurs.push({ id: message.expediteurAdresse, label: message.expediteur });
   }
 
   function choisirDossier(nouveau: string) {
@@ -200,7 +263,7 @@ export default function BoitePage() {
 
   function ouvrir(message: Ligne) {
     setSelection(message.id);
-    void shell.publish({ id: message.id });
+    void shell.publish(message.id);
     void shell.setPanelVisible(true);
     if (!message.lu && preference("marquer_lu_ouverture", "1") === "1") {
       void functions
@@ -221,13 +284,14 @@ export default function BoitePage() {
         {
           name: "destinataires",
           label: "À",
+          isRequired: true,
           placeholder: "prenom@exemple.fr",
-          hint: "Séparez plusieurs adresses par des virgules.",
+          description: "Séparez plusieurs adresses par des virgules.",
         },
-        { name: "copies", label: "Copie", optional: true, placeholder: "prenom@exemple.fr" },
-        { name: "objet", label: "Objet", placeholder: "Votre sujet" },
-        { name: "corps", label: "Message", type: "textarea", placeholder: "Bonjour," },
-        { name: "brouillon", label: "Garder en brouillon", type: "checkbox", optional: true },
+        { name: "copies", label: "Copie", placeholder: "prenom@exemple.fr" },
+        { name: "objet", label: "Objet", isRequired: true, placeholder: "Votre sujet" },
+        { name: "corps", label: "Message", type: "textarea", isRequired: true, placeholder: "Bonjour," },
+        { name: "brouillon", label: "Garder en brouillon", type: "checkbox" },
       ],
       submitLabel: "Envoyer",
       onSubmit: async (valeurs) => {
@@ -239,7 +303,7 @@ export default function BoitePage() {
           corps: valeurs.corps,
           signature: preference("signature", ""),
         };
-        if (valeurs.brouillon === "1") {
+        if (valeurs.brouillon === true) {
           await functions.call("creer-brouillon", entree);
           await shell.notify({
             title: "Brouillon enregistré",
@@ -256,66 +320,150 @@ export default function BoitePage() {
     });
   }
 
-  if (comptes.loading && !comptes.data) {
-    return (
-      <Page>
-        <LoadingSkeleton />
-      </Page>
-    );
-  }
+  const colonnes: TableColumn[] = [
+    { id: "objet", label: "Objet" },
+    { id: "expediteur", label: "De", sortable: true },
+    { id: "etat", label: "État", width: 120 },
+    ...(listePoints.length > 0 ? [{ id: "point", label: "Point d’entrée", width: 140 }] : []),
+    { id: "lecture", label: "Signaux", width: 180 },
+    { id: "recu", label: "Reçu", align: "end" as const, width: 110, sortable: true },
+  ];
+
+  const cellule = (message: Ligne, colonne: string) => {
+    switch (colonne) {
+      case "objet":
+        return message.objet || "(sans objet)";
+      case "expediteur":
+        return message.expediteur || message.expediteurAdresse;
+      case "etat":
+        return message.etat === "lu"
+          ? message.pieces
+            ? pastille("Pièce jointe", "neutral")
+            : discret("")
+          : pastille(ETATS[message.etat].label, ETATS[message.etat].tone as "warning" | "neutral");
+      case "point": {
+        const avis = classement.resultats.get(message.id);
+        if (!avis) return discret(classement.enCours ? "…" : "");
+        if (avis.statut === "douteux") return pastille("À trier", "warning");
+        if (avis.statut === "aucun" || !avis.nom) return discret("");
+        return pastille(avis.nom, "neutral");
+      }
+      case "lecture": {
+        const avis = lecture.resultats.get(message.id);
+        if (!avis) return discret(lecture.enCours ? "…" : "");
+        if (!avis.hameconnage && !avis.urgent && !avis.reponseAttendue) return discret("");
+        return (
+          <Row gap="xs" wrap>
+            {avis.hameconnage ? pastille("Hameçonnage ?", "danger") : null}
+            {avis.urgent ? pastille("Urgent", "warning") : null}
+            {avis.reponseAttendue ? pastille("À répondre", "neutral") : null}
+          </Row>
+        );
+      }
+      case "recu":
+        return discret(quand(message.recu));
+      default:
+        return null;
+    }
+  };
+
+  const videTitre = filtrePoint
+    ? "Aucun message pour ce point d’entrée"
+    : vue === "nonLus"
+      ? "Aucun message non lu"
+      : recherche
+        ? "Aucun message trouvé"
+        : "Aucun message";
+  const videTexte = filtrePoint
+    ? `Je n’en ai trouvé aucun parmi les ${BALAYAGE} derniers messages de ce dossier.`
+    : recherche
+      ? "Essayez d’autres mots, ou choisissez un autre dossier."
+      : vue === "nonLus"
+        ? "Tous les messages de ce dossier ont été lus."
+        : "Ce dossier est vide.";
+
+  const outils = pret ? (
+    <Row gap="sm">
+      <SearchField
+        label="les messages"
+        onChange={({ text }) => {
+          setRecherche(text.trim());
+          setPage(1);
+        }}
+      />
+      {listeDossiers.length > 0 ? (
+        <Select
+          label="Dossier"
+          hideLabel
+          width="sm"
+          placeholder="Choisir un dossier"
+          value={dossier || null}
+          options={listeDossiers.map((element) => ({
+            id: element.id,
+            label: `${"— ".repeat(element.profondeur)}${element.nom}`,
+          }))}
+          onChange={(id) => id && choisirDossier(id)}
+        />
+      ) : null}
+      <Select
+        label="Vue"
+        hideLabel
+        width="sm"
+        value={vue}
+        options={[
+          { id: "tous", label: "Tous les messages" },
+          { id: "nonLus", label: "Non lus" },
+        ]}
+        onChange={(id) => {
+          setVue(id ?? "tous");
+          setPage(1);
+        }}
+      />
+      {listePoints.length > 0 ? (
+        <Select
+          label="Point d’entrée"
+          hideLabel
+          width="sm"
+          value={filtrePoint || "tous"}
+          options={[
+            { id: "tous", label: "Tous les points d’entrée" },
+            ...listePoints.map((element) => ({ id: element.id, label: element.nom })),
+            { id: DOUTEUX, label: "À trier" },
+            { id: AUCUN, label: "Hors points d’entrée" },
+          ]}
+          onChange={(id) => {
+            setPoint(!id || id === "tous" ? "" : id);
+            setSelection(null);
+            setPage(1);
+          }}
+        />
+      ) : null}
+      <Select
+        label="Expéditeur"
+        hideLabel
+        width="sm"
+        value={expediteur || "tous"}
+        options={[{ id: "tous", label: "Tous les expéditeurs" }, ...expediteurs]}
+        onChange={(id) => {
+          setExpediteur(!id || id === "tous" ? "" : id);
+          setPage(1);
+        }}
+      />
+    </Row>
+  ) : undefined;
 
   return (
     <Page
-      search={{ label: "Rechercher un message", value: saisie, onChange: setSaisie }}
-      bar={
-        pret ? (
-        <Row gap="sm">
-          {listeDossiers.length > 0 && (
-          <SelectControl aria-label="Dossier" value={dossier} onChange={(evenement) => choisirDossier(evenement.target.value)}>
-            {!dossier && <option value="">Choisir un dossier</option>}
-            {listeDossiers.map((element) => (
-              <option key={element.id} value={element.id}>
-                {`${"— ".repeat(element.profondeur)}${element.nom}`}
-              </option>
-            ))}
-          </SelectControl>
-          )}
-          <SelectControl
-            aria-label="Vue"
-            value={vue}
-            onChange={(evenement) => {
-              setVue(evenement.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="tous">Tous les messages</option>
-            <option value="nonLus">Non lus</option>
-          </SelectControl>
-          <SelectControl
-            aria-label="Expéditeur"
-            value={expediteur}
-            onChange={(evenement) => {
-              setExpediteur(evenement.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">Tous les expéditeurs</option>
-            {expediteurs.map((element) => (
-              <option key={element.value} value={element.value}>
-                {element.label}
-              </option>
-            ))}
-          </SelectControl>
-        </Row>
-        ) : undefined
-      }
+      state={comptes.loading && !comptes.data ? "loading" : "ready"}
+      toolbar={outils}
       actions={[
-        { label: "Nouveau message", icon: SquarePen, primary: true, onClick: composer },
+        { id: "nouveau", label: "Nouveau message", icon: <SquarePen size={16} />, primary: true, onPress: composer },
         {
+          id: "assistant",
           label: "Trier avec l’assistant",
-          icon: Bot,
-          disabled: !pret,
-          onClick: () =>
+          icon: <Bot size={16} />,
+          isDisabled: !pret,
+          onPress: () =>
             openForm({
               title: "Trier avec l’assistant",
               description:
@@ -325,6 +473,7 @@ export default function BoitePage() {
                   name: "demande",
                   label: "Votre demande",
                   type: "textarea",
+                  isRequired: true,
                   placeholder: "Range les factures dans le dossier Factures et marque les newsletters comme lues.",
                 },
               ],
@@ -340,139 +489,84 @@ export default function BoitePage() {
             }),
         },
         {
+          id: "actualiser",
           label: "Actualiser",
-          icon: RefreshCw,
-          onClick: () => {
+          icon: <RefreshCw size={16} />,
+          onPress: () => {
             messages.reload();
             dossiers.reload();
           },
         },
+        {
+          id: "precedente",
+          label: "Page précédente",
+          icon: <ChevronLeft size={16} />,
+          isHidden: !pret,
+          isDisabled: page === 1,
+          onPress: () => setPage(Math.max(1, page - 1)),
+        },
+        {
+          id: "suivante",
+          label: "Page suivante",
+          icon: <ChevronRight size={16} />,
+          isHidden: !pret,
+          isDisabled: !messages.data?.suivant,
+          onPress: () => setPage(page + 1),
+        },
       ]}
+      onActionError={notifyActionError}
       footer={
         pret && messages.data && (lignes.length > 0 || page > 1) ? (
-          <Row gap="sm" align="center" justify="between">
-            <Text size="meta">
-              {lignes.length} message{lignes.length > 1 ? "s" : ""} · page {page}
-            </Text>
-            <Row gap="sm">
-              <Button variant="secondary" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}>
-                Précédent
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => setPage(page + 1)}
-                disabled={!messages.data.suivant}
-              >
-                Suivant
-              </Button>
-            </Row>
-          </Row>
+          <Text size="meta">
+            {`${lignes.length} message${lignes.length > 1 ? "s" : ""} · page ${page}`}
+          </Text>
         ) : undefined
       }
     >
-      <Stack gap="md">
-        {(comptes.error || (comptes.data && !pret)) && (
-          <FeedbackBanner tone="warning" action={<Button onClick={() => comptes.reload()}>Réessayer</Button>}>
-            {raisonIndisponible(comptes.error)}
-          </FeedbackBanner>
-        )}
-        {dossiers.error && (
-          <FeedbackBanner tone="danger" action={<Button onClick={() => dossiers.reload()}>Réessayer</Button>}>
-            {dossiers.error.message}
-          </FeedbackBanner>
-        )}
-        {messages.error && (
-          <FeedbackBanner tone="danger" action={<Button onClick={() => messages.reload()}>Réessayer</Button>}>
-            {messages.error.message}
-          </FeedbackBanner>
-        )}
-
-        {!pret ? (
-          <EmptyState
-            title="Votre boîte n’est pas encore affichée"
-            description="Dès qu’Outlook répond sur votre PC Windows, vos messages, vos dossiers et vos correspondants apparaissent ici."
-          />
-        ) : (
-          <DataTable
-            label="Messages"
-            columns={[
-              {
-                key: "expediteur",
-                header: "De",
-                sortable: true,
-                render: (message) => (
-                  <Row gap="sm" align="center">
-                    <Avatar name={message.expediteur || message.expediteurAdresse} size="sm" />
-                    <Text as="span" weight={message.lu ? "normal" : "strong"}>
-                      {message.expediteur || message.expediteurAdresse}
-                    </Text>
-                  </Row>
-                ),
-              },
-              {
-                key: "objet",
-                header: "Objet",
-                render: (message) => (
-                  <Stack gap="none">
-                    <Text as="span" weight={message.lu ? "normal" : "strong"}>
-                      {message.objet || "(sans objet)"}
-                    </Text>
-                    {message.extrait && (
-                      <Text as="span" size="meta" tone="muted">
-                        {message.extrait.length > 110 ? `${message.extrait.slice(0, 110)}…` : message.extrait}
-                      </Text>
-                    )}
-                  </Stack>
-                ),
-              },
-              {
-                key: "etat",
-                header: "État",
-                render: (message) =>
-                  message.etat === "lu"
-                    ? message.pieces
-                      ? pastille("Pièce jointe", "neutral")
-                      : discret("")
-                    : pastille(ETATS[message.etat].label, ETATS[message.etat].tone),
-              },
-              {
-                key: "lecture",
-                header: "Signaux",
-                render: (message) => {
-                  const avis = lecture.resultats.get(message.id);
-                  if (!avis) return discret(lecture.enCours ? "…" : "");
-                  return (
-                    <Row gap="xs" wrap>
-                      {avis.hameconnage && pastille("Hameçonnage ?", "danger")}
-                      {avis.urgent && pastille("Urgent", "warning")}
-                      {avis.reponseAttendue && pastille("À répondre", "neutral")}
-                      {!avis.hameconnage && !avis.urgent && !avis.reponseAttendue && discret("")}
-                    </Row>
-                  );
-                },
-              },
-              { key: "recu", header: "Reçu", align: "right", sortable: true, render: (message) => discret(quand(message.recu)) },
-            ]}
-            rows={lignes}
-            rowKey={(element) => element.id}
-            selectedKey={selection ?? undefined}
-            onRowClick={ouvrir}
-            loading={messages.loading}
-            emptyTitle={
-              vue === "nonLus" ? "Aucun message non lu" : recherche ? "Aucun message trouvé" : "Aucun message"
-            }
-          />
-        )}
-        {pret && messages.data && lignes.length === 0 && (
-          <Text size="meta">
-            {recherche
-              ? "Essayez d’autres mots, ou choisissez un autre dossier."
-              : vue === "nonLus"
-                ? "Tous les messages de ce dossier ont été lus."
-                : "Ce dossier est vide."}
-          </Text>
-        )}
-      </Stack>
+      {!pret ? (
+        <PageSection
+          title="Boîte de réception"
+          empty={{
+            title: "Votre boîte n’est pas encore affichée",
+            description: comptes.error || comptes.data ? raisonIndisponible(comptes.error) : "Je cherche Outlook sur ce PC…",
+            action: { id: "reessayer", label: "Réessayer", onPress: () => comptes.reload() },
+          }}
+        >
+          {null}
+        </PageSection>
+      ) : (
+        <PageSection
+          title={listeDossiers.find((element) => element.id === (dossier || boite))?.nom ?? "Messages"}
+          state={messages.error || dossiers.error ? "error" : "ready"}
+          onRetry={() => {
+            messages.reload();
+            dossiers.reload();
+          }}
+          empty={messages.data && lignes.length === 0 ? { title: videTitre, description: videTexte } : undefined}
+        >
+          <Stack gap="sm">
+            {classement.erreur && !messages.error ? <Notice tone="warning">{classement.erreur.message}</Notice> : null}
+            <Table<Ligne>
+              label="Messages"
+              columns={colonnes}
+              rows={lignes}
+              renderCell={cellule}
+              rowIcon={(message) => <Avatar name={message.expediteur || message.expediteurAdresse || "?"} size="sm" />}
+              rowDescription={(message) =>
+                message.extrait ? (message.extrait.length > 110 ? `${message.extrait.slice(0, 110)}…` : message.extrait) : undefined
+              }
+              selectionMode="single"
+              selectedKeys={selection ? [selection] : []}
+              onSelectionChange={(cles) => {
+                const id = [...cles][0];
+                const message = lignes.find((element) => element.id === id);
+                if (message) ouvrir(message);
+              }}
+              isLoading={messages.loading}
+            />
+          </Stack>
+        </PageSection>
+      )}
     </Page>
   );
 }
