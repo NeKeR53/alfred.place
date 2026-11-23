@@ -1,27 +1,12 @@
+import { Row, Text } from "@alfred/kit";
+import { badge, functions, notifyActionError, shell, useAsync, usePageState } from "@alfred/sdk";
+import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { ExternalLink, Play, RefreshCw } from "lucide-react";
-import Sortable from "sortablejs";
-import {
-  type Action,
-  Button,
-  ChoiceButton,
-  ChoiceGroup,
-  EmptyState,
-  FeedbackBanner,
-  Grid,
-  LoadingSkeleton,
-  openForm,
-  openModal,
-  Page,
-  Row,
-  SelectControl,
-  Text,
-  usePageState,
-} from "@alfred/ui";
-import { badge, functions, shell, useAsync } from "@alfred/sdk";
+import { type Action, Page, PageSection, RadioGroup, Select, useOpenForm } from "socle-ui";
 import { CarteJob } from "../lib/CarteJob";
-import { ChoixJobs, type Selection } from "../lib/ChoixJobs";
-import { JournalBuild } from "../lib/JournalBuild";
+import { ChoixJobs } from "../lib/ChoixJobs";
+import { type Fenetre, Fenetres, ouvrirRapport } from "../lib/ouvrir-rapport";
+import { cleRapport, derniersRapports, type Rapport } from "../lib/rapport";
 import {
   ajouterCartes,
   type Carte,
@@ -48,8 +33,8 @@ import {
 const formulaireVue = (vue?: Vue) => ({
   title: vue ? "Renommer la vue" : "Nouvelle vue",
   description: vue ? undefined : "Une vue regroupe les jobs que vous voulez voir ensemble.",
-  fields: [{ name: "nom", label: "Nom de la vue", placeholder: "Déploiements" }],
-  initial: vue,
+  fields: [{ name: "nom", label: "Nom de la vue", isRequired: true, placeholder: "Déploiements" }],
+  initialValues: vue,
   submitLabel: vue ? "Enregistrer" : "Créer",
 });
 
@@ -57,6 +42,9 @@ export default function TableauDeBord() {
   const [vueChoisie, setVueChoisie] = usePageState<string>("vue", "principale");
   const [version, setVersion] = useState(0);
   const recharger = () => setVersion((v) => v + 1);
+  const openForm = useOpenForm();
+  const [fenetre, setFenetre] = useState<Fenetre | null>(null);
+  const [ajout, setAjout] = useState(false);
 
   const vues = useAsync(lireVues, [version]);
   const comptes = useAsync(() => functions.call<{ comptes: Compte[] }>("comptes-jenkins").then((r) => r.comptes), []);
@@ -80,6 +68,32 @@ export default function TableauDeBord() {
     [cleJobs],
   );
 
+  // Rapports d’échec : relus avec les états, pour mettre la cause sous chaque job en échec.
+  const rapports = useAsync(derniersRapports, [etats.data]);
+  const [enAnalyse, setEnAnalyse] = useState<Set<string>>(new Set());
+  const analyser = async (carte: Carte, etat: EtatJob | undefined) => {
+    const cle = cleRapport(carte.instance, carte.job);
+    setEnAnalyse((actuel) => new Set(actuel).add(cle));
+    try {
+      const rapport = await functions.call<Rapport>("analyser-echec", {
+        ...(carte.instance ? { instance: carte.instance } : {}),
+        job: carte.job,
+        ...(etat?.dernier ? { build: etat.dernier.numero } : {}),
+      });
+      rapports.reload();
+      setFenetre(ouvrirRapport(rapport, rapports.reload));
+    } catch (erreur) {
+      rapports.reload();
+      void shell.notify({ title: "L’analyse de l’échec n’a pas abouti", description: (erreur as Error).message, tone: "error" });
+    } finally {
+      setEnAnalyse((actuel) => {
+        const suivant = new Set(actuel);
+        suivant.delete(cle);
+        return suivant;
+      });
+    }
+  };
+
   // Pastille du menu : nombre de jobs en cours, toutes vues confondues.
   useEffect(() => {
     if (etats.data) void badge.set(compterEnCours(etats.data));
@@ -98,38 +112,6 @@ export default function TableauDeBord() {
     const minuterie = setInterval(() => setMaintenant(Date.now()), 2_000);
     return () => clearInterval(minuterie);
   }, [unBuildTourne, etats.data]);
-
-  // Glisser-déposer des cartes dans la grille.
-  const cleOrdre = ordre.map((c) => c.id).join("|");
-  useEffect(() => {
-    if (ordre.length < 2) return;
-    const grille = document.querySelector<HTMLElement>(".al-page__body .al-grid");
-    if (!grille) return;
-    const tri = Sortable.create(grille, {
-      animation: 150,
-      forceFallback: true,
-      fallbackTolerance: 4,
-      filter: "button, a, input, select, textarea, [role='menu'], [role='menuitem']",
-      preventOnFilter: false,
-      onEnd: (evenement) => {
-        const { item, from, oldIndex, newIndex } = evenement;
-        if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex) return;
-        // React garde la main sur le DOM : on remet la carte à sa place, puis on change l’ordre.
-        from.removeChild(item);
-        from.insertBefore(item, from.children[oldIndex] ?? null);
-        setOrdre((actuel) => {
-          const suivant = [...actuel];
-          const [deplacee] = suivant.splice(oldIndex, 1);
-          suivant.splice(newIndex, 0, deplacee);
-          void enregistrerOrdre(suivant.map((c) => c.id)).catch((erreur: Error) =>
-            shell.notify({ title: "La nouvelle disposition n’a pas été enregistrée", description: erreur.message, tone: "error" }),
-          );
-          return suivant;
-        });
-      },
-    });
-    return () => tri.destroy();
-  }, [cleOrdre]);
 
   const listeComptes = comptes.data ?? [];
   const nomCompte = (instance: string) =>
@@ -153,58 +135,30 @@ export default function TableauDeBord() {
   // Le log s’ouvre en modale large au-dessus de la page, comme les logs d’une exécution Prefect.
   const ouvrirLogs = (carte: Carte, etat: EtatJob | undefined) => {
     const affiche = etatAffiche(etat);
-    const urlBuild = etat?.dernier?.url;
     const nom = etat?.nom ?? nomCourt(carte.job);
-    void openModal({
-      title: `Logs de « ${nom} »`,
+    setFenetre({
+      kind: "logs",
+      titre: `Logs de « ${nom} »`,
       description: [affiche.label, etat?.dernier ? `build n° ${etat.dernier.numero}` : null, dossierDe(carte.job) || null]
         .filter(Boolean)
         .join(" · "),
-      size: "wide",
-      actions: [
-        ...(urlBuild
-          ? [{ label: "Ouvrir dans Jenkins", icon: ExternalLink, onClick: () => shell.openExternal(`${urlBuild}console`) }]
-          : []),
-        {
-          label: "Relancer",
-          icon: Play,
-          confirm: `Relancer le job « ${nom} » ?`,
-          success: "Build demandé",
-          onClick: () => relancer(carte),
-        },
-      ],
-      content: <JournalBuild instance={carte.instance} job={carte.job} build={etat?.dernier?.numero} />,
-    });
-  };
-
-  const ajouterDesJobs = () => {
-    const selection: Selection = { instance: "", jobs: new Set() };
-    const dejaSuivis = new Set(ordre.map((c) => cleEtat(c.instance, c.job)));
-    return openModal({
-      title: "Ajouter des jobs",
-      description: vue ? `Ils s’ajoutent à la vue « ${vue.nom} ».` : undefined,
-      size: "wide",
-      content: <ChoixJobs comptes={listeComptes} dejaSuivis={dejaSuivis} selection={selection} />,
-      actions: [
-        {
-          label: "Ajouter les jobs choisis",
-          primary: true,
-          onClick: async () => {
-            if (selection.jobs.size === 0) throw new Error("Choisissez au moins un job dans la liste.");
-            await ajouterCartes(vueId, selection.instance, [...selection.jobs]);
-            recharger();
-          },
-        },
-      ],
+      instance: carte.instance,
+      job: carte.job,
+      build: etat?.dernier?.numero,
+      url: etat?.dernier?.url,
+      onRelancer: async () => {
+        await relancer(carte);
+        shell.notify({ title: "Build demandé", tone: "success" });
+      },
     });
   };
 
   const nouvelleVue = () =>
     openForm({
       ...formulaireVue(),
-      success: "Vue créée",
       onSubmit: async (v) => {
-        const id = await creerVue(v.nom);
+        const id = await creerVue(String(v.nom));
+        shell.notify({ title: "Vue créée", tone: "success" });
         setVueChoisie(id);
         recharger();
       },
@@ -214,16 +168,18 @@ export default function TableauDeBord() {
     const autresVues = (vues.data ?? []).filter((v) => v.id !== vueId);
     return [
       {
+        id: "jenkins",
         label: "Ouvrir dans Jenkins",
-        hidden: !etat?.url,
-        onClick: () => shell.openExternal(etat?.url ?? ""),
+        isHidden: !etat?.url,
+        onPress: () => shell.openExternal(etat?.url ?? ""),
       },
-      { label: "Déplacer vers la gauche", hidden: index === 0, onClick: () => deplacerDe(index, -1) },
-      { label: "Déplacer vers la droite", hidden: index === ordre.length - 1, onClick: () => deplacerDe(index, 1) },
+      { id: "monter", label: "Monter", isHidden: index === 0, onPress: () => deplacerDe(index, -1) },
+      { id: "descendre", label: "Descendre", isHidden: index === ordre.length - 1, onPress: () => deplacerDe(index, 1) },
       {
+        id: "autre-vue",
         label: "Déplacer vers une autre vue…",
-        hidden: autresVues.length === 0,
-        onClick: () =>
+        isHidden: autresVues.length === 0,
+        onPress: () =>
           openForm({
             title: "Déplacer vers une autre vue",
             fields: [
@@ -231,23 +187,25 @@ export default function TableauDeBord() {
                 name: "vue",
                 label: "Vue",
                 type: "select",
-                options: autresVues.map((v) => ({ value: v.id, label: v.nom })),
+                isRequired: true,
+                options: autresVues.map((v) => ({ id: v.id, label: v.nom })),
               },
             ],
-            initial: { vue: autresVues[0]?.id },
+            initialValues: { vue: autresVues[0]?.id ?? null },
             submitLabel: "Déplacer",
-            success: "Job déplacé",
             onSubmit: async (v) => {
-              await deplacerCarte(carte, v.vue);
+              await deplacerCarte(carte, String(v.vue));
+              shell.notify({ title: "Job déplacé", tone: "success" });
               recharger();
             },
           }),
       },
       {
+        id: "retirer",
         label: "Retirer du tableau",
-        success: "Job retiré du tableau",
-        onClick: async () => {
+        onPress: async () => {
           await retirerCarte(carte.id);
+          shell.notify({ title: "Job retiré du tableau", tone: "success" });
           recharger();
         },
       },
@@ -257,72 +215,79 @@ export default function TableauDeBord() {
   const listeVues = vues.data ?? [];
   const choixVue =
     listeVues.length <= 1 ? null : listeVues.length <= 4 ? (
-      <ChoiceGroup appearance="segmented" label="Vue">
+      <RadioGroup label="Vue" hideLabel orientation="horizontal" value={vueId} onChange={setVueChoisie}>
         {listeVues.map((v) => (
-          <ChoiceButton
-            key={v.id}
-            label={v.nom}
-            variant="label"
-            size="compact"
-            selected={v.id === vueId}
-            onClick={() => setVueChoisie(v.id)}
-          >
+          <RadioGroup.Option key={v.id} value={v.id}>
             {v.nom}
-          </ChoiceButton>
+          </RadioGroup.Option>
         ))}
-      </ChoiceGroup>
+      </RadioGroup>
     ) : (
-      <SelectControl aria-label="Vue" value={vueId} onChange={(event) => setVueChoisie(event.target.value)}>
-        {listeVues.map((v) => (
-          <option key={v.id} value={v.id}>
-            {v.nom}
-          </option>
-        ))}
-      </SelectControl>
+      <Select
+        label="Vue"
+        hideLabel
+        width="sm"
+        value={vueId}
+        options={listeVues.map((v) => ({ id: v.id, label: v.nom }))}
+        onChange={(id) => id && setVueChoisie(id)}
+      />
     );
 
   const etatsVue = ordre.map((c) => etats.data?.get(cleEtat(c.instance, c.job)));
   const enEchec = etatsVue.filter((e) => e?.dernier?.resultat === "FAILURE" && !e.dernier.enCours).length;
   const enCoursVue = etatsVue.filter((e) => e?.dernier?.enCours || e?.enFile).length;
-  const bar = (
+  const barre = (
     <Row gap="md">
       {choixVue}
       {ordre.length > 0 ? (
         <Text as="span" size="meta" tone="muted">
-          {ordre.length} job{ordre.length > 1 ? "s" : ""}
-          {enCoursVue > 0 ? ` · ${enCoursVue} en cours` : ""}
-          {enEchec > 0 ? ` · ${enEchec} en échec` : ""}
-          {ordre.length > 1 ? " · glissez une carte pour la déplacer" : ""}
+          {`${ordre.length} job${ordre.length > 1 ? "s" : ""}${enCoursVue > 0 ? ` · ${enCoursVue} en cours` : ""}${
+            enEchec > 0 ? ` · ${enEchec} en échec` : ""
+          }`}
         </Text>
       ) : null}
     </Row>
   );
 
   const actions: Action[] = [
-    { label: "Ajouter des jobs", primary: true, disabled: !vueId, onClick: ajouterDesJobs },
-    { label: "Actualiser", icon: RefreshCw, onClick: () => etats.reload() },
-    { label: "Nouvelle vue", onClick: nouvelleVue },
     {
+      id: "ajouter",
+      label: "Ajouter des jobs",
+      icon: <Plus size={16} />,
+      primary: true,
+      isDisabled: !vueId,
+      onPress: () => setAjout(true),
+    },
+    { id: "actualiser", label: "Actualiser", icon: <RefreshCw size={16} />, onPress: () => etats.reload() },
+    { id: "nouvelle-vue", label: "Nouvelle vue", onPress: nouvelleVue },
+    {
+      id: "renommer-vue",
       label: "Renommer la vue",
-      hidden: !vue,
-      onClick: () =>
+      icon: <Pencil size={16} />,
+      isHidden: !vue,
+      onPress: () =>
         openForm({
           ...formulaireVue(vue),
           onSubmit: async (v) => {
-            await renommerVue(vueId, v.nom);
+            await renommerVue(vueId, String(v.nom));
             recharger();
           },
         }),
     },
     {
+      id: "supprimer-vue",
       label: "Supprimer la vue",
+      icon: <Trash2 size={16} />,
       danger: true,
-      hidden: !vue || listeVues.length <= 1,
-      confirm: `Supprimer la vue « ${vue?.nom ?? ""} » ?`,
-      confirmMessage: "Ses cartes sont retirées du tableau ; les jobs restent dans Jenkins.",
-      success: "Vue supprimée",
-      onClick: async () => {
+      isHidden: !vue || listeVues.length <= 1,
+      confirm: {
+        title: `Supprimer la vue « ${vue?.nom ?? ""} » ?`,
+        message: "Ses cartes sont retirées du tableau ; les jobs restent dans Jenkins.",
+        confirmLabel: "Supprimer",
+      },
+      onPress: async () => {
         await supprimerVue(vueId);
+        shell.notify({ title: "Vue supprimée", tone: "success" });
         setVueChoisie(listeVues.find((v) => v.id !== vueId)?.id ?? "principale");
         recharger();
       },
@@ -330,55 +295,62 @@ export default function TableauDeBord() {
   ];
 
   const erreur = vues.error ?? cartes.error;
-  let contenu;
-  if (erreur && !vues.data) {
-    contenu = (
-      <FeedbackBanner tone="danger" action={<Button onClick={recharger}>Réessayer</Button>}>
-        Le tableau n’a pas pu être chargé : {erreur.message}
-      </FeedbackBanner>
-    );
-  } else if (!vues.data || !cartes.data) {
-    contenu = <LoadingSkeleton variant="page" rows={4} label="Chargement du tableau…" />;
-  } else if (ordre.length === 0) {
-    contenu = (
-      <EmptyState
-        title="Aucun job sur cette vue"
-        description="Ajoutez les jobs Jenkins à surveiller avec « Ajouter des jobs » : leur état, leurs logs et la relance seront à portée de main."
-      />
-    );
-  } else {
-    contenu = (
-      <>
-        {etats.error ? (
-          <FeedbackBanner tone="danger" action={<Button onClick={etats.reload}>Réessayer</Button>}>
-            L’état des jobs n’a pas pu être lu : {etats.error.message}
-          </FeedbackBanner>
-        ) : null}
-        <Grid minColumnWidth={280}>
-          {ordre.map((carte, index) => {
-            const etat = etats.data?.get(cleEtat(carte.instance, carte.job));
-            return (
-              <CarteJob
-                key={carte.id}
-                carte={carte}
-                etat={etat}
-                compte={nomCompte(carte.instance)}
-                maintenant={maintenant}
-                onLogs={() => ouvrirLogs(carte, etat)}
-                onRelancer={() => relancer(carte)}
-                autres={actionsCarte(carte, index, etat)}
-              />
-            );
-          })}
-        </Grid>
-      </>
-    );
-  }
-
+  const pret = Boolean(vues.data && cartes.data);
   return (
-    <Page bar={bar} actions={actions}>
-      {contenu}
+    <Page
+      toolbar={barre}
+      actions={actions}
+      onActionError={notifyActionError}
+      state={erreur && !vues.data ? "error" : !pret ? "loading" : "ready"}
+      onRetry={recharger}
+      loadingLabel="Chargement du tableau…"
+    >
+      {ordre.length === 0 ? (
+        <PageSection
+          title={vue?.nom ?? "Tableau"}
+          empty={{
+            title: "Aucun job sur cette vue",
+            description:
+              "Ajoutez les jobs Jenkins à surveiller avec « Ajouter des jobs » : leur état, leurs logs et la relance seront à portée de main.",
+            action: { id: "ajouter", label: "Ajouter des jobs", onPress: () => setAjout(true) },
+          }}
+        >
+          {null}
+        </PageSection>
+      ) : (
+        ordre.map((carte, index) => {
+          const etat = etats.data?.get(cleEtat(carte.instance, carte.job));
+          return (
+            <CarteJob
+              key={carte.id}
+              carte={carte}
+              etat={etats.error ? { ...(etat as EtatJob), erreur: `L’état des jobs n’a pas pu être lu : ${etats.error.message}` } : etat}
+              compte={nomCompte(carte.instance)}
+              maintenant={maintenant}
+              onLogs={() => ouvrirLogs(carte, etat)}
+              onRelancer={() => relancer(carte)}
+              rapport={rapports.data?.get(cleRapport(carte.instance, carte.job))}
+              enAnalyse={enAnalyse.has(cleRapport(carte.instance, carte.job))}
+              onRapport={(rapport) => setFenetre(ouvrirRapport(rapport, rapports.reload))}
+              onAnalyser={() => analyser(carte, etat)}
+              autres={actionsCarte(carte, index, etat)}
+            />
+          );
+        })
+      )}
+      <Fenetres fenetre={fenetre} onClose={() => setFenetre(null)} ouvrir={setFenetre} apres={rapports.reload} />
+      {ajout ? (
+        <ChoixJobs
+          comptes={listeComptes}
+          dejaSuivis={new Set(ordre.map((c) => cleEtat(c.instance, c.job)))}
+          vue={vue?.nom}
+          onClose={() => setAjout(false)}
+          onAjouter={async (instance, jobs) => {
+            await ajouterCartes(vueId, instance, jobs);
+            recharger();
+          }}
+        />
+      ) : null}
     </Page>
   );
 }
-

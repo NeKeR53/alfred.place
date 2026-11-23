@@ -1,44 +1,24 @@
-import { useEffect, useState } from "react";
-import {
-  Button,
-  EmptyState,
-  FeedbackBanner,
-  FormField,
-  List,
-  ListItem,
-  LoadingSkeleton,
-  SearchField,
-  SelectControl,
-  Stack,
-  StatusBadge,
-  Text,
-} from "@alfred/ui";
+import { Stack, Text } from "@alfred/kit";
 import { functions, useAsync } from "@alfred/sdk";
+import { useState } from "react";
+import { Button, Dialog, EmptyState, List, SearchField, Select } from "socle-ui";
 import { type Compte, etatCouleur, type JobTrouve } from "./tableau";
-
-/** Sélection partagée entre la recherche et l’action « Ajouter » de la modale. */
-export interface Selection {
-  instance: string;
-  jobs: Set<string>;
-}
 
 interface Props {
   comptes: Compte[];
   dejaSuivis: Set<string>; // « instance\u0000job »
-  selection: Selection;
+  /** Nom de la vue qui reçoit les jobs. */
+  vue?: string;
+  onAjouter: (instance: string, jobs: string[]) => Promise<void>;
+  onClose: () => void;
 }
 
-export function ChoixJobs({ comptes, dejaSuivis, selection }: Props) {
-  const [instance, setInstance] = useState(selection.instance);
-  const [texte, setTexte] = useState("");
+/** Modale « Ajouter des jobs » : un compte, une recherche, des jobs à cocher. */
+export function ChoixJobs({ comptes, dejaSuivis, vue, onAjouter, onClose }: Props) {
+  const [instance, setInstance] = useState("");
   const [recherche, setRecherche] = useState("");
-  const [choisis, setChoisis] = useState<Set<string>>(new Set(selection.jobs));
-
-  // Recherche lancée un instant après la frappe.
-  useEffect(() => {
-    const minuterie = setTimeout(() => setRecherche(texte), 250);
-    return () => clearTimeout(minuterie);
-  }, [texte]);
+  const [choisis, setChoisis] = useState<Set<string>>(new Set());
+  const [envoi, setEnvoi] = useState(false);
 
   const resultats = useAsync(
     () =>
@@ -49,76 +29,95 @@ export function ChoixJobs({ comptes, dejaSuivis, selection }: Props) {
       }),
     [instance, recherche],
   );
+  const jobs = resultats.data?.jobs ?? [];
 
-  const changerCompte = (valeur: string) => {
-    setInstance(valeur);
-    setChoisis(new Set());
-    selection.instance = valeur;
-    selection.jobs = new Set();
-  };
-
-  const basculer = (chemin: string) => {
-    const suivants = new Set(choisis);
-    if (suivants.has(chemin)) suivants.delete(chemin);
-    else suivants.add(chemin);
-    setChoisis(suivants);
-    selection.jobs = suivants;
+  const ajouter = async () => {
+    setEnvoi(true);
+    try {
+      await onAjouter(instance, [...choisis]);
+      onClose();
+    } finally {
+      setEnvoi(false);
+    }
   };
 
   return (
-    <Stack gap="md">
-      {comptes.length > 1 ? (
-        <FormField label="Compte Jenkins">
-          <SelectControl value={instance} onChange={(event) => changerCompte(event.target.value)}>
-            {comptes.map((compte) => (
-              <option key={compte.id} value={compte.default ? "" : compte.id}>
-                {compte.label}
-              </option>
-            ))}
-          </SelectControl>
-        </FormField>
-      ) : null}
-      <SearchField label="Rechercher un job" value={texte} onChange={(event) => setTexte(event.target.value)} />
-      {resultats.error && !resultats.data ? (
-        <FeedbackBanner tone="danger" action={<Button onClick={resultats.reload}>Réessayer</Button>}>
-          La liste des jobs n’a pas pu être lue : {resultats.error.message}
-        </FeedbackBanner>
-      ) : !resultats.data ? (
-        <LoadingSkeleton variant="list" rows={5} label="Recherche des jobs…" />
-      ) : resultats.data.jobs.length === 0 ? (
-        <EmptyState size="compact" title="Aucun job trouvé" description="Essayez un autre nom ou une partie du dossier." />
-      ) : (
-        <Stack gap="xs">
-          <Text size="meta" tone="muted">
-            {choisis.size === 0
-              ? "Cliquez sur les jobs à ajouter."
-              : `${choisis.size} job${choisis.size > 1 ? "s" : ""} choisi${choisis.size > 1 ? "s" : ""}.`}
-            {resultats.data.total > resultats.data.jobs.length
-              ? ` ${resultats.data.total} jobs trouvés : précisez la recherche pour voir les autres.`
-              : ""}
-          </Text>
-          <List label="Jobs Jenkins">
-            {resultats.data.jobs.map((job) => {
-              const suivi = dejaSuivis.has(`${instance}\u0000${job.chemin}`);
-              const etat = etatCouleur(job.etat);
-              return (
-                <ListItem
-                  key={job.chemin}
-                  title={job.nom}
-                  description={suivi ? `${job.dossier ? `${job.dossier} · ` : ""}Déjà sur ce tableau` : job.dossier || undefined}
-                  selected={choisis.has(job.chemin)}
-                  onClick={suivi ? undefined : () => basculer(job.chemin)}
-                  trailing={
-                    <StatusBadge size="compact" tone={etat.tone}>
-                      {etat.label}
-                    </StatusBadge>
-                  }
-                />
-              );
-            })}
-          </List>
-        </Stack>
-      )}
-    </Stack>
+    <Dialog
+      isOpen
+      size="lg"
+      title="Ajouter des jobs"
+      description={vue ? `Ils s’ajoutent à la vue « ${vue} ».` : undefined}
+      isBusy={envoi}
+      onOpenChange={(ouverte) => {
+        if (!ouverte) onClose();
+      }}
+      footer={
+        <>
+          <Button onPress={onClose} isDisabled={envoi}>
+            Annuler
+          </Button>
+          <Button variant="primary" isPending={envoi} isDisabled={choisis.size === 0} onPress={() => void ajouter()}>
+            Ajouter les jobs choisis
+          </Button>
+        </>
+      }
+    >
+      <Stack gap="md">
+        {comptes.length > 1 ? (
+          <Select
+            label="Compte Jenkins"
+            value={instance || (comptes.find((compte) => compte.default) ? "" : comptes[0]?.id) || ""}
+            options={comptes.map((compte) => ({ id: compte.default ? "" : compte.id, label: compte.label }))}
+            onChange={(id) => {
+              setInstance(id ?? "");
+              setChoisis(new Set());
+            }}
+          />
+        ) : null}
+        <SearchField label="les jobs" onChange={({ text }) => setRecherche(text)} />
+        {resultats.data && jobs.length === 0 ? (
+          <EmptyState size="compact" title="Aucun job trouvé" description="Essayez un autre nom ou une partie du dossier." />
+        ) : (
+          <Stack gap="xs">
+            <Text size="meta" tone="muted">
+              {`${
+                choisis.size === 0
+                  ? "Cochez les jobs à ajouter."
+                  : `${choisis.size} job${choisis.size > 1 ? "s" : ""} choisi${choisis.size > 1 ? "s" : ""}.`
+              }${
+                resultats.data && resultats.data.total > jobs.length
+                  ? ` ${resultats.data.total} jobs trouvés : précisez la recherche pour voir les autres.`
+                  : ""
+              }`}
+            </Text>
+            <List
+              label="Jobs Jenkins"
+              selectionMode="multiple"
+              isLoading={resultats.loading}
+              hasError={Boolean(resultats.error)}
+              onRetry={resultats.reload}
+              selectedKeys={choisis}
+              onSelectionChange={(cles) =>
+                setChoisis(
+                  new Set(
+                    [...cles].map(String).filter((chemin) => !dejaSuivis.has(`${instance}\u0000${chemin}`)),
+                  ),
+                )
+              }
+              items={jobs.map((job) => {
+                const suivi = dejaSuivis.has(`${instance}\u0000${job.chemin}`);
+                const etat = etatCouleur(job.etat);
+                return {
+                  id: job.chemin,
+                  title: job.nom,
+                  subtitle: suivi ? `${job.dossier ? `${job.dossier} · ` : ""}Déjà sur ce tableau` : job.dossier || undefined,
+                  status: etat,
+                };
+              })}
+            />
+          </Stack>
+        )}
+      </Stack>
+    </Dialog>
   );
 }

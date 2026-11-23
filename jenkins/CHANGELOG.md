@@ -1,3 +1,7 @@
+## 2.0.0 — 2026-11-23
+
+Les pages passent sur socle-ui, le design system d'Alfred : listes, panneaux, formulaires et états suivent les gabarits Socle. Demande un Alfred passé sur socle-ui (novembre 2026) ; un Alfred plus ancien garde la version précédente.
+
 ## 1.1.3 — 2026-11-19
 
 - Le pied de carte n’utilise plus de style propre : il reste collé en bas avec un Alfred à jour (commit dcca9aa ou plus récent).

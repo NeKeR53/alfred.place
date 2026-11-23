@@ -8,9 +8,12 @@
         "label": "Jenkins",
         "methods": [
           {
+            "help": "Dans Jenkins : votre nom en haut à droite, Configurer (ou Security), puis « Add new token ». Votre identifiant Jenkins, et ce jeton comme mot de passe.",
             "id": "jeton",
             "label": "Identifiant et jeton d’API",
-            "type": "basic"
+            "tokenPage": "{url}/me/configure",
+            "type": "basic",
+            "urlExample": "https://jenkins.entreprise.fr"
           }
         ],
         "testPath": "/me/api/json?tree=id,fullName"
@@ -766,6 +769,198 @@
         }
       ],
       "tool": false
+    },
+    {
+      "description": "Analyse le log d’un build Jenkins en échec (le dernier si aucun numéro n’est donné) et rend un rapport : pourquoi il a échoué, ce qui s’est passé, pistes de correction et lignes du log en cause. Le rapport est rangé dans l’onglet Échecs ; un rapport déjà fait pour ce build est refait.",
+      "effect": "write",
+      "id": "analyser-echec",
+      "input": {
+        "properties": {
+          "build": {
+            "description": "Numéro du build ; omis, le dernier.",
+            "type": "integer"
+          },
+          "finiLe": {
+            "description": "Date de fin du build (ISO), si elle est connue.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte Jenkins ; omis, celui par défaut.",
+            "type": "string"
+          },
+          "job": {
+            "description": "Nom complet du job, dossiers compris : api-facturation/main.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "build": {
+            "type": "integer"
+          },
+          "categorie": {
+            "description": "code, tests, dependances, configuration, infrastructure, reseau, droits, donnees, delai, autre.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cause": {
+            "description": "Pourquoi le build a échoué, en une ou deux phrases.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "certitude": {
+            "description": "elevee, moyenne ou faible.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "erreur": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "job": {
+            "type": "string"
+          },
+          "lignes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "pistes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "resultat": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resume": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "statut": {
+            "description": "prete, en_cours ou erreur.",
+            "type": "string"
+          },
+          "titre": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "job",
+          "build",
+          "statut",
+          "pistes",
+          "lignes"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "statut": "prete"
+            },
+            "has": [
+              "cause",
+              "titre"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Analyse l’échec d’un job",
+          "target": {
+            "field": "job",
+            "hint": "nom complet d’un job dont le dernier build a échoué, ex. front-web",
+            "label": "Job en échec"
+          }
+        }
+      ],
+      "tool": true
+    },
+    {
+      "description": "Surveille les jobs du tableau : quand le dernier build d’un job a échoué (dans les dernières 24 heures) et n’a pas encore de rapport, analyse son log, prévient l’utilisateur avec la cause de l’échec et met le nombre de rapports non lus sur l’onglet Échecs. Deux analyses au plus par passage.",
+      "effect": "write",
+      "id": "surveiller-echecs",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "analyses": {
+            "description": "Builds analysés pendant ce passage.",
+            "type": "integer"
+          },
+          "echouees": {
+            "description": "Analyses qui n’ont pas abouti.",
+            "type": "integer"
+          },
+          "enAttente": {
+            "description": "Échecs restant à analyser au prochain passage.",
+            "type": "integer"
+          },
+          "nonLus": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "analyses",
+          "enAttente",
+          "nonLus"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "analyses",
+              "enAttente",
+              "nonLus"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Relève les échecs du tableau"
+        }
+      ],
+      "tool": false
     }
   ],
   "id": "jenkins",
@@ -792,6 +987,16 @@
           "relancer-job"
         ]
       }
+    },
+    {
+      "description": "Rapports d’analyse des builds en échec : pourquoi le build a échoué, ce qui s’est passé et comment corriger.",
+      "icon": "stethoscope",
+      "id": "echecs",
+      "placement": {
+        "kind": "tab",
+        "section": "principal"
+      },
+      "title": "Échecs"
     }
   ],
   "schedules": [
@@ -800,6 +1005,12 @@
       "everyMinutes": 1,
       "function": "compter-en-cours",
       "id": "jobs-en-cours"
+    },
+    {
+      "description": "Toutes les deux minutes, analyse le log des jobs du tableau qui viennent d’échouer et prévient avec la cause de l’échec.",
+      "everyMinutes": 2,
+      "function": "surveiller-echecs",
+      "id": "echecs"
     }
   ],
   "sections": [
@@ -813,5 +1024,5 @@
   "setup": {
     "welcome": "Suivez d’un coup d’œil les jobs Jenkins qui comptent pour vous, lisez leurs logs et relancez-les. Il vous faut l’adresse de votre Jenkins, votre identifiant et un jeton d’API."
   },
-  "version": "1.1.3"
+  "version": "2.0.0"
 }

@@ -1,6 +1,7 @@
 import { FileText, Play } from "lucide-react";
-import type { Action } from "@alfred/ui";
+import type { Action } from "socle-ui";
 import { CarteSuivi } from "./CarteSuivi";
+import type { Rapport } from "./rapport";
 import { type Carte, duree, dossierDe, type EtatJob, etatAffiche, nomCourt, RESULTATS } from "./tableau";
 
 interface Props {
@@ -10,11 +11,16 @@ interface Props {
   maintenant: number;
   onLogs: () => void;
   onRelancer: () => Promise<unknown>;
+  /** Dernier rapport d’échec du job, et analyse en cours lancée depuis la carte. */
+  rapport?: Rapport;
+  enAnalyse?: boolean;
+  onRapport: (rapport: Rapport) => void;
+  onAnalyser: () => Promise<unknown>;
   autres: Action[];
 }
 
 /** Carte d’un job : les données Jenkins passées à la carte commune (`CarteSuivi`, la même que celle de Prefect). */
-export function CarteJob({ carte, etat, compte, maintenant, onLogs, onRelancer, autres }: Props) {
+export function CarteJob({ carte, etat, compte, maintenant, onLogs, onRelancer, rapport, enAnalyse, onRapport, onAnalyser, autres }: Props) {
   const nom = etat?.nom ?? nomCourt(carte.job);
   const dernier = etat?.dernier ?? null;
   const enCours = Boolean(dernier?.enCours);
@@ -28,25 +34,53 @@ export function CarteJob({ carte, etat, compte, maintenant, onLogs, onRelancer, 
   const fin =
     dernier?.debut && !enCours ? new Date(new Date(dernier.debut).getTime() + (dernier.duree ?? 0)).toISOString() : dernier?.debut;
 
+  // Échec terminé : son rapport, s’il existe pour ce build.
+  const echec = Boolean(dernier && !enCours && dernier.resultat === "FAILURE");
+  const rapportBuild = echec && rapport && rapport.build === dernier?.numero ? rapport : undefined;
+  const rapportPret = rapportBuild?.statut === "prete" ? rapportBuild : undefined;
+
   const actions: Action[] = [
-    { label: "Voir les logs", icon: FileText, disabled: !dernier, onClick: onLogs },
+    { id: "logs", label: "Voir les logs", icon: <FileText size={16} />, isDisabled: !dernier, onPress: onLogs },
     {
+      id: "relancer",
       label: "Relancer",
-      icon: Play,
-      disabled: !etat?.existe || etat?.desactive,
-      confirm: `Relancer le job « ${nom} » ?`,
-      confirmMessage: etat?.parametre
-        ? "Il repartira avec les paramètres de son dernier build."
-        : "Un nouveau build sera mis en file dans Jenkins.",
-      success: "Build demandé",
-      onClick: onRelancer,
+      icon: <Play size={16} />,
+      isDisabled: !etat?.existe || etat?.desactive,
+      confirm: {
+        title: `Relancer le job « ${nom} » ?`,
+        message: etat?.parametre
+          ? "Il repartira avec les paramètres de son dernier build."
+          : "Un nouveau build sera mis en file dans Jenkins.",
+        confirmLabel: "Relancer",
+      },
+      onPress: onRelancer,
+    },
+    {
+      id: "rapport",
+      label: "Voir le rapport d’échec",
+      isHidden: !rapportPret,
+      onPress: () => rapportPret && onRapport(rapportPret),
+    },
+    {
+      id: "analyser",
+      label: "Analyser l’échec",
+      isHidden: !echec || enAnalyse || rapportBuild?.statut === "en_cours",
+      onPress: onAnalyser,
     },
     ...autres,
   ];
 
   const note = etat?.erreur
     ? { texte: etat.erreur, tone: etat.existe ? ("warning" as const) : ("danger" as const) }
-    : enCours && precedent
+    : echec
+      ? enAnalyse || rapportBuild?.statut === "en_cours"
+        ? { texte: "J’analyse le log de cet échec…" }
+        : rapportPret
+          ? { texte: rapportPret.titre ?? rapportPret.cause ?? "", tone: "danger" as const, onClick: () => onRapport(rapportPret), lien: "Voir le rapport" }
+          : rapportBuild?.statut === "erreur"
+            ? { texte: "L’analyse du log n’a pas abouti.", tone: "warning" as const, onClick: () => void onAnalyser(), lien: "Réessayer" }
+            : { texte: "Cet échec n’a pas encore été analysé.", onClick: () => void onAnalyser(), lien: "Analyser l’échec" }
+      : enCours && precedent
         ? { texte: `Build précédent : ${RESULTATS[precedent.resultat ?? ""]?.label.toLowerCase() ?? "inconnu"} (n° ${precedent.numero})` }
         : null;
 
