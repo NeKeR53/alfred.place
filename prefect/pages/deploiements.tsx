@@ -1,23 +1,11 @@
+import { Row, Text } from "@alfred/kit";
+import { functions, notifyActionError, shell, useAsync, usePageContext, usePageState, usePeerMessage } from "@alfred/sdk";
+import { Pause, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
-import {
-  type Action,
-  Button,
-  ChoiceButton,
-  ChoiceGroup,
-  EmptyState,
-  FeedbackBanner,
-  Grid,
-  LoadingSkeleton,
-  openForm,
-  Page,
-  Row,
-  Text,
-  usePageState,
-} from "@alfred/ui";
-import { functions, shell, useAsync, usePageContext, usePeerMessage, useTopBarSearch } from "@alfred/sdk";
+import { type Action, Page, PageSection, RadioGroup, SearchField, useOpenForm } from "socle-ui";
 import { CarteDeploiement } from "../lib/CarteDeploiement";
-import { ouvrirExecution } from "../lib/Execution";
+import { type Fenetre, Fenetres, ouvrirRapport } from "../lib/ouvrir-rapport";
+import { type Rapport, rapportsParExecution } from "../lib/rapport";
 import {
   ACTIFS,
   aDesParametres,
@@ -54,7 +42,9 @@ async function lireEtats(compte: string, ids: string[]): Promise<Map<string, Eta
 export default function Deploiements() {
   // Chaque onglet est la page d’un compte Prefect : Alfred lui donne son instance.
   const compte = usePageContext()?.instance ?? "";
-  const recherche = useTopBarSearch({ label: "Rechercher un déploiement", placeholder: "Nom, flow, pool, étiquette…" });
+  const [recherche, setRecherche] = useState("");
+  const openForm = useOpenForm();
+  const [fenetre, setFenetre] = useState<Fenetre | null>(null);
   const [filtre, setFiltre] = usePageState<string>("filtre", "tous");
   const [selection, setSelection] = usePageState<string | null>("selection", null);
   // Le panneau Historique reste fermé tant que l’historique d’une carte n’a pas été demandé.
@@ -90,6 +80,27 @@ export default function Deploiements() {
     return () => clearInterval(minuterie);
   }, [uneTourne, etats.data]);
 
+  // Rapports d’échec : relus avec les états, pour mettre la cause sous chaque déploiement en échec.
+  const rapports = useAsync(() => rapportsParExecution(compte), [compte, etats.data]);
+  const [enAnalyse, setEnAnalyse] = useState<Set<string>>(new Set());
+  const analyser = async (execution: string) => {
+    setEnAnalyse((actuel) => new Set(actuel).add(execution));
+    try {
+      const rapport = await functions.call<Rapport>("analyser-echec", { ...avecInstance(compte), execution });
+      rapports.reload();
+      setFenetre(ouvrirRapport(rapport, rapports.reload));
+    } catch (erreur) {
+      rapports.reload();
+      void shell.notify({ title: "L’analyse de l’échec n’a pas abouti", description: (erreur as Error).message, tone: "error" });
+    } finally {
+      setEnAnalyse((actuel) => {
+        const suivant = new Set(actuel);
+        suivant.delete(execution);
+        return suivant;
+      });
+    }
+  };
+
   // Le panneau est masqué par défaut ; une fois l’historique demandé, il garde son déploiement d’une visite à l’autre.
   useEffect(() => {
     if (!historiqueDemande) void shell.setPanelVisible(false);
@@ -99,7 +110,7 @@ export default function Deploiements() {
     const m = message as { type?: string; execution?: string };
     if (m?.type === "execution-modifiee") setTimeout(etats.reload, 1500);
     // Le panneau demande d’ouvrir les logs d’une exécution : la modale s’ouvre sur la page, pas dans le panneau.
-    if (m?.type === "ouvrir-execution" && m.execution) void ouvrirExecution(compte, m.execution, actualiserTout);
+    if (m?.type === "ouvrir-execution" && m.execution) setFenetre({ kind: "execution", instance: compte, id: m.execution });
   });
 
   const actualiserTout = () => {
@@ -115,8 +126,12 @@ export default function Deploiements() {
     void shell.setPanelVisible(true);
   };
 
+  /** Sans casse ni accents : chaque mot cherché doit apparaître dans le nom, le flow, le pool ou une étiquette. */
+  const plier = (texte: string) => texte.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLocaleLowerCase("fr");
+  const mots = plier(recherche).split(/\s+/).filter(Boolean);
   const visibles = deploiements.filter((d) => {
-    if (!recherche.matches(d.nom, d.flux, d.pool, d.tags)) return false;
+    const texte = plier([d.nom, d.flux, d.pool ?? "", ...d.tags].join(" "));
+    if (!mots.every((mot) => texte.includes(mot))) return false;
     const dernier = etats.data?.get(d.id)?.dernier;
     if (filtre === "echec") return Boolean(dernier && ["FAILED", "CRASHED"].includes(dernier.etat));
     if (filtre === "cours") return Boolean(dernier && ACTIFS.has(dernier.etat));
@@ -129,124 +144,133 @@ export default function Deploiements() {
 
   const actionsCarte = (d: Deploiement): Action[] => [
     {
+      id: "parametres",
       label: "Lancer avec d’autres paramètres…",
-      hidden: !aDesParametres(d),
-      onClick: () => openForm(formulaireParametres(d, compte, actualiserTout)),
+      icon: <SlidersHorizontal size={16} />,
+      isHidden: !aDesParametres(d),
+      onPress: () => openForm(formulaireParametres(d, compte, actualiserTout)),
     },
     {
+      id: "suspendre",
       label: d.enPause ? "Reprendre les planifications" : "Suspendre les planifications",
-      hidden: !d.enPause && d.planifications.length === 0,
-      confirm: d.enPause ? undefined : `Suspendre « ${nomComplet(d)} » ?`,
-      confirmMessage: d.enPause ? undefined : "Ses planifications ne créeront plus d’exécutions jusqu’à la reprise.",
-      success: d.enPause ? "Déploiement repris" : "Déploiement suspendu",
-      onClick: async () => {
+      icon: <Pause size={16} />,
+      isHidden: !d.enPause && d.planifications.length === 0,
+      confirm: d.enPause
+        ? undefined
+        : {
+            title: `Suspendre « ${nomComplet(d)} » ?`,
+            message: "Ses planifications ne créeront plus d’exécutions jusqu’à la reprise.",
+            confirmLabel: "Suspendre",
+          },
+      onPress: async () => {
         await functions.call("suspendre-deploiement", { ...avecInstance(compte), deploiement: d.id, suspendre: !d.enPause });
+        shell.notify({ title: d.enPause ? "Déploiement repris" : "Déploiement suspendu", tone: "success" });
         liste.reload();
       },
     },
   ];
 
-  const bar = (
-    <Row gap="md">
-      {deploiements.length > 0 ? (
-        <ChoiceGroup appearance="segmented" label="Filtrer les déploiements">
+  const barre =
+    deploiements.length > 0 ? (
+      <Row gap="md">
+        <SearchField label="les déploiements" onChange={({ text }) => setRecherche(text)} />
+        <RadioGroup
+          label="Filtrer les déploiements"
+          hideLabel
+          orientation="horizontal"
+          value={filtre}
+          onChange={setFiltre}
+        >
           {FILTRES.map((f) => (
-            <ChoiceButton key={f.id} label={f.label} variant="label" size="compact" selected={filtre === f.id} onClick={() => setFiltre(f.id)}>
+            <RadioGroup.Option key={f.id} value={f.id}>
               {f.label}
-            </ChoiceButton>
+            </RadioGroup.Option>
           ))}
-        </ChoiceGroup>
-      ) : null}
-      {deploiements.length > 0 ? (
+        </RadioGroup>
         <Text as="span" size="meta" tone="muted">
-          {deploiements.length} déploiement{deploiements.length > 1 ? "s" : ""}
-          {enCours > 0 ? ` · ${enCours} en cours` : ""}
-          {enEchec > 0 ? ` · ${enEchec} en échec` : ""}
+          {`${deploiements.length} déploiement${deploiements.length > 1 ? "s" : ""}${
+            enCours > 0 ? ` · ${enCours} en cours` : ""
+          }${enEchec > 0 ? ` · ${enEchec} en échec` : ""}`}
         </Text>
-      ) : null}
-    </Row>
-  );
+      </Row>
+    ) : undefined;
 
   const actions: Action[] = [
     {
+      id: "actualiser",
       label: "Actualiser",
-      icon: RefreshCw,
-      onClick: () => {
+      icon: <RefreshCw size={16} />,
+      onPress: () => {
         liste.reload();
         etats.reload();
       },
     },
   ];
 
-  let contenu;
-  if (liste.error && !liste.data) {
-    contenu = (
-      <FeedbackBanner tone="danger" action={<Button onClick={liste.reload}>Réessayer</Button>}>
-        Les déploiements n’ont pas pu être lus : {liste.error.message}
-      </FeedbackBanner>
-    );
-  } else if (!liste.data) {
-    contenu = <LoadingSkeleton variant="page" rows={4} label="Chargement des déploiements…" />;
-  } else if (deploiements.length === 0) {
-    contenu = (
-      <EmptyState
-        title="Aucun déploiement"
-        description="Les déploiements créés sur cette instance Prefect apparaîtront ici, avec leur dernière exécution."
-      />
-    );
-  } else if (visibles.length === 0) {
-    contenu = (
-      <EmptyState
-        title="Aucun résultat"
-        description="Aucun déploiement ne correspond à la recherche ou au filtre."
-        action={
-          <Button
-            onClick={() => {
-              recherche.clear();
-              setFiltre("tous");
-            }}
-          >
-            Effacer les filtres
-          </Button>
-        }
-      />
-    );
-  } else {
-    contenu = (
-      <>
-        {etats.error ? (
-          <FeedbackBanner tone="danger" action={<Button onClick={etats.reload}>Réessayer</Button>}>
-            Les dernières exécutions n’ont pas pu être lues : {etats.error.message}
-          </FeedbackBanner>
-        ) : null}
-        <Grid minColumnWidth={300}>
-          {visibles.map((d) => (
+  return (
+    <Page
+      toolbar={barre}
+      actions={actions}
+      onActionError={notifyActionError}
+      state={liste.error && !liste.data ? "error" : !liste.data ? "loading" : "ready"}
+      onRetry={liste.reload}
+      loadingLabel="Chargement des déploiements…"
+    >
+      {deploiements.length === 0 ? (
+        <PageSection
+          title="Déploiements"
+          empty={{
+            title: "Aucun déploiement",
+            description: "Les déploiements créés sur cette instance Prefect apparaîtront ici, avec leur dernière exécution.",
+          }}
+        >
+          {null}
+        </PageSection>
+      ) : visibles.length === 0 ? (
+        <PageSection
+          title="Déploiements"
+          empty={{
+            title: "Aucun résultat",
+            description: "Aucun déploiement ne correspond à la recherche ou au filtre.",
+            action: { id: "effacer", label: "Afficher tous les déploiements", onPress: () => setFiltre("tous") },
+          }}
+        >
+          {null}
+        </PageSection>
+      ) : (
+        visibles.map((d) => {
+          const etat = etats.data?.get(d.id);
+          return (
             <CarteDeploiement
               key={d.id}
               deploiement={d}
-              etat={etats.data?.get(d.id)}
+              etat={
+                etats.error
+                  ? { ...(etat as EtatDeploiement), erreur: `Les dernières exécutions n’ont pas pu être lues : ${etats.error.message}` }
+                  : etat
+              }
               maintenant={maintenant}
               onLogs={() => {
-                const dernier = etats.data?.get(d.id)?.dernier;
-                if (dernier) return ouvrirExecution(compte, dernier.id, actualiserTout);
+                const dernier = etat?.dernier;
+                if (dernier) setFenetre({ kind: "execution", instance: compte, id: dernier.id });
               }}
               onLancer={async () => {
                 await lancer(compte, d.id);
+                shell.notify({ title: "Exécution lancée", tone: "success" });
                 actualiserTout();
               }}
               onHistorique={() => ouvrirHistorique(d)}
               selectionnee={historiqueDemande && selection === cleSelection(compte, d.id)}
+              rapport={etat?.dernier ? rapports.data?.get(etat.dernier.id) : undefined}
+              enAnalyse={enAnalyse.has(etat?.dernier?.id ?? "")}
+              onRapport={(rapport) => setFenetre(ouvrirRapport(rapport, rapports.reload))}
+              onAnalyser={() => (etat?.dernier ? analyser(etat.dernier.id) : Promise.resolve())}
               autres={actionsCarte(d)}
             />
-          ))}
-        </Grid>
-      </>
-    );
-  }
-
-  return (
-    <Page bar={bar} actions={actions}>
-      {contenu}
+          );
+        })
+      )}
+      <Fenetres fenetre={fenetre} onClose={() => setFenetre(null)} ouvrir={setFenetre} apres={rapports.reload} />
     </Page>
   );
 }

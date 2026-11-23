@@ -1,6 +1,7 @@
 import { FileText, History, Play } from "lucide-react";
-import type { Action } from "@alfred/ui";
+import type { Action } from "socle-ui";
 import { CarteSuivi } from "./CarteSuivi";
+import type { Rapport } from "./rapport";
 import { ACTIFS, type Deploiement, duree, type EtatDeploiement, etatAffiche, nomComplet } from "./prefect";
 
 interface Props {
@@ -13,12 +14,17 @@ interface Props {
   onHistorique: () => unknown;
   /** Carte ouverte dans le panneau Historique. */
   selectionnee?: boolean;
+  /** Rapport d’échec de la dernière exécution, et analyse lancée depuis la carte. */
+  rapport?: Rapport;
+  enAnalyse?: boolean;
+  onRapport: (rapport: Rapport) => void;
+  onAnalyser: () => Promise<unknown>;
   autres: Action[];
 }
 
 /** Carte d’un déploiement : les données Prefect passées à la carte commune (`CarteSuivi`, la même que celle de
  * Jenkins). Aucun extrait de log dans la carte : les logs s’ouvrent seulement dans la modale. */
-export function CarteDeploiement({ deploiement: d, etat, compte, maintenant, onLogs, onLancer, onHistorique, selectionnee = false, autres }: Props) {
+export function CarteDeploiement({ deploiement: d, etat, compte, maintenant, onLogs, onLancer, onHistorique, selectionnee = false, rapport, enAnalyse, onRapport, onAnalyser, autres }: Props) {
   const dernier = etat?.dernier ?? null;
   const enCours = Boolean(dernier && ACTIFS.has(dernier.etat));
   const quand = dernier ? (enCours ? (dernier.debut ?? dernier.debutPrevu) : (dernier.fin ?? dernier.debut ?? dernier.debutPrevu)) : null;
@@ -32,22 +38,51 @@ export function CarteDeploiement({ deploiement: d, etat, compte, maintenant, onL
     }
   }
 
+  // Dernière exécution en échec : son rapport, s’il existe.
+  const echec = Boolean(dernier && ["FAILED", "CRASHED"].includes(dernier.etat));
+  const rapportPret = echec && rapport?.statut === "prete" ? rapport : undefined;
+
   const actions: Action[] = [
-    { label: "Voir les logs", icon: FileText, disabled: !dernier, onClick: onLogs },
+    { id: "logs", label: "Voir les logs", icon: <FileText size={16} />, isDisabled: !dernier, onPress: onLogs },
     {
+      id: "lancer",
       label: "Lancer",
-      icon: Play,
-      confirm: `Lancer « ${nomComplet(d)} » ?`,
-      confirmMessage: "Une exécution démarre avec les paramètres par défaut du déploiement.",
-      success: "Exécution lancée",
-      onClick: onLancer,
+      icon: <Play size={16} />,
+      confirm: {
+        title: `Lancer « ${nomComplet(d)} » ?`,
+        message: "Une exécution démarre avec les paramètres par défaut du déploiement.",
+        confirmLabel: "Lancer",
+      },
+      onPress: onLancer,
     },
-    { label: "Voir l’historique", icon: History, onClick: onHistorique },
+    { id: "historique", label: "Voir l’historique", icon: <History size={16} />, onPress: onHistorique },
+    {
+      id: "rapport",
+      label: "Voir le rapport d’échec",
+      isHidden: !rapportPret,
+      onPress: () => rapportPret && onRapport(rapportPret),
+    },
+    {
+      id: "analyser",
+      label: "Analyser l’échec",
+      isHidden: !echec || enAnalyse || rapport?.statut === "en_cours",
+      onPress: onAnalyser,
+    },
     ...autres,
   ];
 
   // La carte reste courte : planification, exécutions précédentes et prochaine exécution sont dans le panneau Historique.
-  const note = etat?.erreur ? { texte: etat.erreur, tone: "warning" as const } : null;
+  const note = etat?.erreur
+    ? { texte: etat.erreur, tone: "warning" as const }
+    : !echec
+      ? null
+      : enAnalyse || rapport?.statut === "en_cours"
+        ? { texte: "J’analyse les logs de cet échec…" }
+        : rapportPret
+          ? { texte: rapportPret.titre ?? rapportPret.cause ?? "", tone: "danger" as const, onClick: () => onRapport(rapportPret), lien: "Voir le rapport" }
+          : rapport?.statut === "erreur"
+            ? { texte: "L’analyse des logs n’a pas abouti.", tone: "warning" as const, onClick: () => void onAnalyser(), lien: "Réessayer" }
+            : { texte: "Cet échec n’a pas encore été analysé.", onClick: () => void onAnalyser(), lien: "Analyser l’échec" };
 
   const badges = [
     ...(d.enPause ? [{ label: "Suspendu", tone: "neutral" as const }] : []),
@@ -63,7 +98,6 @@ export function CarteDeploiement({ deploiement: d, etat, compte, maintenant, onL
       badges={badges}
       quand={quand ? { date: quand, prefixe: enCours ? "lancée" : undefined } : null}
       note={note}
-      onOuvrir={() => void onHistorique()}
       selectionnee={selectionnee}
       barre={
         dernier

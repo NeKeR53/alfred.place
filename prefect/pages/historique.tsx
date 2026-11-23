@@ -1,27 +1,8 @@
+import { Stack, Text } from "@alfred/kit";
+import { functions, notifyActionError, shell, useAsync, usePageContext, usePageState, usePeerMessage } from "@alfred/sdk";
+import { ChevronsDown, Play, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { useEffect } from "react";
-import { Play, RefreshCw } from "lucide-react";
-import {
-  type Action,
-  Button,
-  Code,
-  Disclosure,
-  EmptyState,
-  FeedbackBanner,
-  FormattedValue,
-  KeyValueList,
-  List,
-  ListItem,
-  LoadingSkeleton,
-  openForm,
-  Page,
-  Section,
-  SelectControl,
-  Stack,
-  StatusBadge,
-  Text,
-  usePageState,
-} from "@alfred/ui";
-import { functions, shell, useAsync, usePageContext, usePeerMessage } from "@alfred/sdk";
+import { type Action, Code, DetailPanel, List, Select, useOpenForm } from "socle-ui";
 import {
   ACTIFS,
   aDesParametres,
@@ -57,6 +38,7 @@ export default function Historique() {
   const id = choisi.deploiement;
   const [filtre, setFiltre] = usePageState<string>("filtre", "tous");
   const [limite, setLimite] = usePageState<number>("limite", PAS);
+  const openForm = useOpenForm();
   const etats = FILTRES.find((f) => f.id === filtre)?.etats;
 
   const fiche = useAsync(
@@ -112,185 +94,163 @@ export default function Historique() {
     void shell.send({ type: "execution-modifiee" });
   };
 
-  if (!id)
-    return (
-      <Page>
-        <EmptyState
-          size="compact"
-          title="Aucun déploiement choisi"
-          description="Cliquez sur l’historique d’une carte pour voir toutes ses exécutions ici."
-        />
-      </Page>
-    );
-
   const d = fiche.data?.deploiement ?? null;
-  if (fiche.error && !fiche.data)
-    return (
-      <Page>
-        <FeedbackBanner tone="danger" action={<Button onClick={fiche.reload}>Réessayer</Button>}>
-          Le déploiement n’a pas pu être lu : {fiche.error.message}
-        </FeedbackBanner>
-      </Page>
-    );
-  if (!fiche.data)
-    return (
-      <Page>
-        <LoadingSkeleton variant="page" rows={6} label="Chargement de l’historique…" />
-      </Page>
-    );
-  if (!d)
-    return (
-      <Page>
-        <EmptyState size="compact" title="Déploiement introuvable" description="Il a peut-être été supprimé de Prefect." />
-      </Page>
-    );
-
   const dernier = runs.data?.executions[0];
-  const actions: Action[] = [
-    {
-      label: "Lancer",
-      icon: Play,
-      confirm: `Lancer « ${nomComplet(d)} » ?`,
-      confirmMessage: "Une exécution démarre avec les paramètres par défaut du déploiement.",
-      success: "Exécution lancée",
-      onClick: async () => {
-        await lancer(instance, d.id);
-        apresAction();
-      },
-    },
-    {
-      label: "Actualiser",
-      icon: RefreshCw,
-      onClick: () => {
-        fiche.reload();
-        runs.reload();
-        bilan.reload();
-      },
-    },
-    {
-      label: "Lancer avec d’autres paramètres…",
-      hidden: !aDesParametres(d),
-      onClick: () => openForm(formulaireParametres(d, instance, apresAction)),
-    },
-  ];
+  const actions: Action[] = d
+    ? [
+        {
+          id: "lancer",
+          label: "Lancer",
+          icon: <Play size={16} />,
+          confirm: {
+            title: `Lancer « ${nomComplet(d)} » ?`,
+            message: "Une exécution démarre avec les paramètres par défaut du déploiement.",
+            confirmLabel: "Lancer",
+          },
+          onPress: async () => {
+            await lancer(instance, d.id);
+            shell.notify({ title: "Exécution lancée", tone: "success" });
+            apresAction();
+          },
+        },
+        {
+          id: "actualiser",
+          label: "Actualiser",
+          icon: <RefreshCw size={16} />,
+          onPress: () => {
+            fiche.reload();
+            runs.reload();
+            bilan.reload();
+          },
+        },
+        {
+          id: "parametres",
+          label: "Lancer avec d’autres paramètres…",
+          icon: <SlidersHorizontal size={16} />,
+          isHidden: !aDesParametres(d),
+          onPress: () => openForm(formulaireParametres(d, instance, apresAction)),
+        },
+      ]
+    : [];
 
-  const parametres = Object.keys(d.parametres).length > 0 ? JSON.stringify(d.parametres, null, 2) : "";
+  const parametres = d && Object.keys(d.parametres).length > 0 ? JSON.stringify(d.parametres, null, 2) : "";
   const total = runs.data?.total ?? 0;
   const lignes = runs.data?.executions ?? [];
+  const prochaine = bilan.data?.prochaine?.debutPrevu;
 
   return (
-    <Page
-      header={{
-        title: nomComplet(d),
-        subtitle: planification(d),
-        status: dernier ? etatAffiche(dernier.etat, dernier.etatNom) : undefined,
-        actions,
-      }}
-      bar={
-        <SelectControl aria-label="État des exécutions" value={filtre} onChange={(event) => setFiltre(event.target.value)}>
-          {FILTRES.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.label}
-            </option>
-          ))}
-        </SelectControl>
+    <DetailPanel
+      header={
+        d
+          ? {
+              title: nomComplet(d),
+              subtitle: planification(d),
+              status: dernier ? etatAffiche(dernier.etat, dernier.etatNom) : undefined,
+              actions,
+            }
+          : undefined
       }
-    >
-      <Section title="Détail">
-        <KeyValueList
-          items={[
-            { label: "Planification", value: planification(d) },
-            {
-              label: "Exécutions précédentes",
-              value: !bilan.data
-                ? bilan.error
-                  ? "Illisibles pour l’instant"
-                  : "…"
-                : bilan.data.recentes.length > 1
-                  ? resume(bilan.data.recentes.slice(1))
-                  : "Aucune",
-            },
-            {
-              label: "Prochaine exécution",
-              value: bilan.data?.prochaine?.debutPrevu ? (
-                <>
-                  <FormattedValue value={bilan.data.prochaine.debutPrevu} options={{ type: "datetime" }} /> (
-                  <FormattedValue value={bilan.data.prochaine.debutPrevu} options={{ type: "relative" }} />)
-                </>
-              ) : bilan.data ? (
-                "Aucune prévue"
-              ) : (
-                "…"
-              ),
-            },
-          ]}
-        />
-      </Section>
-
-      <Section title="Exécutions" description={runs.data ? `${total} exécution${total > 1 ? "s" : ""}${filtre === "tous" ? " au total" : ""}` : undefined}>
-        {runs.error && !runs.data ? (
-          <FeedbackBanner tone="danger" action={<Button onClick={runs.reload}>Réessayer</Button>}>
-            L’historique n’a pas pu être lu : {runs.error.message}
-          </FeedbackBanner>
-        ) : !runs.data ? (
-          <LoadingSkeleton variant="list" rows={6} label="Lecture de l’historique…" />
-        ) : lignes.length === 0 ? (
-          <EmptyState
-            size="compact"
-            title="Aucune exécution"
-            description={filtre === "tous" ? "Ce déploiement n’a jamais été lancé." : "Aucune exécution dans cet état."}
-          />
-        ) : (
-          <Stack gap="sm">
-            <List label="Exécutions du déploiement">
-              {lignes.map((r) => {
-                const a = etatAffiche(r.etat, r.etatNom);
-                return (
-                  <ListItem
-                    key={r.id}
-                    title={r.nom}
-                    description={`${dateCourte(r.debut ?? r.debutPrevu)}${r.duree ? ` · ${duree(r.duree)}` : ""}`}
-                    trailing={
-                      <StatusBadge size="compact" tone={a.tone}>
-                        {a.label}
-                      </StatusBadge>
-                    }
-                    onClick={() => void shell.send({ type: "ouvrir-execution", execution: r.id })}
-                  />
-                );
-              })}
-            </List>
-            {total > lignes.length ? (
-              <Button onClick={() => setLimite(Math.min(limite + PAS, 200))}>Voir plus d’exécutions</Button>
-            ) : null}
-          </Stack>
-        )}
-      </Section>
-
-      <Disclosure label="Détails du déploiement">
-        <Stack gap="md">
-          {d.description ? <Text>{d.description}</Text> : null}
-          <KeyValueList
-            items={[
-              { label: "Flow", value: d.flux || "—" },
-              { label: "Déploiement", value: d.nom },
-              { label: "Pool de workers", value: d.pool ?? "—" },
+      sections={
+        d
+          ? [
               {
-                label: "Disponibilité",
-                value: d.enPause ? "Suspendu" : d.statut === "NOT_READY" ? "Aucun worker à l’écoute" : "Prêt",
+                id: "detail",
+                title: "Détail",
+                fields: [
+                  { label: "Planification", value: planification(d) },
+                  {
+                    label: "Exécutions précédentes",
+                    value: !bilan.data
+                      ? bilan.error
+                        ? "Illisibles pour l’instant"
+                        : "…"
+                      : bilan.data.recentes.length > 1
+                        ? resume(bilan.data.recentes.slice(1))
+                        : "Aucune",
+                  },
+                  prochaine
+                    ? { label: "Prochaine exécution", value: prochaine, type: "datetime" }
+                    : { label: "Prochaine exécution", value: bilan.data ? "Aucune prévue" : "…" },
+                ],
               },
-              { label: "Planification", value: planification(d) },
-              { label: "Étiquettes", value: d.tags.length ? d.tags.join(", ") : "—" },
-              { label: "Mis à jour", value: dateCourte(d.misAJour) },
-            ]}
-          />
-          {parametres ? (
-            <Code block label="Paramètres par défaut">
-              {parametres}
-            </Code>
-          ) : null}
-        </Stack>
-      </Disclosure>
-    </Page>
+              {
+                id: "executions",
+                title: "Exécutions",
+                summary: runs.data ? `${total} exécution${total > 1 ? "s" : ""}${filtre === "tous" ? " au total" : ""}` : undefined,
+                actions: [
+                  {
+                    id: "plus",
+                    label: "Voir plus d’exécutions",
+                    icon: <ChevronsDown size={16} />,
+                    isHidden: total <= lignes.length,
+                    onPress: () => setLimite(Math.min(limite + PAS, 200)),
+                  },
+                ],
+                content: (
+                  <Stack gap="sm">
+                    <Select
+                      label="État des exécutions"
+                      hideLabel
+                      width="md"
+                      value={filtre}
+                      options={FILTRES.map((f) => ({ id: f.id, label: f.label }))}
+                      onChange={(choix) => setFiltre(choix ?? "tous")}
+                    />
+                    {runs.data && lignes.length === 0 ? (
+                      <Text tone="muted">
+                        {filtre === "tous" ? "Ce déploiement n’a jamais été lancé." : "Aucune exécution dans cet état."}
+                      </Text>
+                    ) : (
+                      <List
+                        label="Exécutions du déploiement"
+                        selectionMode="none"
+                        isLoading={!runs.data}
+                        hasError={Boolean(runs.error && !runs.data)}
+                        onRetry={runs.reload}
+                        items={lignes.map((r) => ({
+                          id: r.id,
+                          title: r.nom,
+                          subtitle: `${dateCourte(r.debut ?? r.debutPrevu)}${r.duree ? ` · ${duree(r.duree)}` : ""}`,
+                          status: etatAffiche(r.etat, r.etatNom),
+                        }))}
+                        onAction={(execution) => void shell.send({ type: "ouvrir-execution", execution })}
+                      />
+                    )}
+                  </Stack>
+                ),
+              },
+              {
+                id: "deploiement",
+                title: "Détails du déploiement",
+                defaultCollapsed: true,
+                fields: [
+                  { label: "Description", value: d.description, type: "longtext", hideEmpty: true },
+                  { label: "Flow", value: d.flux },
+                  { label: "Déploiement", value: d.nom },
+                  { label: "Pool de workers", value: d.pool },
+                  {
+                    label: "Disponibilité",
+                    value: d.enPause ? "Suspendu" : d.statut === "NOT_READY" ? "Aucun worker à l’écoute" : "Prêt",
+                  },
+                  { label: "Planification", value: planification(d) },
+                  { label: "Étiquettes", value: d.tags, type: "tags" },
+                  { label: "Mis à jour", value: dateCourte(d.misAJour) },
+                ],
+                content: parametres ? (
+                  <Code block label="Paramètres par défaut">
+                    {parametres}
+                  </Code>
+                ) : undefined,
+              },
+            ]
+          : undefined
+      }
+      isLoading={Boolean(id) && !fiche.data && !fiche.error}
+      hasError={Boolean(fiche.error && !fiche.data)}
+      onRetry={fiche.reload}
+      isNotFound={Boolean(id) && Boolean(fiche.data) && !d}
+      emptyMessage="Ouvrez l’historique d’un déploiement pour voir toutes ses exécutions ici."
+      onActionError={notifyActionError}
+    />
   );
 }

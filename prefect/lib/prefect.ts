@@ -1,5 +1,5 @@
-import { type FormSpec } from "@alfred/ui";
-import { functions } from "@alfred/sdk";
+import { functions, shell } from "@alfred/sdk";
+import type { FormField, OpenFormOptions } from "socle-ui";
 
 export type Ton = "neutral" | "warning" | "success" | "danger";
 
@@ -143,7 +143,7 @@ export function aDesParametres(d: Deploiement): boolean {
   return Object.keys(d.schemaParametres?.properties ?? {}).length > 0 || Object.keys(d.parametres).length > 0;
 }
 
-export function formulaireParametres(d: Deploiement, instance: string, apres: () => void): FormSpec {
+export function formulaireParametres(d: Deploiement, instance: string, apres: () => void): OpenFormOptions {
   const proprietes = Object.entries(d.schemaParametres?.properties ?? {}).sort(
     ([, a], [, b]) => (a.position ?? 0) - (b.position ?? 0),
   );
@@ -153,56 +153,69 @@ export function formulaireParametres(d: Deploiement, instance: string, apres: ()
     return {
       title: "Lancer avec d’autres paramètres",
       description: `${nomComplet(d)} : les paramètres en JSON. Ceux que vous retirez gardent leur valeur par défaut.`,
-      fields: [{ name: "json", label: "Paramètres (JSON)", type: "textarea" }],
-      initial: { json: JSON.stringify(d.parametres, null, 2) },
+      fields: [{ name: "json", label: "Paramètres (JSON)", type: "textarea", minRows: 8 }],
+      initialValues: { json: JSON.stringify(d.parametres, null, 2) },
       submitLabel: "Lancer",
-      success: "Exécution lancée",
       onSubmit: async (v) => {
         let parametres: Record<string, unknown>;
         try {
-          parametres = JSON.parse(v.json || "{}");
+          parametres = JSON.parse(String(v.json || "{}"));
         } catch {
-          throw new Error("Le JSON des paramètres n’est pas valide.");
+          return { errors: { json: "Le JSON des paramètres n’est pas valide." } };
         }
         await lancer(instance, d.id, parametres);
+        shell.notify({ title: "Exécution lancée", tone: "success" });
         apres();
       },
     };
   }
 
-  const fields = proprietes.map(([nom, p]) => {
+  const fields: FormField[] = proprietes.map(([nom, p]): FormField => {
     const type = typeDe(p);
-    const base = { name: nom, label: p.title || nom, hint: p.description, optional: true };
-    if (type === "boolean") return { ...base, type: "checkbox" as const };
-    if (p.enum?.length) return { ...base, type: "select" as const, options: p.enum.map((e) => ({ value: String(e), label: String(e) })) };
-    if (type === "integer" || type === "number") return { ...base, type: "number" as const };
-    if (p.format === "date") return { ...base, type: "date" as const };
+    const base = { name: nom, label: p.title || nom, description: p.description };
+    if (type === "boolean") return { ...base, type: "checkbox" };
+    if (p.enum?.length)
+      return { ...base, type: "select", options: p.enum.map((e) => ({ id: String(e), label: String(e) })) };
+    if (type === "integer" || type === "number") return { ...base, type: "number" };
+    if (p.format === "date") return { ...base, placeholder: "AAAA-MM-JJ" };
     return base;
   });
-  const initial: Record<string, string> = {};
+  const initial: Record<string, string | number | boolean | null> = {};
   for (const [nom, p] of proprietes) {
     const valeur = nom in d.parametres ? d.parametres[nom] : p.default;
-    initial[nom] = typeDe(p) === "boolean" ? (valeur ? "1" : "0") : enTexte(valeur);
+    const type = typeDe(p);
+    initial[nom] =
+      type === "boolean"
+        ? Boolean(valeur)
+        : type === "integer" || type === "number"
+          ? valeur === null || valeur === undefined || valeur === ""
+            ? null
+            : Number(valeur)
+          : p.enum?.length
+            ? valeur === null || valeur === undefined
+              ? null
+              : String(valeur)
+            : enTexte(valeur);
   }
 
   return {
     title: "Lancer avec d’autres paramètres",
     description: `${nomComplet(d)} : un champ laissé vide garde sa valeur par défaut.`,
     fields,
-    initial,
+    initialValues: initial,
     submitLabel: "Lancer",
-    success: "Exécution lancée",
     onSubmit: async (v) => {
       const parametres: Record<string, unknown> = {};
       for (const [nom, p] of proprietes) {
-        const brut = v[nom] ?? "";
+        const brut = v[nom];
         const type = typeDe(p);
-        if (type === "boolean") parametres[nom] = brut === "1";
-        else if (brut === "") continue;
-        else if (type === "integer" || type === "number") parametres[nom] = Number(brut.replace(",", "."));
-        else parametres[nom] = brut;
+        if (type === "boolean") parametres[nom] = brut === true;
+        else if (brut === null || brut === undefined || brut === "") continue;
+        else if (type === "integer" || type === "number") parametres[nom] = Number(brut);
+        else parametres[nom] = String(brut);
       }
       await lancer(instance, d.id, parametres);
+      shell.notify({ title: "Exécution lancée", tone: "success" });
       apres();
     },
   };

@@ -8,19 +8,25 @@
         "label": "Prefect",
         "methods": [
           {
+            "help": "Dans Prefect Cloud : votre profil, puis « API keys » et « Create API key ». Copiez la clé tout de suite : elle ne s’affiche qu’une fois.",
             "id": "cle-api",
             "label": "Prefect Cloud (clé d’API)",
-            "type": "bearer"
+            "tokenPage": "https://app.prefect.cloud/my/api-keys",
+            "type": "bearer",
+            "urlExample": "https://api.prefect.cloud/api/accounts/…/workspaces/…"
           },
           {
+            "help": "L’adresse de votre serveur Prefect, suivie de /api. L’identifiant et le mot de passe vous sont donnés par la personne qui gère ce serveur.",
             "id": "identifiant",
-            "label": "Serveur Prefect (identifiant et mot de passe)",
-            "type": "basic"
+            "label": "Serveur de l’entreprise (identifiant et mot de passe)",
+            "type": "basic",
+            "urlExample": "https://prefect.entreprise.fr/api"
           },
           {
             "id": "ouvert",
-            "label": "Serveur Prefect sans authentification",
-            "type": "none"
+            "label": "Serveur de l’entreprise, sans mot de passe",
+            "type": "none",
+            "urlExample": "https://prefect.entreprise.fr/api"
           }
         ],
         "testPath": "/block_types/slug/secret"
@@ -2350,6 +2356,194 @@
           "prefect"
         ]
       }
+    },
+    {
+      "description": "Analyse les logs d’une exécution Prefect en échec (la plus récente si aucune n’est donnée) et rend un rapport : pourquoi elle a échoué, ce qui s’est passé, pistes de correction et lignes des logs en cause. Le rapport est rangé dans l’onglet Échecs ; un rapport déjà fait pour cette exécution est refait.",
+      "effect": "write",
+      "id": "analyser-echec",
+      "input": {
+        "properties": {
+          "execution": {
+            "description": "Identifiant de l’exécution (flow run) ; omis, la plus récente.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte Prefect ; omis, celui par défaut.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "categorie": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cause": {
+            "description": "Pourquoi l’exécution a échoué, en une ou deux phrases.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "certitude": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "deploiement": {
+            "description": "flow / déploiement.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "deploiement_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "erreur": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "etat": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "execution": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "lignes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "nom": {
+            "description": "Nom de l’exécution.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pistes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "resume": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "statut": {
+            "description": "prete, en_cours ou erreur.",
+            "type": "string"
+          },
+          "titre": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "execution",
+          "statut",
+          "pistes",
+          "lignes"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "statut": "prete"
+            },
+            "has": [
+              "cause",
+              "titre"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Analyse une exécution en échec",
+          "target": {
+            "field": "execution",
+            "hint": "identifiant d’un flow run en échec",
+            "label": "Exécution en échec"
+          }
+        }
+      ],
+      "tool": true
+    },
+    {
+      "description": "Surveille les exécutions Prefect de chaque compte : quand une exécution a échoué ou planté (dans les dernières 24 heures) et n’a pas encore de rapport, analyse ses logs, prévient l’utilisateur avec la cause de l’échec et met le nombre de rapports non lus sur l’onglet Échecs. Deux analyses au plus par passage.",
+      "effect": "write",
+      "id": "surveiller-echecs",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "analyses": {
+            "description": "Exécutions analysées pendant ce passage.",
+            "type": "integer"
+          },
+          "comptesIllisibles": {
+            "type": "integer"
+          },
+          "echouees": {
+            "description": "Analyses qui n’ont pas abouti.",
+            "type": "integer"
+          },
+          "enAttente": {
+            "description": "Échecs restant à analyser au prochain passage.",
+            "type": "integer"
+          },
+          "nonLus": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "analyses",
+          "enAttente",
+          "nonLus"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "analyses",
+              "enAttente",
+              "nonLus"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Relève les échecs récents"
+        }
+      ],
+      "tool": false
     }
   ],
   "id": "prefect",
@@ -2402,6 +2596,24 @@
           "lire-dernieres-executions"
         ]
       }
+    },
+    {
+      "description": "Rapports d’analyse des exécutions en échec : pourquoi l’exécution a échoué, ce qui s’est passé et comment corriger.",
+      "icon": "stethoscope",
+      "id": "echecs",
+      "placement": {
+        "kind": "tab",
+        "section": "principal"
+      },
+      "title": "Échecs"
+    }
+  ],
+  "schedules": [
+    {
+      "description": "Toutes les deux minutes, analyse les logs des exécutions Prefect qui viennent d’échouer et prévient avec la cause de l’échec.",
+      "everyMinutes": 2,
+      "function": "surveiller-echecs",
+      "id": "echecs"
     }
   ],
   "sections": [
@@ -2417,5 +2629,5 @@
   "setup": {
     "welcome": "Suivez vos déploiements Prefect d’un coup d’œil : dernière exécution, lancement en un clic, historique, tâches et logs. Il vous faut l’adresse de l’API Prefect et, pour Prefect Cloud, une clé d’API."
   },
-  "version": "1.2.5"
+  "version": "2.0.0"
 }

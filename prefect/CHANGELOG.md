@@ -1,3 +1,7 @@
+## 2.0.0 — 2026-11-23
+
+Les pages passent sur socle-ui, le design system d'Alfred : listes, panneaux, formulaires et états suivent les gabarits Socle. Demande un Alfred passé sur socle-ui (novembre 2026) ; un Alfred plus ancien garde la version précédente.
+
 ## 1.2.5 — 2026-11-19
 
 - Un clic sur une carte de déploiement, en dehors de ses boutons, ouvre son détail et son historique dans le panneau de droite ; la carte ouverte est marquée. Entrée et Espace font de même au clavier.

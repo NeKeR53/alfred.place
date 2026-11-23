@@ -1,27 +1,22 @@
-import { useEffect } from "react";
+import { Stack, Text } from "@alfred/kit";
+import { functions, shell, useAsync } from "@alfred/sdk";
 import { Ban, Play } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
-  type Action,
   Button,
-  ChoiceButton,
-  ChoiceGroup,
   Code,
-  DataTable,
+  Dialog,
   EmptyState,
-  FeedbackBanner,
-  KeyValueList,
-  LoadingSkeleton,
-  openModal,
-  Row,
-  Section,
-  Spinner,
-  Stack,
+  type LogLevel,
+  type LogLine,
+  LogViewer,
+  PropertyRow,
+  RadioGroup,
+  Skeleton,
   StatusBadge,
-  Tabs,
-  Text,
-  usePageState,
-} from "@alfred/ui";
-import { functions, useAsync } from "@alfred/sdk";
+  Table,
+  useConfirm,
+} from "socle-ui";
 import { ACTIFS, avecInstance, dateCourte, duree, etatAffiche, type Execution, heure, lancer } from "./prefect";
 
 interface Tache {
@@ -53,24 +48,17 @@ interface Logs {
   lignes: { horodatage: string; niveau: number; message: string; source: string | null; tache: string | null }[];
 }
 
-const NIVEAUX: Record<number, string> = { 10: "DEBUG", 20: "INFO", 30: "WARNING", 40: "ERROR", 50: "CRITICAL" };
-const FILTRES = [
-  { id: 0, label: "Tout" },
-  { id: 20, label: "Info" },
-  { id: 30, label: "Avertissements" },
-  { id: 40, label: "Erreurs" },
-];
+/** Niveau Prefect (10 à 50) vers le niveau d’une ligne du journal. */
+const niveauDe = (niveau: number): LogLevel => (niveau >= 40 ? "error" : niveau >= 30 ? "warning" : "info");
 
 const lireFiche = (instance: string, id: string) =>
   functions.call<{ execution: FicheExecution; taches: Tache[] }>("lire-execution", { ...avecInstance(instance), execution: id });
 
-/** Logs d’une exécution, relus toutes les trois secondes tant qu’elle tourne. */
+/** Logs d’une exécution, relus toutes les trois secondes tant qu’elle tourne ; filtre de niveau du journal. */
 function JournalExecution({ instance, id }: { instance: string; id: string }) {
-  const [niveau, setNiveau] = usePageState<number>("logs.niveau", 0);
   const logs = useAsync(
-    () =>
-      functions.call<Logs>("lire-logs-execution", { ...avecInstance(instance), execution: id, ...(niveau ? { niveauMin: niveau } : {}) }),
-    [instance, id, niveau],
+    () => functions.call<Logs>("lire-logs-execution", { ...avecInstance(instance), execution: id }),
+    [instance, id],
   );
   const enCours = logs.data?.enCours ?? false;
   useEffect(() => {
@@ -79,110 +67,66 @@ function JournalExecution({ instance, id }: { instance: string; id: string }) {
     return () => clearInterval(minuterie);
   }, [enCours, logs.reload]);
 
-  const texte = (logs.data?.lignes ?? [])
-    .map((l) => {
-      const niveauTexte = (NIVEAUX[l.niveau] ?? String(l.niveau)).padEnd(8);
-      return `${heure(l.horodatage)}  ${niveauTexte} ${l.tache ? `[${l.tache}] ` : ""}${l.message}`;
-    })
-    .join("\n");
-
+  const lignes: LogLine[] = [
+    ...(logs.data?.tronque
+      ? [{ text: "Les logs sont très longs : seules les 1 000 dernières lignes sont affichées.", level: "warning" as const }]
+      : []),
+    ...(logs.data?.lignes ?? []).map((l) => ({
+      text: `${l.tache ? `[${l.tache}] ` : ""}${l.message}`,
+      time: l.horodatage,
+      level: niveauDe(l.niveau),
+    })),
+  ];
   return (
-    <Stack gap="sm">
-      <Row justify="between" wrap>
-        <ChoiceGroup appearance="segmented" label="Niveau des logs">
-          {FILTRES.map((f) => (
-            <ChoiceButton
-              key={f.id}
-              label={f.label}
-              variant="label"
-              size="compact"
-              selected={niveau === f.id}
-              onClick={() => setNiveau(f.id)}
-            >
-              {f.label}
-            </ChoiceButton>
-          ))}
-        </ChoiceGroup>
-        {enCours ? (
-          <Row gap="xs">
-            <Spinner />
-            <Text as="span" size="meta" tone="muted">
-              Exécution en cours : les logs se mettent à jour tout seuls.
-            </Text>
-          </Row>
-        ) : null}
-      </Row>
-      {logs.error && !logs.data ? (
-        <FeedbackBanner tone="danger" action={<Button onClick={logs.reload}>Réessayer</Button>}>
-          Les logs n’ont pas pu être lus : {logs.error.message}
-        </FeedbackBanner>
-      ) : !logs.data ? (
-        <LoadingSkeleton variant="page" rows={8} label="Lecture des logs…" />
-      ) : logs.data.lignes.length === 0 ? (
-        <EmptyState size="compact" title="Aucun log" description={niveau ? "Aucune ligne à ce niveau : essayez « Tout »." : "Cette exécution n’a encore rien écrit."} />
-      ) : (
-        <>
-          {logs.data.tronque ? (
-            <Text size="meta" tone="muted">
-              Les logs sont très longs : seules les 1 000 dernières lignes sont affichées.
-            </Text>
-          ) : null}
-          <Code block label="Logs de l’exécution">
-            {texte}
-          </Code>
-        </>
-      )}
-    </Stack>
+    <LogViewer
+      label="Logs de l’exécution"
+      lines={lignes}
+      levels
+      live={enCours}
+      loading={!logs.data && !logs.error}
+      empty={
+        <EmptyState
+          size="compact"
+          title={logs.error ? "Les logs n’ont pas pu être lus" : "Aucun log"}
+          description={logs.error ? logs.error.message : "Cette exécution n’a encore rien écrit."}
+        />
+      }
+    />
   );
 }
 
-export function DetailExecution({ instance, id }: { instance: string; id: string }) {
-  const [onglet, setOnglet] = usePageState<string>("execution.onglet", "logs");
-  const fiche = useAsync(() => lireFiche(instance, id), [instance, id]);
-  const enCours = ACTIFS.has(fiche.data?.execution.etat ?? "");
-  useEffect(() => {
-    if (!enCours) return;
-    const minuterie = setInterval(fiche.reload, 5000);
-    return () => clearInterval(minuterie);
-  }, [enCours, fiche.reload]);
-
-  if (fiche.error && !fiche.data)
-    return (
-      <FeedbackBanner tone="danger" action={<Button onClick={fiche.reload}>Réessayer</Button>}>
-        L’exécution n’a pas pu être lue : {fiche.error.message}
-      </FeedbackBanner>
-    );
-  if (!fiche.data) return <LoadingSkeleton variant="page" rows={6} label="Lecture de l’exécution…" />;
-
-  const { execution: e, taches } = fiche.data;
+/** Contenu de la fenêtre d’une exécution : logs, tâches et détails. */
+function DetailExecution({ fiche, instance }: { fiche: { execution: FicheExecution; taches: Tache[] }; instance: string }) {
+  const [onglet, setOnglet] = useState("logs");
+  const { execution: e, taches } = fiche;
   const etat = etatAffiche(e.etat, e.etatNom);
   const parametres = Object.keys(e.parametres).length > 0 ? JSON.stringify(e.parametres, null, 2) : "";
 
   const details = (
     <Stack gap="md">
-      <KeyValueList
-        items={[
-          { label: "État", value: <StatusBadge tone={etat.tone}>{etat.label}</StatusBadge> },
-          { label: "Flow", value: e.flux || "—" },
-          { label: "Déploiement", value: e.deploiement ?? "—" },
-          { label: "Début prévu", value: dateCourte(e.debutPrevu) },
-          { label: "Début", value: dateCourte(e.debut) },
-          { label: "Fin", value: dateCourte(e.fin) },
-          { label: "Durée", value: duree(e.duree) },
-          { label: "Tentatives", value: String(e.tentatives || 1) },
-          { label: "Pool de workers", value: [e.pool, e.file].filter(Boolean).join(" · ") || "—" },
-          { label: "Lancée par", value: e.creePar ?? "—" },
-          { label: "Étiquettes", value: e.tags.length ? e.tags.join(", ") : "—" },
-        ]}
-      />
+      <Stack gap="none">
+        <PropertyRow label="État" value={<StatusBadge tone={etat.tone}>{etat.label}</StatusBadge>} />
+        <PropertyRow label="Flow" value={e.flux || undefined} />
+        <PropertyRow label="Déploiement" value={e.deploiement ?? undefined} />
+        <PropertyRow label="Début prévu" value={dateCourte(e.debutPrevu)} />
+        <PropertyRow label="Début" value={dateCourte(e.debut)} />
+        <PropertyRow label="Fin" value={dateCourte(e.fin)} />
+        <PropertyRow label="Durée" value={duree(e.duree)} />
+        <PropertyRow label="Tentatives" value={String(e.tentatives || 1)} />
+        <PropertyRow label="Pool de workers" value={[e.pool, e.file].filter(Boolean).join(" · ") || undefined} />
+        <PropertyRow label="Lancée par" value={e.creePar ?? undefined} />
+        <PropertyRow label="Étiquettes" value={e.tags.length ? e.tags.join(", ") : undefined} />
+      </Stack>
       {e.message ? (
-        <Section title="Message">
+        <Stack gap="xs">
+          <Text weight="strong">Message</Text>
           <Code block label="Message de l’état">
             {e.message}
           </Code>
-        </Section>
+        </Stack>
       ) : null}
-      <Section title="Paramètres">
+      <Stack gap="xs">
+        <Text weight="strong">Paramètres</Text>
         {parametres ? (
           <Code block label="Paramètres de l’exécution">
             {parametres}
@@ -192,7 +136,7 @@ export function DetailExecution({ instance, id }: { instance: string; id: string
             Aucun paramètre.
           </Text>
         )}
-      </Section>
+      </Stack>
     </Stack>
   );
 
@@ -200,91 +144,141 @@ export function DetailExecution({ instance, id }: { instance: string; id: string
     taches.length === 0 ? (
       <EmptyState size="compact" title="Aucune tâche" description="Cette exécution n’a lancé aucune tâche pour l’instant." />
     ) : (
-      <DataTable
+      <Table<Tache>
         label="Tâches de l’exécution"
         rows={taches}
-        rowKey={(t: Tache) => t.id}
+        selectionMode="none"
+        density="compact"
         columns={[
-          { key: "nom", header: "Tâche" },
-          {
-            key: "etat",
-            header: "État",
-            render: (t: Tache) => {
-              const a = etatAffiche(t.etat, t.etatNom);
-              return (
-                <StatusBadge size="compact" tone={a.tone}>
-                  {a.label}
-                </StatusBadge>
-              );
-            },
-          },
-          { key: "debut", header: "Début", render: (t: Tache) => (t.debut ? heure(t.debut) : "—") },
-          { key: "duree", header: "Durée", align: "right", render: (t: Tache) => duree(t.duree) },
+          { id: "nom", label: "Tâche" },
+          { id: "etat", label: "État", width: 140 },
+          { id: "debut", label: "Début", width: 100 },
+          { id: "duree", label: "Durée", align: "end", width: 100 },
         ]}
+        renderCell={(t, colonne) => {
+          if (colonne === "etat") {
+            const a = etatAffiche(t.etat, t.etatNom);
+            return <StatusBadge tone={a.tone}>{a.label}</StatusBadge>;
+          }
+          if (colonne === "debut") return t.debut ? heure(t.debut) : "—";
+          if (colonne === "duree") return duree(t.duree);
+          return t.nom;
+        }}
       />
     );
 
   return (
     <Stack gap="md">
-      <Tabs
-        label="Exécution"
-        activeId={onglet}
-        onChange={setOnglet}
-        items={[
-          { id: "logs", label: "Logs" },
-          { id: "taches", label: `Tâches (${taches.length})` },
-          { id: "details", label: "Détails" },
-        ]}
-      />
-      {onglet === "taches" ? listeTaches : onglet === "details" ? details : <JournalExecution instance={instance} id={id} />}
+      <RadioGroup label="Vue de l’exécution" hideLabel orientation="horizontal" value={onglet} onChange={setOnglet}>
+        <RadioGroup.Option value="logs">Logs</RadioGroup.Option>
+        <RadioGroup.Option value="taches">{`Tâches (${taches.length})`}</RadioGroup.Option>
+        <RadioGroup.Option value="details">Détails</RadioGroup.Option>
+      </RadioGroup>
+      {onglet === "taches" ? listeTaches : onglet === "details" ? details : <JournalExecution instance={instance} id={e.id} />}
     </Stack>
   );
 }
 
-/** Ouvre une exécution en modale : logs, tâches et détails. */
-export async function ouvrirExecution(instance: string, id: string, apresAction?: () => void) {
-  const { execution: e } = await lireFiche(instance, id);
-  const actif = ACTIFS.has(e.etat) || e.etat === "SCHEDULED" || e.etat === "PAUSED";
-  const actions: Action[] = [
-    {
-      label: "Relancer avec les mêmes paramètres",
-      icon: Play,
-      hidden: !e.deploiementId,
-      confirm: `Relancer « ${e.deploiement ?? e.nom} » avec les paramètres de cette exécution ?`,
-      success: "Exécution lancée",
-      onClick: async () => {
-        await lancer(instance, e.deploiementId ?? "", e.parametres);
-        apresAction?.();
-      },
-    },
-    {
-      label: "Annuler l’exécution",
-      icon: Ban,
-      danger: true,
-      hidden: !actif,
-      confirm: `Annuler l’exécution « ${e.nom} » ?`,
-      confirmMessage: "Prefect demandera au worker de l’arrêter.",
-      success: "Annulation demandée",
-      onClick: async () => {
-        await functions.call("annuler-execution", { ...avecInstance(instance), execution: e.id });
-        apresAction?.();
-      },
-    },
-  ];
-  // Le log s’ouvre en modale, au-dessus de la page, comme le log d’un build Jenkins : ni dans la page ni dans le panneau.
-  const etat = etatAffiche(e.etat, e.etatNom);
-  const contexte = [
-    etat.label,
-    e.flux && e.deploiement ? `${e.flux} / ${e.deploiement}` : e.flux,
-    e.debut ? `lancée le ${dateCourte(e.debut)}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  return openModal({
-    title: `Logs de « ${e.nom} »`,
-    description: contexte,
-    size: "wide",
-    actions,
-    content: <DetailExecution instance={instance} id={e.id} />,
-  });
+/**
+ * Une exécution en modale, au-dessus de la page, comme le log d’un build Jenkins : logs, tâches et détails, avec
+ * la relance et l’annulation.
+ */
+export function ExecutionDialog({
+  instance,
+  id,
+  apresAction,
+  onClose,
+}: {
+  instance: string;
+  id: string;
+  apresAction?: () => void;
+  onClose: () => void;
+}) {
+  const confirm = useConfirm();
+  const fiche = useAsync(() => lireFiche(instance, id), [instance, id]);
+  const enCours = ACTIFS.has(fiche.data?.execution.etat ?? "");
+  useEffect(() => {
+    if (!enCours) return;
+    const minuterie = setInterval(fiche.reload, 5000);
+    return () => clearInterval(minuterie);
+  }, [enCours, fiche.reload]);
+
+  const e = fiche.data?.execution;
+  const actif = e ? ACTIFS.has(e.etat) || e.etat === "SCHEDULED" || e.etat === "PAUSED" : false;
+  const etat = e ? etatAffiche(e.etat, e.etatNom) : null;
+  const contexte = e
+    ? [
+        etat?.label,
+        e.flux && e.deploiement ? `${e.flux} / ${e.deploiement}` : e.flux,
+        e.debut ? `lancée le ${dateCourte(e.debut)}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : undefined;
+
+  const relancer = async () => {
+    if (!e?.deploiementId) return;
+    const oui = await confirm({
+      title: `Relancer « ${e.deploiement ?? e.nom} » avec les paramètres de cette exécution ?`,
+      confirmLabel: "Relancer",
+      tone: "default",
+    });
+    if (!oui) return;
+    await lancer(instance, e.deploiementId, e.parametres);
+    shell.notify({ title: "Exécution lancée", tone: "success" });
+    apresAction?.();
+  };
+  const annuler = async () => {
+    if (!e) return;
+    const oui = await confirm({
+      title: `Annuler l’exécution « ${e.nom} » ?`,
+      message: "Prefect demandera au worker de l’arrêter.",
+      confirmLabel: "Annuler l’exécution",
+    });
+    if (!oui) return;
+    await functions.call("annuler-execution", { ...avecInstance(instance), execution: e.id });
+    shell.notify({ title: "Annulation demandée", tone: "success" });
+    apresAction?.();
+  };
+
+  return (
+    <Dialog
+      isOpen
+      size="xl"
+      title={e ? `Logs de « ${e.nom} »` : "Exécution"}
+      description={contexte}
+      onOpenChange={(ouverte) => {
+        if (!ouverte) onClose();
+      }}
+      footer={
+        e ? (
+          <>
+            {actif ? (
+              <Button variant="danger" icon={<Ban size={16} />} onPress={() => void annuler()}>
+                Annuler l’exécution
+              </Button>
+            ) : null}
+            {e.deploiementId ? (
+              <Button variant="primary" icon={<Play size={16} />} onPress={() => void relancer()}>
+                Relancer avec les mêmes paramètres
+              </Button>
+            ) : null}
+          </>
+        ) : undefined
+      }
+    >
+      {fiche.error && !fiche.data ? (
+        <EmptyState
+          size="compact"
+          title="L’exécution n’a pas pu être lue"
+          description={fiche.error.message}
+          action={<Button onPress={fiche.reload}>Réessayer</Button>}
+        />
+      ) : fiche.data ? (
+        <DetailExecution fiche={fiche.data} instance={instance} />
+      ) : (
+        <Skeleton shape="rect" width="100%" height={320} />
+      )}
+    </Dialog>
+  );
 }
