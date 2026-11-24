@@ -1,3 +1,7 @@
+## 2.0.1 — 2026-11-24
+
+- Panneau Historique : le filtre des exécutions par état est une ligne « État », dont le menu propose les états.
+
 ## 2.0.0 — 2026-11-23
 
 Les pages passent sur socle-ui, le design system d'Alfred : listes, panneaux, formulaires et états suivent les gabarits Socle. Demande un Alfred passé sur socle-ui (novembre 2026) ; un Alfred plus ancien garde la version précédente.

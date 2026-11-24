@@ -1,8 +1,8 @@
-import { Stack, Text } from "@alfred/kit";
+import { Text } from "@alfred/kit";
 import { functions, notifyActionError, shell, useAsync, usePageContext, usePageState, usePeerMessage } from "@alfred/sdk";
-import { ChevronsDown, Play, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { ChevronsDown, ListFilter, Play, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { useEffect } from "react";
-import { type Action, Code, DetailPanel, List, Select, useOpenForm } from "socle-ui";
+import { type Action, Code, DetailPanel, DropdownMenu, List, useOpenForm } from "socle-ui";
 import {
   ACTIFS,
   aDesParametres,
@@ -186,38 +186,56 @@ export default function Historique() {
                     onPress: () => setLimite(Math.min(limite + PAS, 200)),
                   },
                 ],
-                content: (
-                  <Stack gap="sm">
-                    <Select
-                      label="État des exécutions"
-                      hideLabel
-                      width="md"
-                      value={filtre}
-                      options={FILTRES.map((f) => ({ id: f.id, label: f.label }))}
-                      onChange={(choix) => setFiltre(choix ?? "tous")}
+                // Le filtre est une ligne : l’état choisi en texte, le choix dans le menu de la ligne.
+                fields: [
+                  {
+                    id: "filtre",
+                    label: "État",
+                    value: FILTRES.find((f) => f.id === filtre)?.label ?? FILTRES[0].label,
+                    action: {
+                      type: "icon",
+                      icon: <ListFilter size={16} />,
+                      label: "Filtrer les exécutions par état",
+                      menu: (
+                        <DropdownMenu.Section
+                          title="État des exécutions"
+                          selectionMode="single"
+                          selectedKeys={[filtre]}
+                          onSelectionChange={(cles) => {
+                            // Choisir l’état déjà coché le garde.
+                            const choix = [...cles][0];
+                            if (choix !== undefined) setFiltre(String(choix));
+                          }}
+                        >
+                          {FILTRES.map((f) => (
+                            <DropdownMenu.Item key={f.id} id={f.id} label={f.label} />
+                          ))}
+                        </DropdownMenu.Section>
+                      ),
+                    },
+                  },
+                ],
+                content:
+                  runs.data && lignes.length === 0 ? (
+                    <Text tone="muted">
+                      {filtre === "tous" ? "Ce déploiement n’a jamais été lancé." : "Aucune exécution dans cet état."}
+                    </Text>
+                  ) : (
+                    <List
+                      label="Exécutions du déploiement"
+                      selectionMode="none"
+                      isLoading={!runs.data}
+                      hasError={Boolean(runs.error && !runs.data)}
+                      onRetry={runs.reload}
+                      items={lignes.map((r) => ({
+                        id: r.id,
+                        title: r.nom,
+                        subtitle: `${dateCourte(r.debut ?? r.debutPrevu)}${r.duree ? ` · ${duree(r.duree)}` : ""}`,
+                        status: etatAffiche(r.etat, r.etatNom),
+                      }))}
+                      onAction={(execution) => void shell.send({ type: "ouvrir-execution", execution })}
                     />
-                    {runs.data && lignes.length === 0 ? (
-                      <Text tone="muted">
-                        {filtre === "tous" ? "Ce déploiement n’a jamais été lancé." : "Aucune exécution dans cet état."}
-                      </Text>
-                    ) : (
-                      <List
-                        label="Exécutions du déploiement"
-                        selectionMode="none"
-                        isLoading={!runs.data}
-                        hasError={Boolean(runs.error && !runs.data)}
-                        onRetry={runs.reload}
-                        items={lignes.map((r) => ({
-                          id: r.id,
-                          title: r.nom,
-                          subtitle: `${dateCourte(r.debut ?? r.debutPrevu)}${r.duree ? ` · ${duree(r.duree)}` : ""}`,
-                          status: etatAffiche(r.etat, r.etatNom),
-                        }))}
-                        onAction={(execution) => void shell.send({ type: "ouvrir-execution", execution })}
-                      />
-                    )}
-                  </Stack>
-                ),
+                  ),
               },
               {
                 id: "deploiement",
