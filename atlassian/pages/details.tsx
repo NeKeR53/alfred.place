@@ -1,6 +1,7 @@
 import { functions, shell, useAsync, usePeerMessage, useSelection } from "@alfred/sdk";
-import { DetailPanel, type DetailField } from "socle-ui";
-import { ChampDirect } from "../lib/champ-direct";
+import { Drawer } from "socle-ui";
+import { tonCategorie } from "../lib/affichage";
+import { useLignesChamps } from "../lib/champ-ligne";
 import type { FicheComplete } from "../lib/fiche-ticket";
 
 function separer(identifiant: string): { instance: string; cle: string } {
@@ -10,7 +11,7 @@ function separer(identifiant: string): { instance: string; cle: string } {
   return { instance: texte.slice(0, separateur), cle: texte.slice(separateur + 1) };
 }
 
-/** Colonne de droite du ticket ouvert : tous ses champs, chacun modifiable directement. */
+/** Colonne de droite du ticket ouvert : tous ses champs, chacun modifiable par l’action de sa ligne. */
 export default function DetailsTicket() {
   const selection = useSelection<{ id?: string } | string>();
   const { instance, cle } = separer(typeof selection === "string" ? selection : (selection?.id ?? ""));
@@ -28,38 +29,40 @@ export default function DetailsTicket() {
   });
 
   const ticket = fiche.data?.ticket ?? null;
-  const prevenir = () => void shell.send({ type: "ticket-modifie", cle });
+  const lignes = useLignesChamps({
+    instance: instance || undefined,
+    cle,
+    projet: ticket?.projet ?? "",
+    champs: ticket?.champs ?? [],
+    // Jira relit le ticket (texte des valeurs), et la fiche du centre est prévenue.
+    apresEnregistrement: () => {
+      fiche.reload();
+      void shell.send({ type: "ticket-modifie", cle });
+    },
+  });
 
   const remplis = (ticket?.champs ?? []).filter((c) => c.affichage);
   const vides = (ticket?.champs ?? []).filter((c) => !c.affichage && c.modifiable);
   const lecture = remplis.filter((c) => !c.modifiable);
   const modifiables = remplis.filter((c) => c.modifiable);
-  const champs = (liste: typeof remplis): DetailField[] =>
-    ticket
-      ? liste.map((champ) => ({
-          id: champ.id,
-          label: champ.nom,
-          value: (
-            <ChampDirect
-              champ={champ}
-              instance={instance || undefined}
-              cle={ticket.cle}
-              projet={ticket.projet}
-              apresEnregistrement={prevenir}
-            />
-          ),
-        }))
-      : [];
 
   return (
-    <DetailPanel
-      header={ticket ? { title: `Détails · ${ticket.cle}`, subtitle: "Chaque changement est enregistré aussitôt." } : undefined}
+    <Drawer
+      header={
+        ticket
+          ? {
+              title: `${ticket.cle} · ${ticket.titre}`,
+              subtitle: [ticket.type, ticket.projetNom || ticket.projet].filter(Boolean).join(" · ") || undefined,
+              status: ticket.statut ? { label: ticket.statut, tone: tonCategorie(ticket.statutCategorie) } : undefined,
+            }
+          : undefined
+      }
       sections={
         ticket
           ? [
-              { id: "champs", title: "Champs", fields: champs(modifiables) },
+              { id: "champs", title: "Champs", fields: lignes(modifiables), empty: "Aucun champ modifiable" },
               ...(vides.length > 0
-                ? [{ id: "vides", title: "Champs vides", defaultCollapsed: true, fields: champs(vides) }]
+                ? [{ id: "vides", title: "Champs vides", defaultCollapsed: true, fields: lignes(vides) }]
                 : []),
               ...(lecture.length > 0
                 ? [

@@ -11182,5 +11182,5 @@
   "setup": {
     "welcome": "Retrouvez ici vos tickets Jira, vos dépôts Bitbucket et vos pages Confluence. Il vous faut l’adresse de chaque instance et un jeton personnel (ou votre identifiant et votre mot de passe). Les trois services se configurent séparément : vous pouvez n’en brancher qu’un."
   },
-  "version": "1.0.0"
+  "version": "1.0.1"
 }
