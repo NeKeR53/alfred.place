@@ -8,10 +8,19 @@
  * le numéro du build. Les pieds d’une même ligne de la grille sont alignés.
  *
  * Pas de `Card` : elle n’a ni actions d’en-tête ni pied collé en bas.
+ *
+ * Avant socle-ui 1.25.0, `PageSection` ignore `footer` : la ligne d’état et la barre passent alors sous la note, dans
+ * le corps du bloc, pour ne jamais disparaître d’un Alfred plus ancien.
  */
 import { Row, Stack, Text } from "@alfred/kit";
 import { PanelRight } from "lucide-react";
-import { type Action, Badge, FormattedValue, Link, PageSection, ProgressBar } from "socle-ui";
+import { type Action, Badge, FormattedValue, Link, PageSection, ProgressBar, SOCLE_VERSION } from "socle-ui";
+
+/** `footer` de `PageSection` existe depuis socle-ui 1.25.0. */
+const PIED_COLLE = (() => {
+  const [majeure = 0, mineure = 0] = String(SOCLE_VERSION ?? "0").split(".").map(Number);
+  return majeure > 1 || (majeure === 1 && mineure >= 25);
+})();
 
 export type Ton = "neutral" | "warning" | "success" | "danger";
 
@@ -84,15 +93,24 @@ export function CarteSuivi({
     </Stack>
   );
   return (
-    <PageSection framed title={titre} description={contexte || undefined} actions={[...ouvrir, ...actions]} footer={pied}>
-      {note ? (
-        <Row gap="xs" wrap>
-          <Text as="span" size="meta" tone={note.tone ?? "muted"}>
-            {note.texte}
-          </Text>
-          {note.onClick ? <Link onPress={note.onClick}>{note.lien ?? "Voir le détail"}</Link> : null}
-        </Row>
-      ) : null}
+    <PageSection
+      framed
+      title={titre}
+      description={contexte || undefined}
+      actions={[...ouvrir, ...actions]}
+      footer={PIED_COLLE ? pied : undefined}
+    >
+      <Stack gap="sm">
+        {note ? (
+          <Row gap="xs" wrap>
+            <Text as="span" size="meta" tone={note.tone ?? "muted"}>
+              {note.texte}
+            </Text>
+            {note.onClick ? <Link onPress={note.onClick}>{note.lien ?? "Voir le détail"}</Link> : null}
+          </Row>
+        ) : null}
+        {PIED_COLLE ? null : pied}
+      </Stack>
     </PageSection>
   );
 }

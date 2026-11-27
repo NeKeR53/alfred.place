@@ -1,3 +1,7 @@
+## 2.0.3 — 2026-11-27
+
+- La barre d’avancement et la ligne d’état s’affichent de nouveau avec un Alfred plus ancien (socle-ui avant 1.25.0) : elles restent dans le bloc, sous la note. Avec socle-ui 1.25.0 ou plus récente, elles sont collées en bas du bloc, comme avant.
+
 ## 2.0.2 — 2026-11-27
 
 - Tableau de bord : chaque job est un bloc encadré plus compact. L’état et la barre d’avancement sont collés en bas du bloc, alignés d’un job à l’autre.
