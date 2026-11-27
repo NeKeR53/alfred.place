@@ -1,0 +1,486 @@
+{
+  "description": "Socle d’Atom : les environnements (développement, intégration, recette, validation, préproduction, production) et le compte Keycloak, Grafana, OpenBao et Portainer de chacun.",
+  "functions": [
+    {
+      "description": "Environnements d’Atom dans leur ordre (nom, code, nature, couleur) avec, pour chacun, l’identifiant du compte Keycloak, Grafana, OpenBao et Portainer à utiliser (null s’il n’est pas choisi). `environnement` (identifiant ou code) n’en garde qu’un.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Six environnements, la recette rattachée",
+          "output": {
+            "environnements": [
+              {
+                "code": "DEV",
+                "couleur": "steel",
+                "id": "dev",
+                "instances": {
+                  "grafana": null,
+                  "keycloak": null,
+                  "openbao": null,
+                  "portainer": null
+                },
+                "nature": "developpement",
+                "nom": "Développement",
+                "ordre": 1
+              },
+              {
+                "code": "INT",
+                "couleur": "blue",
+                "id": "int",
+                "instances": {
+                  "grafana": null,
+                  "keycloak": null,
+                  "openbao": null,
+                  "portainer": null
+                },
+                "nature": "integration",
+                "nom": "Intégration",
+                "ordre": 2
+              },
+              {
+                "code": "REC",
+                "couleur": "violet",
+                "id": "rec",
+                "instances": {
+                  "grafana": "rec",
+                  "keycloak": "rec",
+                  "openbao": "rec",
+                  "portainer": "rec"
+                },
+                "nature": "recette",
+                "nom": "Recette",
+                "ordre": 3
+              },
+              {
+                "code": "VAL",
+                "couleur": "teal",
+                "id": "val",
+                "instances": {
+                  "grafana": null,
+                  "keycloak": null,
+                  "openbao": null,
+                  "portainer": null
+                },
+                "nature": "validation",
+                "nom": "Validation",
+                "ordre": 4
+              },
+              {
+                "code": "PPROD",
+                "couleur": "orange",
+                "id": "preprod",
+                "instances": {
+                  "grafana": null,
+                  "keycloak": null,
+                  "openbao": null,
+                  "portainer": null
+                },
+                "nature": "preproduction",
+                "nom": "Préproduction",
+                "ordre": 5
+              },
+              {
+                "code": "PROD",
+                "couleur": "red",
+                "id": "prod",
+                "instances": {
+                  "grafana": "prod",
+                  "keycloak": "prod",
+                  "openbao": "prod",
+                  "portainer": "prod"
+                },
+                "nature": "production",
+                "nom": "Production",
+                "ordre": 6
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "environnement": "rec"
+          },
+          "name": "La recette seule",
+          "output": {
+            "environnements": [
+              {
+                "code": "REC",
+                "couleur": "violet",
+                "id": "rec",
+                "instances": {
+                  "grafana": "rec",
+                  "keycloak": "rec",
+                  "openbao": "rec",
+                  "portainer": "rec"
+                },
+                "nature": "recette",
+                "nom": "Recette",
+                "ordre": 3
+              }
+            ]
+          }
+        }
+      ],
+      "id": "lister-environnements",
+      "input": {
+        "properties": {
+          "environnement": {
+            "description": "Identifiant ou code d’un environnement (rec, REC).",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "environnements": {
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "couleur": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "instances": {
+                  "properties": {
+                    "grafana": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "keycloak": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "openbao": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "portainer": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "keycloak",
+                    "grafana",
+                    "openbao",
+                    "portainer"
+                  ],
+                  "type": "object"
+                },
+                "nature": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                },
+                "ordre": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "nom",
+                "code",
+                "nature",
+                "ordre",
+                "instances"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "environnements"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "environnements.0.code": "DEV"
+            },
+            "nonEmpty": [
+              "environnements"
+            ]
+          },
+          "input": {},
+          "name": "Liste les six environnements"
+        },
+        {
+          "expect": {
+            "equals": {
+              "environnements.0.id": "rec"
+            }
+          },
+          "input": {
+            "environnement": "REC"
+          },
+          "name": "Retrouve la recette par son code"
+        }
+      ],
+      "tool": true
+    }
+  ],
+  "id": "atom",
+  "name": "Atom",
+  "pages": [
+    {
+      "description": "Environnements d’Atom, compte de chaque outil par environnement, projet Jira.",
+      "icon": "atom",
+      "id": "atom",
+      "placement": {
+        "kind": "settings"
+      },
+      "title": "Atom",
+      "uses": {
+        "functions": [
+          "keycloak/lister-comptes",
+          "grafana/lister-comptes",
+          "openbao/lister-comptes",
+          "portainer/lister-comptes",
+          "atlassian/comptes-jira"
+        ]
+      }
+    },
+    {
+      "description": "Tickets Jira du projet en kanban (ordre partagé, durées, attribution), planning par personne et par produit, équipes, capacité et absences.",
+      "icon": "square-kanban",
+      "id": "projet",
+      "placement": {
+        "kind": "tab",
+        "section": "projet"
+      },
+      "title": "Projet",
+      "uses": {
+        "clients": [
+          "atlassian/jira"
+        ],
+        "functions": [
+          "atlassian/lister-tickets-projet",
+          "atlassian/lire-suivi-temps",
+          "atlassian/modifier-ticket",
+          "atlassian/modifier-suivi-temps",
+          "atlassian/passer-ticket",
+          "atlassian/commenter-ticket",
+          "atlassian/classer-ticket",
+          "atlassian/lister-assignables",
+          "atlassian/creer-ticket",
+          "keycloak/chercher-utilisateurs",
+          "outlook/lire-disponibilites"
+        ]
+      }
+    },
+    {
+      "description": "Fiche du ticket ouvert (champs, description, commentaires, transitions) ou d’une personne des équipes (présence, jours travaillés, absences).",
+      "icon": "square-kanban",
+      "id": "projet-detail",
+      "placement": {
+        "kind": "panel",
+        "page": "atom/projet"
+      },
+      "title": "Ticket ou personne",
+      "uses": {
+        "clients": [
+          "atlassian/jira"
+        ],
+        "functions": [
+          "atlassian/lire-ticket",
+          "atlassian/commenter-ticket",
+          "atlassian/transitionner-ticket"
+        ]
+      }
+    },
+    {
+      "description": "Version et état de chaque conteneur dans chaque environnement ; journal, console et application de chaque case.",
+      "icon": "factory",
+      "id": "usine",
+      "placement": {
+        "kind": "tab",
+        "section": "usine"
+      },
+      "title": "Usine",
+      "uses": {
+        "clients": [
+          "portainer/portainer"
+        ],
+        "functions": [
+          "portainer/lister-conteneurs",
+          "portainer/suivre-journal",
+          "portainer/ouvrir-console",
+          "portainer/redimensionner-console"
+        ]
+      }
+    },
+    {
+      "description": "Arbre des secrets OpenBao et présence de chaque clé dans chaque environnement.",
+      "icon": "key-round",
+      "id": "secrets",
+      "placement": {
+        "kind": "tab",
+        "section": "secrets"
+      },
+      "title": "Secrets",
+      "uses": {
+        "clients": [
+          "openbao/openbao"
+        ],
+        "functions": [
+          "openbao/lister-dossier",
+          "openbao/lire-secret",
+          "openbao/ecrire-cle",
+          "openbao/supprimer-cle",
+          "openbao/copier-cle",
+          "openbao/copier-secret",
+          "openbao/ecrire-secret"
+        ]
+      }
+    },
+    {
+      "description": "Accès Keycloak et Grafana de chaque personne dans chaque environnement, d’après le profil enregistré sur son compte ; ajout, attribution et correction des écarts après aperçu, audit CSV.",
+      "icon": "shield-check",
+      "id": "acces",
+      "placement": {
+        "kind": "tab",
+        "section": "acces"
+      },
+      "title": "Accès",
+      "uses": {
+        "clients": [
+          "keycloak/keycloak",
+          "grafana/grafana"
+        ],
+        "functions": [
+          "keycloak/lire-groupes-par-chemins",
+          "keycloak/chercher-par-attribut",
+          "keycloak/lire-utilisateur",
+          "keycloak/modifier-attribut-utilisateur",
+          "keycloak/chercher-utilisateurs",
+          "keycloak/creer-utilisateur",
+          "keycloak/ajouter-au-groupe",
+          "keycloak/retirer-du-groupe",
+          "grafana/lister-utilisateurs",
+          "grafana/lister-equipes",
+          "grafana/lister-membres-equipe",
+          "grafana/lister-dossiers",
+          "grafana/lister-droits-dossier",
+          "grafana/lister-equipes-utilisateur",
+          "grafana/ajouter-membre-equipe",
+          "grafana/retirer-membre-equipe"
+        ]
+      }
+    },
+    {
+      "description": "Profil et environnements d’une ou de plusieurs personnes, avec leur état et leurs écarts, avant l’aperçu des changements.",
+      "icon": "user",
+      "id": "personne",
+      "placement": {
+        "kind": "panel",
+        "page": "atom/acces"
+      },
+      "title": "Personne",
+      "uses": {
+        "clients": [
+          "keycloak/keycloak",
+          "grafana/grafana"
+        ]
+      }
+    },
+    {
+      "description": "Une variable de secret : sa présence et sa valeur dans chaque environnement.",
+      "icon": "key-round",
+      "id": "variable",
+      "placement": {
+        "kind": "panel",
+        "page": "atom/secrets"
+      },
+      "title": "Variable",
+      "uses": {
+        "clients": [
+          "openbao/openbao"
+        ],
+        "functions": [
+          "openbao/lister-dossier",
+          "openbao/lire-secret",
+          "openbao/ecrire-cle",
+          "openbao/supprimer-cle",
+          "openbao/copier-cle",
+          "openbao/copier-secret",
+          "openbao/ecrire-secret"
+        ]
+      }
+    }
+  ],
+  "requires": [
+    {
+      "minVersion": "0.1.0",
+      "module": "keycloak"
+    },
+    {
+      "minVersion": "0.1.0",
+      "module": "grafana"
+    },
+    {
+      "minVersion": "0.1.0",
+      "module": "openbao"
+    },
+    {
+      "minVersion": "0.1.0",
+      "module": "portainer"
+    },
+    {
+      "minVersion": "1.0.2",
+      "module": "atlassian"
+    },
+    {
+      "minVersion": "1.0.1",
+      "module": "outlook"
+    }
+  ],
+  "sections": [
+    {
+      "color": "violet",
+      "icon": "square-kanban",
+      "id": "projet",
+      "label": "Projet"
+    },
+    {
+      "color": "orange",
+      "icon": "factory",
+      "id": "usine",
+      "label": "Usine"
+    },
+    {
+      "color": "teal",
+      "icon": "key-round",
+      "id": "secrets",
+      "label": "Secrets"
+    },
+    {
+      "color": "blue",
+      "icon": "shield-check",
+      "id": "acces",
+      "label": "Accès"
+    }
+  ],
+  "setup": {
+    "welcome": "Atom regroupe vos outils par environnement : accès Keycloak et Grafana, secrets OpenBao, conteneurs Portainer et tickets Jira du projet. Ajoutez un compte par environnement pour chaque outil, puis rattachez-les dans Réglages, Atom."
+  },
+  "version": "0.1.0"
+}
