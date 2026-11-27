@@ -67,40 +67,10 @@
       ],
       "id": "comptes-prefect",
       "input": {
-        "properties": {},
-        "required": [],
         "type": "object"
       },
-      "output": {
-        "properties": {
-          "comptes": {
-            "items": {
-              "properties": {
-                "default": {
-                  "type": "boolean"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "label": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "label",
-                "default"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "comptes"
-        ],
-        "type": "object"
-      },
+      "output": null,
+      "state": "comptes",
       "tests": [
         {
           "expect": {
@@ -299,125 +269,10 @@
       ],
       "id": "lister-deploiements",
       "input": {
-        "properties": {
-          "instance": {
-            "description": "Compte Prefect ; omis, celui par défaut.",
-            "type": "string"
-          },
-          "limite": {
-            "description": "Nombre de déploiements rendus au plus (2 000 par défaut et au plus).",
-            "type": "integer"
-          },
-          "simulation": {
-            "description": "Réservé aux tests : liste les 260 déploiements d’un faux Prefect en mémoire (20 suspendus, 40 sans exécution) au lieu du compte.",
-            "type": "boolean"
-          },
-          "texte": {
-            "description": "Partie du nom du déploiement ; vide, tous.",
-            "type": "string"
-          }
-        },
-        "required": [],
         "type": "object"
       },
-      "output": {
-        "properties": {
-          "deploiements": {
-            "items": {
-              "properties": {
-                "description": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "enPause": {
-                  "type": "boolean"
-                },
-                "flux": {
-                  "description": "Nom du flow.",
-                  "type": "string"
-                },
-                "fluxId": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "misAJour": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "nom": {
-                  "type": "string"
-                },
-                "parametres": {
-                  "description": "Paramètres par défaut.",
-                  "type": "object"
-                },
-                "planifications": {
-                  "description": "Planifications actives, décrites en clair.",
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "pool": {
-                  "description": "Pool de workers.",
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "schemaParametres": {
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                },
-                "statut": {
-                  "description": "READY quand un worker interroge le pool, NOT_READY sinon.",
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "tags": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                }
-              },
-              "required": [
-                "id",
-                "nom",
-                "flux",
-                "tags",
-                "enPause",
-                "planifications",
-                "parametres"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "incomplet": {
-            "description": "Vrai si la limite a arrêté la liste avant le dernier déploiement.",
-            "type": "boolean"
-          },
-          "total": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "deploiements",
-          "total"
-        ],
-        "type": "object"
-      },
+      "output": null,
+      "state": "deploiements",
       "tests": [
         {
           "expect": {
@@ -507,7 +362,7 @@
           "name": "Garde deux déploiements de même nom (faux Prefect)"
         }
       ],
-      "tool": true,
+      "tool": false,
       "uses": {
         "clients": [
           "prefect"
@@ -714,178 +569,10 @@
       ],
       "id": "lire-dernieres-executions",
       "input": {
-        "properties": {
-          "deploiements": {
-            "description": "Identifiants des déploiements, 60 au plus.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "instance": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "deploiements"
-        ],
         "type": "object"
       },
-      "output": {
-        "properties": {
-          "deploiements": {
-            "items": {
-              "properties": {
-                "dernier": {
-                  "properties": {
-                    "debut": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "debutPrevu": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "deploiementId": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "duree": {
-                      "description": "Secondes.",
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "etat": {
-                      "description": "SCHEDULED, PENDING, RUNNING, COMPLETED, FAILED, CANCELLED, CANCELLING, CRASHED, PAUSED.",
-                      "type": "string"
-                    },
-                    "etatNom": {
-                      "type": "string"
-                    },
-                    "fin": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "id": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "nom": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "nom",
-                    "etat"
-                  ],
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                },
-                "dureeHabituelle": {
-                  "description": "Durée médiane des dernières exécutions réussies, en secondes.",
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "enCours": {
-                  "type": "integer"
-                },
-                "erreur": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "id": {
-                  "type": "string"
-                },
-                "prochaine": {
-                  "properties": {
-                    "debutPrevu": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "id": {
-                      "type": "string"
-                    },
-                    "nom": {
-                      "type": "string"
-                    }
-                  },
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                },
-                "recentes": {
-                  "items": {
-                    "properties": {
-                      "debut": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "etat": {
-                        "type": "string"
-                      },
-                      "etatNom": {
-                        "type": "string"
-                      },
-                      "id": {
-                        "type": "string"
-                      },
-                      "nom": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "etat"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
-                }
-              },
-              "required": [
-                "id",
-                "dernier",
-                "recentes",
-                "enCours",
-                "prochaine"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "deploiements"
-        ],
-        "type": "object"
-      },
+      "output": null,
+      "state": "etats-deploiements",
       "tests": [
         {
           "expect": {
@@ -1104,123 +791,10 @@
       ],
       "id": "lister-executions",
       "input": {
-        "properties": {
-          "decalage": {
-            "description": "Nombre d’exécutions sautées, pour la pagination.",
-            "type": "integer"
-          },
-          "deploiement": {
-            "description": "Identifiant du déploiement ; omis, tous.",
-            "type": "string"
-          },
-          "etats": {
-            "description": "Types d’état gardés : COMPLETED, FAILED, RUNNING, CRASHED, CANCELLED, SCHEDULED, PENDING, PAUSED, CANCELLING.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "instance": {
-            "type": "string"
-          },
-          "limite": {
-            "description": "50 par défaut, 200 au plus.",
-            "type": "integer"
-          },
-          "texte": {
-            "description": "Partie du nom de l’exécution.",
-            "type": "string"
-          }
-        },
-        "required": [],
         "type": "object"
       },
-      "output": {
-        "properties": {
-          "executions": {
-            "items": {
-              "properties": {
-                "debut": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "debutPrevu": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "deploiement": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "deploiementId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "duree": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "etat": {
-                  "type": "string"
-                },
-                "etatNom": {
-                  "type": "string"
-                },
-                "fin": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "flux": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "nom": {
-                  "type": "string"
-                },
-                "parametres": {
-                  "type": "object"
-                }
-              },
-              "required": [
-                "id",
-                "nom",
-                "etat",
-                "flux"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "total": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "executions",
-          "total"
-        ],
-        "type": "object"
-      },
+      "output": null,
+      "state": "executions",
       "tests": [
         {
           "expect": {
@@ -1236,7 +810,7 @@
           "name": "Lit les cinq dernières exécutions"
         }
       ],
-      "tool": true,
+      "tool": false,
       "uses": {
         "clients": [
           "prefect"
@@ -1428,176 +1002,11 @@
       ],
       "id": "lire-execution",
       "input": {
-        "properties": {
-          "execution": {
-            "description": "Identifiant de l’exécution (flow run) ; omis, la plus récente.",
-            "type": "string"
-          },
-          "instance": {
-            "type": "string"
-          }
-        },
-        "required": [],
         "type": "object"
       },
-      "output": {
-        "properties": {
-          "execution": {
-            "properties": {
-              "cree": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "creePar": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "debut": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "debutPrevu": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "deploiement": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "deploiementId": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "duree": {
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "etat": {
-                "type": "string"
-              },
-              "etatNom": {
-                "type": "string"
-              },
-              "file": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "fin": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "flux": {
-                "type": "string"
-              },
-              "id": {
-                "type": "string"
-              },
-              "message": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "nom": {
-                "type": "string"
-              },
-              "parametres": {
-                "type": "object"
-              },
-              "pool": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "tags": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "tentatives": {
-                "type": "integer"
-              }
-            },
-            "required": [
-              "id",
-              "nom",
-              "etat",
-              "flux",
-              "parametres",
-              "tags"
-            ],
-            "type": "object"
-          },
-          "taches": {
-            "items": {
-              "properties": {
-                "debut": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "duree": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "etat": {
-                  "type": "string"
-                },
-                "etatNom": {
-                  "type": "string"
-                },
-                "fin": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "id": {
-                  "type": "string"
-                },
-                "nom": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "nom",
-                "etat"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "execution",
-          "taches"
-        ],
-        "type": "object"
-      },
+      "output": null,
+      "param": "execution",
+      "state": "execution",
       "tests": [
         {
           "expect": {
@@ -1611,7 +1020,7 @@
           "name": "Lit la dernière exécution de l’instance"
         }
       ],
-      "tool": true,
+      "tool": false,
       "uses": {
         "clients": [
           "prefect"
@@ -1755,77 +1164,10 @@
       ],
       "id": "lire-logs-execution",
       "input": {
-        "properties": {
-          "execution": {
-            "description": "Identifiant de l’exécution (flow run) ; omis, la plus récente.",
-            "type": "string"
-          },
-          "instance": {
-            "type": "string"
-          },
-          "niveauMin": {
-            "description": "Niveau minimal : 10 debug, 20 info, 30 avertissement, 40 erreur, 50 critique.",
-            "type": "integer"
-          }
-        },
-        "required": [],
         "type": "object"
       },
-      "output": {
-        "properties": {
-          "enCours": {
-            "type": "boolean"
-          },
-          "etat": {
-            "type": "string"
-          },
-          "lignes": {
-            "items": {
-              "properties": {
-                "horodatage": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                },
-                "niveau": {
-                  "type": "integer"
-                },
-                "source": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "tache": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                }
-              },
-              "required": [
-                "horodatage",
-                "niveau",
-                "message"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "tronque": {
-            "description": "Vrai si seules les 1 000 dernières lignes sont rendues.",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "etat",
-          "enCours",
-          "tronque",
-          "lignes"
-        ],
-        "type": "object"
-      },
+      "output": null,
+      "state": "logs-execution",
       "tests": [
         {
           "expect": {
@@ -1839,7 +1181,7 @@
           "name": "Lit les logs de la dernière exécution"
         }
       ],
-      "tool": true,
+      "tool": false,
       "uses": {
         "clients": [
           "prefect"
@@ -2241,103 +1583,11 @@
       ],
       "id": "lire-deploiement",
       "input": {
-        "properties": {
-          "deploiement": {
-            "description": "Identifiant du déploiement ; omis, le premier par ordre alphabétique.",
-            "type": "string"
-          },
-          "instance": {
-            "type": "string"
-          }
-        },
-        "required": [],
         "type": "object"
       },
-      "output": {
-        "properties": {
-          "deploiement": {
-            "properties": {
-              "description": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "enPause": {
-                "type": "boolean"
-              },
-              "flux": {
-                "type": "string"
-              },
-              "fluxId": {
-                "type": "string"
-              },
-              "id": {
-                "type": "string"
-              },
-              "misAJour": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "nom": {
-                "type": "string"
-              },
-              "parametres": {
-                "type": "object"
-              },
-              "planifications": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "pool": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "schemaParametres": {
-                "type": [
-                  "object",
-                  "null"
-                ]
-              },
-              "statut": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "tags": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              }
-            },
-            "required": [
-              "id",
-              "nom",
-              "flux",
-              "tags",
-              "enPause",
-              "planifications",
-              "parametres"
-            ],
-            "type": [
-              "object",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "deploiement"
-        ],
-        "type": "object"
-      },
+      "output": null,
+      "param": "deploiement",
+      "state": "deploiement",
       "tests": [
         {
           "expect": {
@@ -2350,7 +1600,7 @@
           "name": "Lit un déploiement de l’instance"
         }
       ],
-      "tool": true,
+      "tool": false,
       "uses": {
         "clients": [
           "prefect"
@@ -2629,5 +1879,162 @@
   "setup": {
     "welcome": "Suivez vos déploiements Prefect d’un coup d’œil : dernière exécution, lancement en un clic, historique, tâches et logs. Il vous faut l’adresse de l’API Prefect et, pour Prefect Cloud, une clé d’API."
   },
-  "version": "2.0.1"
+  "states": [
+    {
+      "description": "Les comptes Prefect reliés à l’espace : nom et identifiant, sans adresse ni secret.",
+      "id": "comptes",
+      "schema": {
+        "type": "object"
+      }
+    },
+    {
+      "description": "Les déploiements d’un compte Prefect, avec leur flow, leur pool, leurs étiquettes, leurs planifications et leur suspension.",
+      "id": "deploiements",
+      "params": [
+        {
+          "description": "Partie du nom du déploiement ; omis, tous.",
+          "example": "factures",
+          "id": "texte"
+        },
+        {
+          "description": "Nombre de déploiements rendus au plus (2 000 par défaut).",
+          "example": 200,
+          "id": "limite"
+        },
+        {
+          "description": "Réservé aux tests : les déploiements d’un faux Prefect en mémoire.",
+          "example": true,
+          "id": "simulation"
+        }
+      ],
+      "refresh": {
+        "every": 120,
+        "function": "lister-deploiements"
+      },
+      "schema": {
+        "type": "object"
+      }
+    },
+    {
+      "description": "Pour un lot de déploiements (60 au plus) : la dernière exécution, les huit plus récentes, le nombre en cours, la durée habituelle et la prochaine exécution prévue.",
+      "id": "etats-deploiements",
+      "params": [
+        {
+          "description": "Identifiants des déploiements suivis, 60 au plus.",
+          "example": [
+            "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01"
+          ],
+          "id": "deploiements"
+        }
+      ],
+      "refresh": {
+        "every": 30,
+        "function": "lire-dernieres-executions"
+      },
+      "schema": {
+        "type": "object"
+      }
+    },
+    {
+      "description": "Historique des exécutions d’un compte Prefect, les plus récentes d’abord, filtré par déploiement, états et nom.",
+      "id": "executions",
+      "params": [
+        {
+          "description": "Identifiant du déploiement ; omis, tous.",
+          "example": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01",
+          "id": "deploiement"
+        },
+        {
+          "description": "Types d’état gardés ; omis, tous.",
+          "example": [
+            "FAILED",
+            "CRASHED"
+          ],
+          "id": "etats"
+        },
+        {
+          "description": "Partie du nom de l’exécution.",
+          "example": "brave",
+          "id": "texte"
+        },
+        {
+          "description": "Nombre d’exécutions, 50 par défaut, 200 au plus.",
+          "example": 25,
+          "id": "limite"
+        },
+        {
+          "description": "Nombre d’exécutions sautées, pour la pagination.",
+          "example": 0,
+          "id": "decalage"
+        }
+      ],
+      "refresh": {
+        "every": 30,
+        "function": "lister-executions"
+      },
+      "schema": {
+        "type": "object"
+      }
+    },
+    {
+      "description": "Une exécution Prefect en détail, avec ses tâches.",
+      "id": "execution",
+      "params": [
+        {
+          "description": "Identifiant de l’exécution (flow run) ; omis, la plus récente.",
+          "example": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e01",
+          "id": "execution"
+        }
+      ],
+      "refresh": {
+        "every": 60,
+        "function": "lire-execution"
+      },
+      "schema": {
+        "type": "object"
+      }
+    },
+    {
+      "description": "Les logs d’une exécution Prefect, les 1 000 dernières lignes au plus, et si elle tourne encore.",
+      "id": "logs-execution",
+      "params": [
+        {
+          "description": "Identifiant de l’exécution (flow run) ; omis, la plus récente.",
+          "example": "9d4e7c21-5a6b-4c8d-8e9f-0a1b2c3d4e01",
+          "id": "execution"
+        },
+        {
+          "description": "Niveau minimal : 10 debug, 20 info, 30 avertissement, 40 erreur.",
+          "example": 30,
+          "id": "niveauMin"
+        }
+      ],
+      "refresh": {
+        "every": 30,
+        "function": "lire-logs-execution"
+      },
+      "schema": {
+        "type": "object"
+      }
+    },
+    {
+      "description": "Un déploiement Prefect en détail : flow, pool, planifications, paramètres par défaut, suspension et disponibilité.",
+      "id": "deploiement",
+      "params": [
+        {
+          "description": "Identifiant du déploiement ; omis, le plus récent.",
+          "example": "6f1c2a8e-3b1d-4e57-9a10-4c2d7f0e1a01",
+          "id": "deploiement"
+        }
+      ],
+      "refresh": {
+        "every": 300,
+        "function": "lire-deploiement"
+      },
+      "schema": {
+        "type": "object"
+      }
+    }
+  ],
+  "version": "2.0.2"
 }

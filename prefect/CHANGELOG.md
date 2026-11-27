@@ -1,3 +1,10 @@
+## 2.0.2 — 2026-11-27
+
+- Déploiements : chaque déploiement est une section de la grille de la page, sans carte, pour garder un bon contraste au changement de thème.
+- Les déploiements et leurs exécutions sont des états partagés : la page suit chaque changement, et l'avancement bouge pendant une exécution.
+- Échecs : une liste plutôt qu'un tableau, pour lire le nom complet du déploiement même dans une fenêtre étroite.
+- Mise en page alignée sur la dernière version de socle-ui.
+
 ## 2.0.1 — 2026-11-24
 
 - Panneau Historique : le filtre des exécutions par état est une ligne « État », dont le menu propose les états.

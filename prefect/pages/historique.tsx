@@ -1,12 +1,11 @@
 import { Text } from "@alfred/kit";
-import { functions, notifyActionError, shell, useAsync, usePageContext, usePageState, usePeerMessage } from "@alfred/sdk";
+import { notifyActionError, shell, useAlfredState, usePageContext, usePageState, usePeerMessage } from "@alfred/sdk";
 import { ChevronsDown, ListFilter, Play, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { useEffect } from "react";
-import { type Action, Code, DetailPanel, DropdownMenu, List, useOpenForm } from "socle-ui";
+import { type Action, Code, Drawer, DropdownMenu, List, useOpenForm } from "socle-ui";
 import {
   ACTIFS,
   aDesParametres,
-  avecInstance,
   dateCourte,
   type Deploiement,
   duree,
@@ -41,56 +40,41 @@ export default function Historique() {
   const openForm = useOpenForm();
   const etats = FILTRES.find((f) => f.id === filtre)?.etats;
 
-  const fiche = useAsync(
-    () =>
-      id
-        ? functions.call<{ deploiement: Deploiement | null }>("lire-deploiement", { ...avecInstance(instance), deploiement: id })
-        : Promise.resolve({ deploiement: null }),
-    [instance, id],
-  );
+  // Le déploiement, son bilan et ses exécutions sont des états partagés : le panneau reçoit chaque changement.
+  const compte = instance || undefined;
+  const fiche = useAlfredState<{ deploiement: Deploiement | null }>(id ? "prefect/deploiement" : null, {
+    instance: compte,
+    params: { deploiement: id },
+  });
   // Bilan des exécutions précédentes et prochaine exécution, retirés de la carte pour la garder courte.
-  const bilan = useAsync(
-    () =>
-      id
-        ? functions
-            .call<{ deploiements: EtatDeploiement[] }>("lire-dernieres-executions", { ...avecInstance(instance), deploiements: [id] })
-            .then((r) => r.deploiements[0] ?? null)
-        : Promise.resolve(null),
-    [instance, id],
+  const bilan = useAlfredState<{ deploiements: EtatDeploiement[] }, EtatDeploiement | null>(
+    id ? "prefect/etats-deploiements" : null,
+    { instance: compte, params: { deploiements: [id] }, select: (r) => r.deploiements[0] ?? null },
   );
-  const runs = useAsync(
-    () =>
-      id
-        ? functions.call<{ total: number; executions: Execution[] }>("lister-executions", {
-            ...avecInstance(instance),
-            deploiement: id,
-            limite,
-            ...(etats ? { etats } : {}),
-          })
-        : Promise.resolve({ total: 0, executions: [] as Execution[] }),
-    [instance, id, filtre, limite],
-  );
+  const runs = useAlfredState<{ total: number; executions: Execution[] }>(id ? "prefect/executions" : null, {
+    instance: compte,
+    params: { deploiement: id, limite, ...(etats ? { etats } : {}) },
+  });
 
   useEffect(() => setLimite(PAS), [id]);
+  // Une exécution tourne : l’historique est relu toutes les 5 s (sinon, l’état se relit seul toutes les 30 s).
   const uneTourne = (runs.data?.executions ?? []).some((r) => ACTIFS.has(r.etat));
   useEffect(() => {
-    if (!id) return;
-    const minuterie = setInterval(runs.reload, uneTourne ? 5_000 : 30_000);
+    if (!id || !uneTourne) return;
+    const minuterie = setInterval(() => void runs.refresh(), 5_000);
     return () => clearInterval(minuterie);
-  }, [id, uneTourne, runs.reload]);
+  }, [id, uneTourne, runs.refresh]);
 
+  const relireApresAction = () =>
+    setTimeout(() => {
+      void runs.refresh();
+      void bilan.refresh();
+    }, 1500);
   usePeerMessage((message) => {
-    if ((message as { type?: string })?.type === "execution-modifiee")
-      setTimeout(() => {
-        runs.reload();
-        bilan.reload();
-      }, 1500);
+    if ((message as { type?: string })?.type === "execution-modifiee") relireApresAction();
   });
   const apresAction = () => {
-    setTimeout(() => {
-      runs.reload();
-      bilan.reload();
-    }, 1500);
+    relireApresAction();
     void shell.send({ type: "execution-modifiee" });
   };
 
@@ -118,9 +102,9 @@ export default function Historique() {
           label: "Actualiser",
           icon: <RefreshCw size={16} />,
           onPress: () => {
-            fiche.reload();
-            runs.reload();
-            bilan.reload();
+            void fiche.refresh();
+            void runs.refresh();
+            void bilan.refresh();
           },
         },
         {
@@ -139,7 +123,7 @@ export default function Historique() {
   const prochaine = bilan.data?.prochaine?.debutPrevu;
 
   return (
-    <DetailPanel
+    <Drawer
       header={
         d
           ? {
@@ -226,7 +210,7 @@ export default function Historique() {
                       selectionMode="none"
                       isLoading={!runs.data}
                       hasError={Boolean(runs.error && !runs.data)}
-                      onRetry={runs.reload}
+                      onRetry={() => void runs.refresh()}
                       items={lignes.map((r) => ({
                         id: r.id,
                         title: r.nom,
@@ -265,7 +249,7 @@ export default function Historique() {
       }
       isLoading={Boolean(id) && !fiche.data && !fiche.error}
       hasError={Boolean(fiche.error && !fiche.data)}
-      onRetry={fiche.reload}
+      onRetry={() => void fiche.refresh()}
       isNotFound={Boolean(id) && Boolean(fiche.data) && !d}
       emptyMessage="Ouvrez l’historique d’un déploiement pour voir toutes ses exécutions ici."
       onActionError={notifyActionError}

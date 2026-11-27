@@ -5,16 +5,16 @@ import { useEffect, useState } from "react";
 import {
   Button,
   Code,
-  Dialog,
+  Modal,
   EmptyState,
   type LogLevel,
   type LogLine,
   LogViewer,
   PropertyRow,
-  RadioGroup,
   Skeleton,
-  StatusBadge,
+  Badge,
   Table,
+  Tabs,
   useConfirm,
 } from "socle-ui";
 import { ACTIFS, avecInstance, dateCourte, duree, etatAffiche, type Execution, heure, lancer } from "./prefect";
@@ -105,7 +105,7 @@ function DetailExecution({ fiche, instance }: { fiche: { execution: FicheExecuti
   const details = (
     <Stack gap="md">
       <Stack gap="none">
-        <PropertyRow label="État" value={<StatusBadge tone={etat.tone}>{etat.label}</StatusBadge>} />
+        <PropertyRow label="État" value={<Badge tone={etat.tone}>{etat.label}</Badge>} />
         <PropertyRow label="Flow" value={e.flux || undefined} />
         <PropertyRow label="Déploiement" value={e.deploiement ?? undefined} />
         <PropertyRow label="Début prévu" value={dateCourte(e.debutPrevu)} />
@@ -158,7 +158,7 @@ function DetailExecution({ fiche, instance }: { fiche: { execution: FicheExecuti
         renderCell={(t, colonne) => {
           if (colonne === "etat") {
             const a = etatAffiche(t.etat, t.etatNom);
-            return <StatusBadge tone={a.tone}>{a.label}</StatusBadge>;
+            return <Badge tone={a.tone}>{a.label}</Badge>;
           }
           if (colonne === "debut") return t.debut ? heure(t.debut) : "—";
           if (colonne === "duree") return duree(t.duree);
@@ -169,11 +169,17 @@ function DetailExecution({ fiche, instance }: { fiche: { execution: FicheExecuti
 
   return (
     <Stack gap="md">
-      <RadioGroup label="Vue de l’exécution" hideLabel orientation="horizontal" value={onglet} onChange={setOnglet}>
-        <RadioGroup.Option value="logs">Logs</RadioGroup.Option>
-        <RadioGroup.Option value="taches">{`Tâches (${taches.length})`}</RadioGroup.Option>
-        <RadioGroup.Option value="details">Détails</RadioGroup.Option>
-      </RadioGroup>
+      <Tabs
+        id="vue-execution"
+        pageTitle={`Exécution ${e.nom ?? ""}`.trim()}
+        items={[
+          { id: "logs", label: "Logs" },
+          { id: "taches", label: `Tâches (${taches.length})` },
+          { id: "details", label: "Détails" },
+        ]}
+        selectedId={onglet}
+        onSelectionChange={setOnglet}
+      />
       {onglet === "taches" ? listeTaches : onglet === "details" ? details : <JournalExecution instance={instance} id={e.id} />}
     </Stack>
   );
@@ -242,7 +248,7 @@ export function ExecutionDialog({
   };
 
   return (
-    <Dialog
+    <Modal
       isOpen
       size="xl"
       title={e ? `Logs de « ${e.nom} »` : "Exécution"}
@@ -279,6 +285,6 @@ export function ExecutionDialog({
       ) : (
         <Skeleton shape="rect" width="100%" height={320} />
       )}
-    </Dialog>
+    </Modal>
   );
 }

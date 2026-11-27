@@ -2,12 +2,16 @@
  * Bloc d’un élément suivi (job Jenkins, déploiement Prefect). Ce fichier est copié à l’identique dans les modules
  * jenkins et prefect : seules les données passées changent.
  *
- * Une `PageSection` de socle-ui : le titre, le contexte et les actions en tête ; puis au besoin une note (erreur,
- * build précédent…), la ligne d’état (« Réussi · il y a 2 heures ») et la barre d’avancement.
+ * Une `PageSection` de socle-ui, rangée dans la grille de la page (`PageGrid`) : en tête, le titre, le contexte et
+ * les actions à droite ; puis au besoin une note (erreur, build précédent…) ; en bas, la ligne d’état
+ * (« Réussi · il y a 2 jours ») et la barre d’avancement, avec le numéro du build.
+ *
+ * Module prefect : pas de `Card` autour de la section. Le fond d’une `Card` passe d’un thème à l’autre en fondu, alors
+ * que ses textes changent tout de suite : pendant ce fondu, ses textes deviennent illisibles (contraste sous 3:1).
  */
 import { Row, Stack, Text } from "@alfred/kit";
 import { PanelRight } from "lucide-react";
-import { type Action, FormattedValue, Link, PageSection, ProgressBar, StatusBadge } from "socle-ui";
+import { type Action, Badge, FormattedValue, Link, PageSection, ProgressBar } from "socle-ui";
 
 export type Ton = "neutral" | "warning" | "success" | "danger";
 
@@ -48,45 +52,45 @@ export function CarteSuivi({
     : [];
   return (
     <PageSection title={titre} description={contexte || undefined} actions={[...ouvrir, ...actions]}>
-      <Stack gap="sm">
-        {note ? (
-          <Row gap="xs" wrap>
-            <Text as="span" size="meta" tone={note.tone ?? "muted"}>
-              {note.texte}
-            </Text>
-            {note.onClick ? <Link onPress={note.onClick}>{note.lien ?? "Voir le détail"}</Link> : null}
-          </Row>
-        ) : null}
-        <Row justify="between" wrap>
-          <Row gap="xs" wrap>
-            <StatusBadge tone={etat.tone}>{etat.label}</StatusBadge>
-            {badges.map((badge) => (
-              <StatusBadge key={badge.label} tone={badge.tone}>
-                {badge.label}
-              </StatusBadge>
-            ))}
-            {selectionnee ? <StatusBadge tone="info">Ouvert dans le panneau</StatusBadge> : null}
-          </Row>
-          {quand ? (
-            <Row gap="xs">
-              {quand.prefixe ? (
-                <Text as="span" size="meta" tone="muted">
-                  {quand.prefixe}
-                </Text>
-              ) : null}
-              <FormattedValue value={quand.date} type="relative" />
+        <Stack gap="sm">
+          {note ? (
+            <Row gap="xs" wrap>
+              <Text as="span" size="meta" tone={note.tone ?? "muted"}>
+                {note.texte}
+              </Text>
+              {note.onClick ? <Link onPress={note.onClick}>{note.lien ?? "Voir le détail"}</Link> : null}
             </Row>
           ) : null}
-        </Row>
-        {barre ? (
-          <ProgressBar
-            label={barre.label}
-            value={barre.valeur}
-            tone={etat.tone === "warning" || etat.tone === "danger" ? etat.tone : "accent"}
-            showValue={Boolean(barre.afficherValeur)}
-          />
-        ) : null}
-      </Stack>
+          <Row justify="between" wrap>
+            <Row gap="xs" wrap>
+              <Badge tone={etat.tone}>{etat.label}</Badge>
+              {badges.map((badge) => (
+                <Badge key={badge.label} tone={badge.tone}>
+                  {badge.label}
+                </Badge>
+              ))}
+              {selectionnee ? <Badge tone="info">Ouvert dans le panneau</Badge> : null}
+            </Row>
+            {quand ? (
+              <Row gap="xs">
+                {quand.prefixe ? (
+                  <Text as="span" size="meta" tone="muted">
+                    {quand.prefixe}
+                  </Text>
+                ) : null}
+                <FormattedValue value={quand.date} type="relative" />
+              </Row>
+            ) : null}
+          </Row>
+          {barre ? (
+            <ProgressBar
+              label={barre.label}
+              value={barre.valeur}
+              tone={etat.tone === "warning" || etat.tone === "danger" ? etat.tone : "accent"}
+              showValue={Boolean(barre.afficherValeur)}
+            />
+          ) : null}
+        </Stack>
     </PageSection>
   );
 }

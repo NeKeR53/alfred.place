@@ -65,15 +65,20 @@ export default function Echecs() {
 
   return (
     <>
-      <ListPage<Rapport & { id: string }>
+      <ListPage<Rapport & { id: string; etat_rapport: string }>
         title="Rapports d’échec"
-        rows={rapports.data?.map((r) => ({ ...r, id: r.execution }))}
+        // L’état du rapport est calculé dans la ligne : la colonne d’état lit une clé de `ETATS`.
+        rows={rapports.data?.map((r) => ({ ...r, id: r.execution, etat_rapport: etatDe(r) }))}
+        // Une liste plutôt qu’un tableau : le nom complet du déploiement tient sous la cause, même dans une fenêtre
+        // étroite, au lieu d’être coupé dans une colonne.
+        layout="list"
+        item={{ title: "cause", subtitle: "deploiement", meta: "fini_le", status: "etat_rapport" }}
         columns={[
+          // Le titre court du rapport ; la cause complète est dans le rapport ouvert.
+          { id: "cause", label: "Pourquoi", value: (r) => r.titre ?? r.cause ?? r.erreur ?? "Analyse en cours…" },
           { id: "deploiement", label: "Déploiement", value: nomRapport },
-          { id: "cause", label: "Pourquoi", value: (r) => r.cause ?? r.erreur ?? "Analyse en cours…" },
-          { id: "nom", label: "Exécution", type: "code" },
           { id: "fini_le", label: "Échouée", type: "relative", value: (r) => r.fini_le ?? r.cree_le },
-          { id: "etat_rapport", label: "État", type: "status", statuses: ETATS, value: etatDe },
+          { id: "etat_rapport", label: "État", type: "status", statuses: ETATS },
         ]}
         search={{
           label: "les rapports",

@@ -1,6 +1,6 @@
 import { functions, shell } from "@alfred/sdk";
 import { FileText, Play, RotateCw } from "lucide-react";
-import { type Action, Button, Dialog, useConfirm } from "socle-ui";
+import { type Action, Button, Modal, useConfirm } from "socle-ui";
 import { ExecutionDialog } from "./Execution";
 import { avecInstance, lancer } from "./prefect";
 import { RapportEchec } from "./RapportEchec";
@@ -86,7 +86,7 @@ export function Fenetres({
     return <ExecutionDialog instance={fenetre.instance} id={fenetre.id} apresAction={apres} onClose={onClose} />;
   const { rapport } = fenetre;
   return (
-    <Dialog
+    <Modal
       isOpen
       size="lg"
       title={titreRapport(rapport)}
@@ -128,6 +128,6 @@ export function Fenetres({
       }
     >
       <RapportEchec rapport={rapport} />
-    </Dialog>
+    </Modal>
   );
 }
