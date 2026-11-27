@@ -1,0 +1,1096 @@
+{
+  "clients": [
+    {
+      "client": {
+        "headers": {
+          "Accept": "application/json"
+        },
+        "label": "OpenBao",
+        "methods": [
+          {
+            "apply": {
+              "header": "X-Vault-Token"
+            },
+            "help": "L’identifiant et le mot de passe de votre compte userpass d’OpenBao. Je me connecte pour vous et renouvelle la session.",
+            "id": "userpass",
+            "label": "Identifiant et mot de passe (userpass)",
+            "login": {
+              "body": {
+                "password": "{password}"
+              },
+              "expiresIn": "auth.lease_duration",
+              "path": "/v1/auth/{auth}/login/{username}",
+              "token": "auth.client_token"
+            },
+            "params": [
+              {
+                "default": "secret",
+                "example": "secret",
+                "help": "Le chemin du moteur de secrets KV version 2, tel qu’il apparaît dans l’interface d’OpenBao (souvent « secret »).",
+                "id": "mount",
+                "label": "Montage des secrets (KV v2)"
+              },
+              {
+                "default": "userpass",
+                "example": "userpass",
+                "help": "Le chemin de la méthode de connexion dans OpenBao (« userpass » si personne ne l’a changé).",
+                "id": "auth",
+                "label": "Montage de connexion"
+              }
+            ],
+            "type": "session",
+            "urlExample": "https://coffre.recette.exemple.fr"
+          },
+          {
+            "apply": {
+              "header": "X-Vault-Token"
+            },
+            "help": "Votre identifiant et votre mot de passe de l’annuaire de l’entreprise.",
+            "id": "ldap",
+            "label": "Annuaire de l’entreprise (LDAP)",
+            "login": {
+              "body": {
+                "password": "{password}"
+              },
+              "expiresIn": "auth.lease_duration",
+              "path": "/v1/auth/{auth}/login/{username}",
+              "token": "auth.client_token"
+            },
+            "params": [
+              {
+                "default": "secret",
+                "example": "secret",
+                "help": "Le chemin du moteur de secrets KV version 2, tel qu’il apparaît dans l’interface d’OpenBao (souvent « secret »).",
+                "id": "mount",
+                "label": "Montage des secrets (KV v2)"
+              },
+              {
+                "default": "ldap",
+                "example": "ldap",
+                "help": "Le chemin de la méthode de connexion dans OpenBao (« ldap » si personne ne l’a changé).",
+                "id": "auth",
+                "label": "Montage de connexion"
+              }
+            ],
+            "type": "session",
+            "urlExample": "https://coffre.recette.exemple.fr"
+          },
+          {
+            "header": "X-Vault-Token",
+            "help": "Un jeton OpenBao (commande « bao token create ») ; il cesse de fonctionner à son expiration.",
+            "id": "jeton",
+            "label": "Jeton OpenBao",
+            "params": [
+              {
+                "default": "secret",
+                "example": "secret",
+                "help": "Le chemin du moteur de secrets KV version 2, tel qu’il apparaît dans l’interface d’OpenBao (souvent « secret »).",
+                "id": "mount",
+                "label": "Montage des secrets (KV v2)"
+              }
+            ],
+            "type": "apiKey",
+            "urlExample": "https://coffre.recette.exemple.fr"
+          }
+        ],
+        "sealed": [
+          {
+            "fields": [
+              "data.data.*"
+            ],
+            "path": "/v1/{mount}/data/**"
+          }
+        ],
+        "testPath": "/v1/auth/token/lookup-self"
+      },
+      "help": "Un compte par environnement : l’adresse de l’OpenBao (sans /v1), votre identifiant, et le montage des secrets.",
+      "id": "openbao",
+      "label": "OpenBao"
+    }
+  ],
+  "description": "Connecteur OpenBao : arbre des secrets, lecture scellée, écriture et copie d’un environnement à l’autre, sans qu’aucune valeur ne passe en clair.",
+  "functions": [
+    {
+      "description": "Comptes OpenBao reliés à l’espace (identifiant, nom, compte par défaut), sans adresse ni secret. `probleme` dit pourquoi la liste est vide quand le service n’est pas encore configuré.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Les six comptes, un par environnement",
+          "output": {
+            "comptes": [
+              {
+                "default": true,
+                "id": "dev",
+                "label": "OpenBao Développement"
+              },
+              {
+                "default": false,
+                "id": "int",
+                "label": "OpenBao Intégration"
+              },
+              {
+                "default": false,
+                "id": "rec",
+                "label": "OpenBao Recette"
+              },
+              {
+                "default": false,
+                "id": "val",
+                "label": "OpenBao Validation"
+              },
+              {
+                "default": false,
+                "id": "preprod",
+                "label": "OpenBao Préproduction"
+              },
+              {
+                "default": false,
+                "id": "prod",
+                "label": "OpenBao Production"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "aucun": true
+          },
+          "name": "Aucun compte encore relié",
+          "output": {
+            "comptes": [],
+            "probleme": "Le service OpenBao n’a encore aucun compte."
+          }
+        }
+      ],
+      "id": "lister-comptes",
+      "input": {
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "comptes": {
+            "items": {
+              "properties": {
+                "default": {
+                  "type": "boolean"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "default"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "probleme": {
+            "description": "Raison d’une liste vide (service pas encore configuré).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "comptes"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "comptes"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Liste les comptes OpenBao"
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "openbao"
+        ]
+      }
+    },
+    {
+      "description": "Un niveau de l’arbre des secrets : sous-dossiers et secrets du dossier `chemin` (la racine du montage à défaut), sans aucune valeur.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Racine du montage",
+          "output": {
+            "chemin": "",
+            "dossiers": [
+              "atom",
+              "socle"
+            ],
+            "secrets": []
+          }
+        },
+        {
+          "input": {
+            "chemin": "atom"
+          },
+          "name": "Dossier ATOM",
+          "output": {
+            "chemin": "atom",
+            "dossiers": [
+              "portail"
+            ],
+            "secrets": [
+              "commun"
+            ]
+          }
+        },
+        {
+          "input": {
+            "chemin": "vide"
+          },
+          "name": "Dossier vide",
+          "output": {
+            "chemin": "vide",
+            "dossiers": [],
+            "secrets": []
+          }
+        }
+      ],
+      "id": "lister-dossier",
+      "input": {
+        "properties": {
+          "chemin": {
+            "description": "Dossier à lister, par exemple atom/portail.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "chemin": {
+            "type": "string"
+          },
+          "dossiers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "secrets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "chemin",
+          "dossiers",
+          "secrets"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "dossiers",
+              "secrets"
+            ]
+          },
+          "input": {},
+          "name": "Liste la racine du montage"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "openbao"
+        ]
+      }
+    },
+    {
+      "description": "Clés d’un secret et leurs valeurs scellées (`valeurs` : des références que la page affiche par secrets.reveal, écrit dans un .env par secrets.writeEnvFile, ou recopie par copier-cle). `trouve` est faux si le secret n’existe pas.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "chemin": "atom/portail/api"
+          },
+          "name": "Secret de l’API du portail",
+          "output": {
+            "chemin": "atom/portail/api",
+            "cles": [
+              "DB_PASSWORD",
+              "DB_USER",
+              "JWT_SECRET"
+            ],
+            "trouve": true,
+            "valeurs": {
+              "DB_PASSWORD": "alfred-secret-ref:v1:ZXhlbXBsZWRlcmVmZXJlbmNlc2NlbGxlZW51bWVybzA1",
+              "DB_USER": "alfred-secret-ref:v1:ZXhlbXBsZWRlcmVmZXJlbmNlc2NlbGxlZW51bWVybzA2",
+              "JWT_SECRET": "alfred-secret-ref:v1:ZXhlbXBsZWRlcmVmZXJlbmNlc2NlbGxlZW51bWVybzA3"
+            },
+            "version": 4
+          }
+        },
+        {
+          "input": {
+            "chemin": "atom/inconnu"
+          },
+          "name": "Secret absent",
+          "output": {
+            "chemin": "atom/inconnu",
+            "cles": [],
+            "trouve": false,
+            "valeurs": {},
+            "version": 0
+          }
+        }
+      ],
+      "id": "lire-secret",
+      "input": {
+        "properties": {
+          "chemin": {
+            "description": "Chemin du secret, par exemple atom/portail/api.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chemin"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "chemin": {
+            "type": "string"
+          },
+          "cles": {
+            "description": "Noms des clés, triés.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "trouve": {
+            "description": "Faux quand le secret n’existe pas (encore) à ce chemin.",
+            "type": "boolean"
+          },
+          "valeurs": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Valeur de chaque clé, scellée : une référence alfred-secret-ref, jamais la valeur en clair.",
+            "type": "object"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chemin",
+          "trouve",
+          "version",
+          "cles",
+          "valeurs"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "cles",
+              "valeurs"
+            ]
+          },
+          "input": {
+            "chemin": "atom/portail/api"
+          },
+          "name": "Lit un secret, valeurs scellées",
+          "target": {
+            "field": "chemin",
+            "label": "Secret à lire (chemin)"
+          }
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "openbao"
+        ]
+      }
+    },
+    {
+      "description": "Ajoute ou remplace une clé d’un secret (créé s’il n’existe pas) ; les autres clés sont gardées sans passer en clair. La valeur saisie part chez OpenBao et n’est gardée nulle part ailleurs.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "chemin": "atom/portail/api",
+            "cle": "SMTP_HOST",
+            "valeur": "smtp.exemple.fr"
+          },
+          "name": "Clé ajoutée",
+          "output": {
+            "chemin": "atom/portail/api",
+            "cle": "SMTP_HOST",
+            "version": 5
+          }
+        },
+        {
+          "input": {
+            "chemin": "atom/batch",
+            "cle": "TOKEN",
+            "valeur": "…"
+          },
+          "name": "Nouveau secret",
+          "output": {
+            "chemin": "atom/batch",
+            "cle": "TOKEN",
+            "version": 1
+          }
+        }
+      ],
+      "id": "ecrire-cle",
+      "input": {
+        "properties": {
+          "chemin": {
+            "description": "Chemin du secret.",
+            "type": "string"
+          },
+          "cle": {
+            "description": "Nom de la clé.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "valeur": {
+            "description": "Valeur saisie par l’utilisateur.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chemin",
+          "cle",
+          "valeur"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "chemin": {
+            "type": "string"
+          },
+          "cle": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chemin",
+          "cle",
+          "version"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "version"
+            ]
+          },
+          "input": {
+            "cle": "ALFRED_ESSAI",
+            "valeur": "essai"
+          },
+          "name": "Écrit une clé dans le secret de test",
+          "target": {
+            "field": "chemin",
+            "label": "Secret de test (chemin)"
+          }
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "openbao"
+        ]
+      }
+    },
+    {
+      "description": "Retire une clé d’un secret ; retirer la dernière clé supprime le secret et son historique.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "chemin": "atom/portail/api",
+            "cle": "SMTP_HOST"
+          },
+          "name": "Clé retirée",
+          "output": {
+            "chemin": "atom/portail/api",
+            "cle": "SMTP_HOST",
+            "supprime": true
+          }
+        },
+        {
+          "input": {
+            "chemin": "atom/portail/api",
+            "cle": "INCONNUE"
+          },
+          "name": "Clé déjà absente",
+          "output": {
+            "chemin": "atom/portail/api",
+            "cle": "INCONNUE",
+            "supprime": false
+          }
+        }
+      ],
+      "id": "supprimer-cle",
+      "input": {
+        "properties": {
+          "chemin": {
+            "description": "Chemin du secret.",
+            "type": "string"
+          },
+          "cle": {
+            "description": "Nom de la clé.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chemin",
+          "cle"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "chemin": {
+            "type": "string"
+          },
+          "cle": {
+            "type": "string"
+          },
+          "supprime": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "chemin",
+          "cle",
+          "supprime"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "supprime"
+            ]
+          },
+          "input": {
+            "cle": "ALFRED_ESSAI"
+          },
+          "name": "Retire la clé d’essai du secret de test",
+          "target": {
+            "field": "chemin",
+            "label": "Secret de test (chemin)"
+          }
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "openbao"
+        ]
+      }
+    },
+    {
+      "description": "Supprime un secret, toutes ses clés et toutes ses versions.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "chemin": "atom/batch"
+          },
+          "name": "Secret supprimé",
+          "output": {
+            "chemin": "atom/batch",
+            "supprime": true
+          }
+        },
+        {
+          "input": {
+            "chemin": "atom/ancien"
+          },
+          "name": "Autre secret supprimé",
+          "output": {
+            "chemin": "atom/ancien",
+            "supprime": true
+          }
+        }
+      ],
+      "id": "supprimer-secret",
+      "input": {
+        "properties": {
+          "chemin": {
+            "description": "Chemin du secret.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chemin"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "chemin": {
+            "type": "string"
+          },
+          "supprime": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "chemin",
+          "supprime"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "supprime": true
+            }
+          },
+          "input": {},
+          "name": "Supprime le secret de test",
+          "target": {
+            "field": "chemin",
+            "label": "Secret de test à supprimer (chemin)"
+          }
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "openbao"
+        ]
+      }
+    },
+    {
+      "description": "Copie une clé d’un compte OpenBao (`source`) vers un autre (`destination`), au même chemin ou à `cheminDestination`, sans que sa valeur passe en clair. Refuse d’écraser une clé existante, sauf `ecraser`.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "chemin": "atom/portail/api",
+            "cle": "DB_PASSWORD",
+            "destination": "int",
+            "source": "rec"
+          },
+          "name": "Mot de passe copié de la recette vers l’intégration",
+          "output": {
+            "chemin": "atom/portail/api",
+            "cle": "DB_PASSWORD",
+            "destination": "int",
+            "version": 3
+          }
+        },
+        {
+          "input": {
+            "chemin": "atom/portail/api",
+            "cheminDestination": "atom/portail/api-pp",
+            "cle": "JWT_SECRET",
+            "destination": "preprod",
+            "source": "prod"
+          },
+          "name": "Clé copiée à un autre chemin",
+          "output": {
+            "chemin": "atom/portail/api-pp",
+            "cle": "JWT_SECRET",
+            "destination": "preprod",
+            "version": 1
+          }
+        }
+      ],
+      "id": "copier-cle",
+      "input": {
+        "properties": {
+          "chemin": {
+            "description": "Chemin du secret à la source.",
+            "type": "string"
+          },
+          "cheminDestination": {
+            "description": "Chemin à destination ; à défaut, le même.",
+            "type": "string"
+          },
+          "cle": {
+            "description": "Nom de la clé.",
+            "type": "string"
+          },
+          "destination": {
+            "description": "Compte d’arrivée (identifiant d’instance).",
+            "type": "string"
+          },
+          "ecraser": {
+            "description": "Remplacer la clé si elle existe déjà à destination.",
+            "type": "boolean"
+          },
+          "source": {
+            "description": "Compte de départ (identifiant d’instance).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "destination",
+          "chemin",
+          "cle"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "chemin": {
+            "type": "string"
+          },
+          "cle": {
+            "type": "string"
+          },
+          "destination": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "destination",
+          "chemin",
+          "cle",
+          "version"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "version"
+            ]
+          },
+          "input": {
+            "cle": "ALFRED_ESSAI",
+            "destination": "dev",
+            "ecraser": true,
+            "source": "rec"
+          },
+          "name": "Copie la clé d’essai vers un autre compte",
+          "target": {
+            "field": "chemin",
+            "label": "Secret de test présent dans les deux comptes (chemin)"
+          }
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "openbao"
+        ]
+      }
+    },
+    {
+      "description": "Copie un secret entier d’un compte OpenBao vers un autre, sans exposer ses valeurs ; refuse d’écraser un secret qui existe déjà à destination.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "chemin": "atom/portail/api",
+            "destination": "val",
+            "source": "rec"
+          },
+          "name": "Secret copié vers la validation",
+          "output": {
+            "chemin": "atom/portail/api",
+            "cles": 3,
+            "destination": "val",
+            "version": 1
+          }
+        },
+        {
+          "input": {
+            "chemin": "atom/portail/api",
+            "cheminDestination": "atom/portail/api-sauvegarde",
+            "destination": "prod",
+            "source": "prod"
+          },
+          "name": "Secret copié à un autre chemin",
+          "output": {
+            "chemin": "atom/portail/api-sauvegarde",
+            "cles": 3,
+            "destination": "prod",
+            "version": 1
+          }
+        }
+      ],
+      "id": "copier-secret",
+      "input": {
+        "properties": {
+          "chemin": {
+            "description": "Chemin du secret à la source.",
+            "type": "string"
+          },
+          "cheminDestination": {
+            "description": "Chemin à destination ; à défaut, le même.",
+            "type": "string"
+          },
+          "destination": {
+            "description": "Compte d’arrivée (identifiant d’instance).",
+            "type": "string"
+          },
+          "source": {
+            "description": "Compte de départ (identifiant d’instance).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "destination",
+          "chemin"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "chemin": {
+            "type": "string"
+          },
+          "cles": {
+            "type": "integer"
+          },
+          "destination": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "destination",
+          "chemin",
+          "cles",
+          "version"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "cles"
+            ]
+          },
+          "input": {
+            "destination": "dev",
+            "source": "rec"
+          },
+          "name": "Copie le secret de test vers un autre compte",
+          "target": {
+            "field": "chemin",
+            "label": "Secret de test absent de la destination (chemin)"
+          }
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "openbao"
+        ]
+      }
+    },
+    {
+      "description": "Écrit plusieurs clés d’un secret en une seule fois (créé s’il n’existe pas). Par défaut, les clés données s’ajoutent ou remplacent et les autres sont gardées ; avec `remplacer`, le secret ne garde que les clés données, et une clé sans `valeur` garde sa valeur actuelle sans passer en clair. Les valeurs saisies partent chez OpenBao et ne sont gardées nulle part ailleurs.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "chemin": "atom/web/smtp",
+            "cles": [
+              {
+                "cle": "SMTP_HOST",
+                "valeur": "…"
+              },
+              {
+                "cle": "SMTP_PORT",
+                "valeur": "…"
+              }
+            ]
+          },
+          "name": "Nouveau secret à deux clés",
+          "output": {
+            "chemin": "atom/web/smtp",
+            "cles": 2,
+            "version": 1
+          }
+        },
+        {
+          "input": {
+            "chemin": "atom/api/config",
+            "cles": [
+              {
+                "cle": "DB_USER"
+              },
+              {
+                "cle": "DB_PASSWORD",
+                "valeur": "…"
+              }
+            ],
+            "remplacer": true
+          },
+          "name": "Une clé modifiée, une gardée, une retirée",
+          "output": {
+            "chemin": "atom/api/config",
+            "cles": 2,
+            "version": 7
+          }
+        }
+      ],
+      "id": "ecrire-secret",
+      "input": {
+        "properties": {
+          "chemin": {
+            "description": "Chemin du secret, par exemple atom/web/config.",
+            "type": "string"
+          },
+          "cles": {
+            "description": "Clés du secret. `valeur` : la valeur saisie ; absente, la valeur actuelle est gardée (remplacement seulement).",
+            "items": {
+              "properties": {
+                "cle": {
+                  "type": "string"
+                },
+                "valeur": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "cle"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "remplacer": {
+            "description": "Vrai : le secret ne garde que les clés données (modification) ; faux (défaut) : ajout aux clés existantes.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "chemin",
+          "cles"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "chemin": {
+            "type": "string"
+          },
+          "cles": {
+            "type": "integer"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chemin",
+          "cles",
+          "version"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "version"
+            ]
+          },
+          "input": {
+            "cles": [
+              {
+                "cle": "ALFRED_ESSAI",
+                "valeur": "essai"
+              },
+              {
+                "cle": "ALFRED_ESSAI_2",
+                "valeur": "essai"
+              }
+            ]
+          },
+          "name": "Écrit deux clés dans le secret de test",
+          "target": {
+            "field": "chemin",
+            "label": "Secret de test (chemin)"
+          }
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "openbao"
+        ]
+      }
+    }
+  ],
+  "id": "openbao",
+  "name": "OpenBao",
+  "setup": {
+    "welcome": "Consultez et rangez les secrets de vos coffres OpenBao, un par environnement, sans que leurs valeurs s’affichent sans votre geste. Il vous faut l’adresse de chaque OpenBao et votre identifiant (userpass ou LDAP)."
+  },
+  "version": "0.1.0"
+}
