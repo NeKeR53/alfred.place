@@ -1,0 +1,1495 @@
+{
+  "clients": [
+    {
+      "client": {
+        "headers": {
+          "Accept": "application/json"
+        },
+        "label": "Portainer",
+        "methods": [
+          {
+            "help": "Votre identifiant Portainer. Je me connecte pour vous et renouvelle la session.",
+            "id": "identifiant",
+            "label": "Identifiant et mot de passe",
+            "login": {
+              "body": {
+                "password": "{password}",
+                "username": "{username}"
+              },
+              "path": "/api/auth",
+              "token": "jwt"
+            },
+            "params": [
+              {
+                "default": "1",
+                "example": "1",
+                "help": "Le numéro de l’environnement (endpoint) dans Portainer : il figure dans l’adresse de son tableau de bord (#!/<numéro>/docker/dashboard).",
+                "id": "endpoint",
+                "label": "Environnement Portainer"
+              }
+            ],
+            "type": "session",
+            "urlExample": "https://portainer.recette.exemple.fr"
+          },
+          {
+            "header": "X-API-Key",
+            "help": "Dans Portainer : votre compte (en haut à droite), Clés d’accès, Ajouter une clé.",
+            "id": "cle",
+            "label": "Clé d’accès Portainer",
+            "params": [
+              {
+                "default": "1",
+                "example": "1",
+                "help": "Le numéro de l’environnement (endpoint) dans Portainer : il figure dans l’adresse de son tableau de bord (#!/<numéro>/docker/dashboard).",
+                "id": "endpoint",
+                "label": "Environnement Portainer"
+              }
+            ],
+            "type": "apiKey",
+            "urlExample": "https://portainer.recette.exemple.fr"
+          }
+        ],
+        "testPath": "/api/endpoints"
+      },
+      "help": "Un compte par environnement : l’adresse du Portainer, votre identifiant (ou une clé d’accès) et le numéro de l’environnement Docker à suivre.",
+      "id": "portainer",
+      "label": "Portainer"
+    }
+  ],
+  "description": "Connecteur Portainer : piles, conteneurs, journaux en direct et console d’un environnement Docker, un compte par environnement.",
+  "functions": [
+    {
+      "description": "Comptes Portainer reliés à l’espace (identifiant, nom, compte par défaut), sans adresse ni secret. `probleme` dit pourquoi la liste est vide quand le service n’est pas encore configuré.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Les six comptes, un par environnement",
+          "output": {
+            "comptes": [
+              {
+                "default": true,
+                "id": "dev",
+                "label": "Portainer Développement"
+              },
+              {
+                "default": false,
+                "id": "int",
+                "label": "Portainer Intégration"
+              },
+              {
+                "default": false,
+                "id": "rec",
+                "label": "Portainer Recette"
+              },
+              {
+                "default": false,
+                "id": "val",
+                "label": "Portainer Validation"
+              },
+              {
+                "default": false,
+                "id": "preprod",
+                "label": "Portainer Préproduction"
+              },
+              {
+                "default": false,
+                "id": "prod",
+                "label": "Portainer Production"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "aucun": true
+          },
+          "name": "Aucun compte encore relié",
+          "output": {
+            "comptes": [],
+            "probleme": "Le service Portainer n’a encore aucun compte."
+          }
+        }
+      ],
+      "id": "lister-comptes",
+      "input": {
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "comptes": {
+            "items": {
+              "properties": {
+                "default": {
+                  "type": "boolean"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "default"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "probleme": {
+            "description": "Raison d’une liste vide (service pas encore configuré).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "comptes"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "comptes"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Liste les comptes Portainer"
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "portainer"
+        ]
+      }
+    },
+    {
+      "description": "Environnements (endpoints) Portainer visibles par le compte, avec leur numéro : il sert au réglage « Environnement Portainer » d’un compte.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Deux environnements",
+          "output": {
+            "environnements": [
+              {
+                "enLigne": true,
+                "id": 1,
+                "nom": "local",
+                "type": "docker"
+              },
+              {
+                "enLigne": true,
+                "id": 3,
+                "nom": "recette-swarm",
+                "type": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "instance": "dev"
+          },
+          "name": "Aucun environnement",
+          "output": {
+            "environnements": []
+          }
+        }
+      ],
+      "id": "lister-environnements",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "environnements": {
+            "items": {
+              "properties": {
+                "enLigne": {
+                  "type": "boolean"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "nom": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "nom",
+                "type",
+                "enLigne"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "environnements"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "environnements"
+            ]
+          },
+          "input": {},
+          "name": "Liste les environnements Portainer"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "portainer"
+        ]
+      }
+    },
+    {
+      "description": "Piles (stacks) de l’environnement Portainer du compte, avec leur état et les noms de leurs variables.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Deux piles",
+          "output": {
+            "piles": [
+              {
+                "creeLe": "2026-09-14T09:12:00.000Z",
+                "environnement": 1,
+                "etat": "arretee",
+                "id": 13,
+                "modifieLe": "2026-10-02T07:05:00.000Z",
+                "nom": "batch",
+                "type": "compose",
+                "variables": [
+                  "CRON"
+                ]
+              },
+              {
+                "creeLe": "2026-09-14T09:12:00.000Z",
+                "environnement": 1,
+                "etat": "active",
+                "id": 12,
+                "modifieLe": "2026-11-18T16:40:00.000Z",
+                "nom": "portail",
+                "type": "compose",
+                "variables": [
+                  "DB_HOST",
+                  "DB_PASSWORD",
+                  "TAG"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "instance": "dev"
+          },
+          "name": "Aucune pile",
+          "output": {
+            "piles": []
+          }
+        }
+      ],
+      "id": "lister-piles",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "piles": {
+            "items": {
+              "properties": {
+                "creeLe": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "environnement": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "etat": {
+                  "enum": [
+                    "active",
+                    "arretee",
+                    "inconnu"
+                  ],
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "modifieLe": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nom": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "variables": {
+                  "description": "Noms des variables d’environnement de la pile (jamais leurs valeurs).",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "id",
+                "nom",
+                "etat"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "piles"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "piles"
+            ]
+          },
+          "input": {},
+          "name": "Liste les piles"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "portainer"
+        ]
+      }
+    },
+    {
+      "description": "Une pile et son fichier compose.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "pile": 12
+          },
+          "name": "Pile du portail",
+          "output": {
+            "compose": "services:\n  web:\n    image: registre.exemple.fr/atom/portail-web:${TAG}\n  api:\n    image: registre.exemple.fr/atom/portail-api:${TAG}\n",
+            "creeLe": "2026-09-14T09:12:00.000Z",
+            "environnement": 1,
+            "etat": "active",
+            "id": 12,
+            "modifieLe": "2026-11-18T16:40:00.000Z",
+            "nom": "portail",
+            "type": "compose",
+            "variables": [
+              "DB_HOST",
+              "DB_PASSWORD",
+              "TAG"
+            ]
+          }
+        },
+        {
+          "input": {
+            "pile": 13
+          },
+          "name": "Pile du batch",
+          "output": {
+            "compose": "services:\n  batch:\n    image: registre.exemple.fr/atom/batch:1.2.0\n",
+            "creeLe": "2026-09-14T09:12:00.000Z",
+            "environnement": 1,
+            "etat": "arretee",
+            "id": 13,
+            "modifieLe": "2026-10-02T07:05:00.000Z",
+            "nom": "batch",
+            "type": "compose",
+            "variables": [
+              "CRON"
+            ]
+          }
+        }
+      ],
+      "id": "lire-pile",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "pile": {
+            "description": "Identifiant de la pile.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pile"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "compose": {
+            "description": "Contenu du fichier compose.",
+            "type": "string"
+          },
+          "creeLe": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "environnement": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "etat": {
+            "enum": [
+              "active",
+              "arretee",
+              "inconnu"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "modifieLe": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nom": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "variables": {
+            "description": "Noms des variables d’environnement de la pile (jamais leurs valeurs).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "nom",
+          "etat",
+          "compose"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "compose"
+            ]
+          },
+          "input": {
+            "pile": 12
+          },
+          "name": "Lit une pile",
+          "target": {
+            "field": "pile",
+            "label": "Pile à lire (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "portainer"
+        ]
+      }
+    },
+    {
+      "description": "Démarre une pile arrêtée.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "pile": 13
+          },
+          "name": "Batch démarré",
+          "output": {
+            "creeLe": "2026-09-14T09:12:00.000Z",
+            "environnement": 1,
+            "etat": "active",
+            "id": 13,
+            "modifieLe": "2026-10-02T07:05:00.000Z",
+            "nom": "batch",
+            "type": "compose",
+            "variables": [
+              "CRON"
+            ]
+          }
+        },
+        {
+          "input": {
+            "pile": 12
+          },
+          "name": "Portail démarré",
+          "output": {
+            "creeLe": "2026-09-14T09:12:00.000Z",
+            "environnement": 1,
+            "etat": "active",
+            "id": 12,
+            "modifieLe": "2026-11-18T16:40:00.000Z",
+            "nom": "portail",
+            "type": "compose",
+            "variables": [
+              "DB_HOST",
+              "DB_PASSWORD",
+              "TAG"
+            ]
+          }
+        }
+      ],
+      "id": "demarrer-pile",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "pile": {
+            "description": "Identifiant de la pile.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pile"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "creeLe": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "environnement": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "etat": {
+            "enum": [
+              "active",
+              "arretee",
+              "inconnu"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "modifieLe": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nom": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "variables": {
+            "description": "Noms des variables d’environnement de la pile (jamais leurs valeurs).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "nom",
+          "etat"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "etat": "active"
+            }
+          },
+          "input": {},
+          "name": "Démarre la pile de test",
+          "target": {
+            "field": "pile",
+            "label": "Pile de test (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "portainer"
+        ]
+      }
+    },
+    {
+      "description": "Arrête une pile : ses conteneurs s’arrêtent, sa définition est gardée.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "pile": 12
+          },
+          "name": "Portail arrêté",
+          "output": {
+            "creeLe": "2026-09-14T09:12:00.000Z",
+            "environnement": 1,
+            "etat": "arretee",
+            "id": 12,
+            "modifieLe": "2026-11-18T16:40:00.000Z",
+            "nom": "portail",
+            "type": "compose",
+            "variables": [
+              "DB_HOST",
+              "DB_PASSWORD",
+              "TAG"
+            ]
+          }
+        },
+        {
+          "input": {
+            "pile": 13
+          },
+          "name": "Batch déjà arrêté",
+          "output": {
+            "creeLe": "2026-09-14T09:12:00.000Z",
+            "environnement": 1,
+            "etat": "arretee",
+            "id": 13,
+            "modifieLe": "2026-10-02T07:05:00.000Z",
+            "nom": "batch",
+            "type": "compose",
+            "variables": [
+              "CRON"
+            ]
+          }
+        }
+      ],
+      "id": "arreter-pile",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "pile": {
+            "description": "Identifiant de la pile.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pile"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "creeLe": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "environnement": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "etat": {
+            "enum": [
+              "active",
+              "arretee",
+              "inconnu"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "modifieLe": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nom": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "variables": {
+            "description": "Noms des variables d’environnement de la pile (jamais leurs valeurs).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "nom",
+          "etat"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "etat": "arretee"
+            }
+          },
+          "input": {},
+          "name": "Arrête la pile de test",
+          "target": {
+            "field": "pile",
+            "label": "Pile de test (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "portainer"
+        ]
+      }
+    },
+    {
+      "description": "Conteneurs de l’environnement Portainer du compte, arrêtés compris ; `pile` ne garde que ceux d’une pile compose.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Trois conteneurs",
+          "output": {
+            "conteneurs": [
+              {
+                "creeLe": "2026-11-18T16:41:00.000Z",
+                "etat": "exited",
+                "id": "6b4c1e3a9d5f7b82c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f6a7b8c9d0",
+                "image": "registre.exemple.fr/atom/batch:1.2.0",
+                "nom": "batch-1",
+                "pile": "batch",
+                "service": "batch",
+                "statut": "Exited (0) 3 hours ago"
+              },
+              {
+                "creeLe": "2026-11-18T16:41:00.000Z",
+                "etat": "running",
+                "id": "5a3b0d2f8c4e6a71b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f6a7b8c9",
+                "image": "registre.exemple.fr/atom/portail-api:2.4.1",
+                "nom": "portail-api-1",
+                "pile": "portail",
+                "service": "api",
+                "statut": "Up 2 days"
+              },
+              {
+                "creeLe": "2026-11-18T16:41:00.000Z",
+                "etat": "running",
+                "id": "4f2a9c1e7b3d5f60a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f6a7b8",
+                "image": "registre.exemple.fr/atom/portail-web:2.4.1",
+                "nom": "portail-web-1",
+                "pile": "portail",
+                "service": "web",
+                "statut": "Up 2 days"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "pile": "portail"
+          },
+          "name": "Conteneurs du portail",
+          "output": {
+            "conteneurs": [
+              {
+                "creeLe": "2026-11-18T16:41:00.000Z",
+                "etat": "running",
+                "id": "5a3b0d2f8c4e6a71b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f6a7b8c9",
+                "image": "registre.exemple.fr/atom/portail-api:2.4.1",
+                "nom": "portail-api-1",
+                "pile": "portail",
+                "service": "api",
+                "statut": "Up 2 days"
+              },
+              {
+                "creeLe": "2026-11-18T16:41:00.000Z",
+                "etat": "running",
+                "id": "4f2a9c1e7b3d5f60a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f6a7b8",
+                "image": "registre.exemple.fr/atom/portail-web:2.4.1",
+                "nom": "portail-web-1",
+                "pile": "portail",
+                "service": "web",
+                "statut": "Up 2 days"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "pile": "vide"
+          },
+          "name": "Pile sans conteneur",
+          "output": {
+            "conteneurs": []
+          }
+        }
+      ],
+      "id": "lister-conteneurs",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "pile": {
+            "description": "Nom de la pile (projet compose).",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "conteneurs": {
+            "items": {
+              "properties": {
+                "creeLe": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "etat": {
+                  "description": "running, exited, restarting…",
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "image": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                },
+                "pile": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "service": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "statut": {
+                  "type": "string"
+                },
+                "url": {
+                  "description": "Adresse de l’application servie (étiquette atom.url ou règle Traefik Host), sinon null.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "nom",
+                "etat"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "conteneurs"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "conteneurs"
+            ]
+          },
+          "input": {},
+          "name": "Liste les conteneurs"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "portainer"
+        ]
+      }
+    },
+    {
+      "description": "Redémarre un conteneur.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "conteneur": "portail-web-1"
+          },
+          "name": "Web redémarré",
+          "output": {
+            "conteneur": "portail-web-1",
+            "redemarre": true
+          }
+        },
+        {
+          "input": {
+            "conteneur": "portail-api-1"
+          },
+          "name": "API redémarrée",
+          "output": {
+            "conteneur": "portail-api-1",
+            "redemarre": true
+          }
+        }
+      ],
+      "id": "redemarrer-conteneur",
+      "input": {
+        "properties": {
+          "conteneur": {
+            "description": "Identifiant ou nom du conteneur.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conteneur"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "conteneur": {
+            "type": "string"
+          },
+          "redemarre": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "conteneur",
+          "redemarre"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "redemarre": true
+            }
+          },
+          "input": {},
+          "name": "Redémarre le conteneur de test",
+          "target": {
+            "field": "conteneur",
+            "label": "Conteneur de test (nom)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "portainer"
+        ]
+      }
+    },
+    {
+      "description": "Dernières lignes du journal d’un conteneur (200 par défaut, 5 000 au plus), sortie standard et sortie d’erreur.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "conteneur": "portail-web-1"
+          },
+          "name": "Démarrage du web",
+          "output": {
+            "conteneur": "portail-web-1",
+            "lignes": [
+              {
+                "flux": "stdout",
+                "texte": "2026-11-20T08:00:01Z INFO Démarrage du portail 2.4.1"
+              },
+              {
+                "flux": "stdout",
+                "texte": "2026-11-20T08:00:02Z INFO Écoute sur le port 8080"
+              },
+              {
+                "flux": "stderr",
+                "texte": "2026-11-20T08:03:17Z WARN Délai dépassé vers api:9000, nouvel essai"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "conteneur": "batch-1"
+          },
+          "name": "Journal vide",
+          "output": {
+            "conteneur": "batch-1",
+            "lignes": []
+          }
+        }
+      ],
+      "id": "lire-journal",
+      "input": {
+        "properties": {
+          "conteneur": {
+            "description": "Identifiant ou nom du conteneur.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "lignes": {
+            "description": "Nombre de lignes.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "conteneur"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "conteneur": {
+            "type": "string"
+          },
+          "lignes": {
+            "items": {
+              "properties": {
+                "flux": {
+                  "enum": [
+                    "stdout",
+                    "stderr"
+                  ],
+                  "type": "string"
+                },
+                "texte": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "texte",
+                "flux"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "conteneur",
+          "lignes"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "lignes"
+            ]
+          },
+          "input": {
+            "conteneur": "portail-web-1",
+            "lignes": 20
+          },
+          "name": "Lit le journal d’un conteneur",
+          "target": {
+            "field": "conteneur",
+            "label": "Conteneur à lire (nom)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "portainer"
+        ]
+      }
+    },
+    {
+      "description": "Ouvre le journal en direct d’un conteneur et rend le canal que la page lit avec useChannel et LogViewer. Sans service (données d’exemple), `canal` vaut null.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "conteneur": "portail-web-1"
+          },
+          "name": "Journal du web (exemple, sans direct)",
+          "output": {
+            "canal": null
+          }
+        },
+        {
+          "input": {
+            "conteneur": "portail-api-1"
+          },
+          "name": "Journal de l’API (exemple, sans direct)",
+          "output": {
+            "canal": null
+          }
+        }
+      ],
+      "id": "suivre-journal",
+      "input": {
+        "properties": {
+          "conteneur": {
+            "description": "Identifiant ou nom du conteneur.",
+            "type": "string"
+          },
+          "horodatage": {
+            "description": "Chaque ligne commence par son heure (docker logs --timestamps).",
+            "type": "boolean"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "lignes": {
+            "description": "Lignes déjà écrites à reprendre (200 par défaut, 10 000 au plus).",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "conteneur"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "canal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "canal"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "canal"
+            ]
+          },
+          "input": {
+            "conteneur": "portail-web-1"
+          },
+          "name": "Ouvre le journal en direct",
+          "target": {
+            "field": "conteneur",
+            "label": "Conteneur à suivre (nom)"
+          }
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "portainer"
+        ]
+      }
+    },
+    {
+      "description": "Ouvre une console interactive (TTY) dans un conteneur, comme `docker exec -it`, et rend son canal (Terminal) et l’identifiant de l’exécution (pour redimensionner). Sans service, `canal` vaut null.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "conteneur": "portail-web-1"
+          },
+          "name": "Console du web (exemple, sans direct)",
+          "output": {
+            "canal": null,
+            "exec": null
+          }
+        },
+        {
+          "input": {
+            "conteneur": "portail-api-1",
+            "shell": "bash"
+          },
+          "name": "Console de l’API (exemple, sans direct)",
+          "output": {
+            "canal": null,
+            "exec": null
+          }
+        }
+      ],
+      "id": "ouvrir-console",
+      "input": {
+        "properties": {
+          "colonnes": {
+            "type": "integer"
+          },
+          "conteneur": {
+            "description": "Identifiant ou nom du conteneur.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "lignes": {
+            "type": "integer"
+          },
+          "shell": {
+            "description": "bash s’il existe dans l’image, sinon sh.",
+            "enum": [
+              "sh",
+              "bash"
+            ],
+            "type": "string"
+          },
+          "utilisateur": {
+            "description": "Utilisateur du conteneur.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conteneur"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "canal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exec": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "canal",
+          "exec"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "canal",
+              "exec"
+            ]
+          },
+          "input": {
+            "shell": "sh"
+          },
+          "name": "Ouvre une console dans le conteneur de test",
+          "target": {
+            "field": "conteneur",
+            "label": "Conteneur de test (nom)"
+          }
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "portainer"
+        ]
+      }
+    },
+    {
+      "description": "Donne à une console ouverte sa nouvelle taille, en colonnes et en lignes.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "colonnes": 160,
+            "exec": "9f8e7d6c5b4a",
+            "lignes": 48
+          },
+          "name": "Console agrandie",
+          "output": {
+            "colonnes": 160,
+            "exec": "9f8e7d6c5b4a",
+            "lignes": 48
+          }
+        },
+        {
+          "input": {
+            "colonnes": 80,
+            "exec": "9f8e7d6c5b4a",
+            "lignes": 24
+          },
+          "name": "Console réduite",
+          "output": {
+            "colonnes": 80,
+            "exec": "9f8e7d6c5b4a",
+            "lignes": 24
+          }
+        }
+      ],
+      "id": "redimensionner-console",
+      "input": {
+        "properties": {
+          "colonnes": {
+            "type": "integer"
+          },
+          "exec": {
+            "description": "Identifiant de l’exécution rendu par ouvrir-console.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "lignes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "exec",
+          "colonnes",
+          "lignes"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "colonnes": {
+            "type": "integer"
+          },
+          "exec": {
+            "type": "string"
+          },
+          "lignes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "exec",
+          "colonnes",
+          "lignes"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "exec"
+            ]
+          },
+          "input": {
+            "colonnes": 100,
+            "lignes": 30
+          },
+          "name": "Redimensionne la console de test",
+          "target": {
+            "field": "exec",
+            "label": "Exécution ouverte (identifiant)"
+          }
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "portainer"
+        ]
+      }
+    }
+  ],
+  "id": "portainer",
+  "name": "Portainer",
+  "setup": {
+    "welcome": "Suivez les piles et les conteneurs de vos Portainer, lisez leurs journaux en direct et ouvrez une console. Il vous faut l’adresse de chaque Portainer, votre identifiant et le numéro de l’environnement Docker."
+  },
+  "version": "0.1.0"
+}
