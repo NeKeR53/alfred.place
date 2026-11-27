@@ -1,0 +1,1222 @@
+{
+  "clients": [
+    {
+      "client": {
+        "headers": {
+          "Accept": "application/json"
+        },
+        "label": "Grafana",
+        "methods": [
+          {
+            "help": "Dans Grafana : Administration, Comptes de service, Ajouter un compte de service (rôle Admin), puis Ajouter un jeton. Copiez-le tout de suite.",
+            "id": "jeton",
+            "label": "Jeton de compte de service",
+            "tokenPage": "{url}/org/serviceaccounts",
+            "type": "bearer",
+            "urlExample": "https://grafana.recette.exemple.fr"
+          },
+          {
+            "help": "Un compte local de Grafana (pas une connexion par SSO), administrateur de l’organisation.",
+            "id": "identifiant",
+            "label": "Identifiant et mot de passe",
+            "type": "basic",
+            "urlExample": "https://grafana.recette.exemple.fr"
+          }
+        ],
+        "testPath": "/api/org"
+      },
+      "help": "Un compte par environnement : l’adresse du Grafana et, de préférence, un jeton de compte de service avec le rôle Admin de l’organisation.",
+      "id": "grafana",
+      "label": "Grafana"
+    }
+  ],
+  "description": "Connecteur Grafana : équipes, comptes et droits sur les dossiers de tableaux de bord, un compte par environnement.",
+  "functions": [
+    {
+      "description": "Comptes Grafana reliés à l’espace (identifiant, nom, compte par défaut), sans adresse ni secret. `probleme` dit pourquoi la liste est vide quand le service n’est pas encore configuré.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Les six comptes, un par environnement",
+          "output": {
+            "comptes": [
+              {
+                "default": true,
+                "id": "dev",
+                "label": "Grafana Développement"
+              },
+              {
+                "default": false,
+                "id": "int",
+                "label": "Grafana Intégration"
+              },
+              {
+                "default": false,
+                "id": "rec",
+                "label": "Grafana Recette"
+              },
+              {
+                "default": false,
+                "id": "val",
+                "label": "Grafana Validation"
+              },
+              {
+                "default": false,
+                "id": "preprod",
+                "label": "Grafana Préproduction"
+              },
+              {
+                "default": false,
+                "id": "prod",
+                "label": "Grafana Production"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "aucun": true
+          },
+          "name": "Aucun compte encore relié",
+          "output": {
+            "comptes": [],
+            "probleme": "Le service Grafana n’a encore aucun compte."
+          }
+        }
+      ],
+      "id": "lister-comptes",
+      "input": {
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "comptes": {
+            "items": {
+              "properties": {
+                "default": {
+                  "type": "boolean"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "default"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "probleme": {
+            "description": "Raison d’une liste vide (service pas encore configuré).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "comptes"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "comptes"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Liste les comptes Grafana"
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "grafana"
+        ]
+      }
+    },
+    {
+      "description": "Équipes de l’organisation Grafana (toutes les pages), avec leur nombre de membres ; `recherche` filtre par nom.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Deux équipes",
+          "output": {
+            "equipes": [
+              {
+                "email": "atom@exemple.fr",
+                "id": 3,
+                "membres": 2,
+                "nom": "ATOM"
+              },
+              {
+                "email": "",
+                "id": 7,
+                "membres": 1,
+                "nom": "Exploitation"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "recherche": "zzz"
+          },
+          "name": "Aucune équipe trouvée",
+          "output": {
+            "equipes": []
+          }
+        }
+      ],
+      "id": "lister-equipes",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "recherche": {
+            "description": "Texte cherché dans le nom.",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "equipes": {
+            "items": {
+              "properties": {
+                "email": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "membres": {
+                  "type": "integer"
+                },
+                "nom": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "nom"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "equipes"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "equipes"
+            ]
+          },
+          "input": {},
+          "name": "Liste les équipes"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "grafana"
+        ]
+      }
+    },
+    {
+      "description": "Crée une équipe dans l’organisation Grafana.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "nom": "Support"
+          },
+          "name": "Équipe créée",
+          "output": {
+            "id": 9,
+            "nom": "Support"
+          }
+        },
+        {
+          "input": {
+            "email": "qualite@exemple.fr",
+            "nom": "Qualité"
+          },
+          "name": "Équipe avec courriel",
+          "output": {
+            "id": 10,
+            "nom": "Qualité"
+          }
+        }
+      ],
+      "id": "creer-equipe",
+      "input": {
+        "properties": {
+          "email": {
+            "description": "Courriel de l’équipe.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "nom": {
+            "description": "Nom de l’équipe.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nom"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "nom": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "nom"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "nom"
+            ]
+          },
+          "input": {},
+          "name": "Crée une équipe de test",
+          "target": {
+            "field": "nom",
+            "label": "Nom de l’équipe de test"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "grafana"
+        ]
+      }
+    },
+    {
+      "description": "Membres d’une équipe Grafana.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "equipe": 3
+          },
+          "name": "Équipe ATOM",
+          "output": {
+            "membres": [
+              {
+                "email": "lea.martin@exemple.fr",
+                "id": 12,
+                "login": "lea.martin",
+                "nom": "Léa Martin",
+                "role": "Editor"
+              },
+              {
+                "email": "hugo.bernard@exemple.fr",
+                "id": 15,
+                "login": "hugo.bernard",
+                "nom": "Hugo Bernard",
+                "role": "Viewer"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "equipe": 7
+          },
+          "name": "Équipe Exploitation",
+          "output": {
+            "membres": [
+              {
+                "email": "hugo.bernard@exemple.fr",
+                "id": 15,
+                "login": "hugo.bernard",
+                "nom": "Hugo Bernard",
+                "role": "Viewer"
+              }
+            ]
+          }
+        }
+      ],
+      "id": "lister-membres-equipe",
+      "input": {
+        "properties": {
+          "equipe": {
+            "description": "Identifiant de l’équipe.",
+            "type": "integer"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "equipe"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "membres": {
+            "items": {
+              "properties": {
+                "email": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "login": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "login"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "membres"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "membres"
+            ]
+          },
+          "input": {
+            "equipe": 3
+          },
+          "name": "Membres d’une équipe",
+          "target": {
+            "field": "equipe",
+            "label": "Équipe à lire (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "grafana"
+        ]
+      }
+    },
+    {
+      "description": "Ajoute un compte Grafana à une équipe ; déjà membre, rien ne change.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "equipe": 7,
+            "utilisateur": 12
+          },
+          "name": "Léa rejoint l’exploitation",
+          "output": {
+            "equipe": 7,
+            "membre": true,
+            "utilisateur": 12
+          }
+        },
+        {
+          "input": {
+            "equipe": 3,
+            "utilisateur": 15
+          },
+          "name": "Hugo déjà membre d’ATOM",
+          "output": {
+            "equipe": 3,
+            "membre": true,
+            "utilisateur": 15
+          }
+        }
+      ],
+      "id": "ajouter-membre-equipe",
+      "input": {
+        "properties": {
+          "equipe": {
+            "description": "Identifiant de l’équipe.",
+            "type": "integer"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "utilisateur": {
+            "description": "Identifiant du compte Grafana.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "equipe",
+          "utilisateur"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "equipe": {
+            "type": "integer"
+          },
+          "membre": {
+            "type": "boolean"
+          },
+          "utilisateur": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "equipe",
+          "utilisateur",
+          "membre"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "membre": true
+            }
+          },
+          "input": {
+            "utilisateur": 1
+          },
+          "name": "Ajoute un compte à l’équipe de test",
+          "target": {
+            "field": "equipe",
+            "label": "Équipe de test (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "grafana"
+        ]
+      }
+    },
+    {
+      "description": "Retire un compte d’une équipe ; une appartenance déjà absente n’est pas une erreur.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "equipe": 7,
+            "utilisateur": 15
+          },
+          "name": "Hugo quitte l’exploitation",
+          "output": {
+            "equipe": 7,
+            "membre": false,
+            "utilisateur": 15
+          }
+        },
+        {
+          "input": {
+            "equipe": 3,
+            "utilisateur": 12
+          },
+          "name": "Léa quitte ATOM",
+          "output": {
+            "equipe": 3,
+            "membre": false,
+            "utilisateur": 12
+          }
+        }
+      ],
+      "id": "retirer-membre-equipe",
+      "input": {
+        "properties": {
+          "equipe": {
+            "description": "Identifiant de l’équipe.",
+            "type": "integer"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "utilisateur": {
+            "description": "Identifiant du compte Grafana.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "equipe",
+          "utilisateur"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "equipe": {
+            "type": "integer"
+          },
+          "membre": {
+            "type": "boolean"
+          },
+          "utilisateur": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "equipe",
+          "utilisateur",
+          "membre"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "membre": false
+            }
+          },
+          "input": {
+            "utilisateur": 1
+          },
+          "name": "Retire un compte de l’équipe de test",
+          "target": {
+            "field": "equipe",
+            "label": "Équipe de test (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "grafana"
+        ]
+      }
+    },
+    {
+      "description": "Comptes de l’organisation Grafana, avec leur rôle ; `recherche` filtre par identifiant, nom ou courriel. Une personne n’y apparaît qu’après sa première connexion à Grafana.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Deux comptes",
+          "output": {
+            "utilisateurs": [
+              {
+                "email": "lea.martin@exemple.fr",
+                "id": 12,
+                "login": "lea.martin",
+                "nom": "Léa Martin",
+                "role": "Editor"
+              },
+              {
+                "email": "hugo.bernard@exemple.fr",
+                "id": 15,
+                "login": "hugo.bernard",
+                "nom": "Hugo Bernard",
+                "role": "Viewer"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "recherche": "lea"
+          },
+          "name": "Recherche de Léa",
+          "output": {
+            "utilisateurs": [
+              {
+                "email": "lea.martin@exemple.fr",
+                "id": 12,
+                "login": "lea.martin",
+                "nom": "Léa Martin",
+                "role": "Editor"
+              }
+            ]
+          }
+        }
+      ],
+      "id": "lister-utilisateurs",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "recherche": {
+            "description": "Texte cherché.",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "utilisateurs": {
+            "items": {
+              "properties": {
+                "email": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "login": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "login"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "utilisateurs"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "utilisateurs"
+            ]
+          },
+          "input": {},
+          "name": "Liste les comptes de l’organisation"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "grafana"
+        ]
+      }
+    },
+    {
+      "description": "Équipes dont un compte Grafana est membre (demande les droits d’administration du serveur).",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "utilisateur": 15
+          },
+          "name": "Hugo dans deux équipes",
+          "output": {
+            "equipes": [
+              {
+                "email": "atom@exemple.fr",
+                "id": 3,
+                "membres": 2,
+                "nom": "ATOM"
+              },
+              {
+                "email": "",
+                "id": 7,
+                "membres": 1,
+                "nom": "Exploitation"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "utilisateur": 12
+          },
+          "name": "Léa dans ATOM",
+          "output": {
+            "equipes": [
+              {
+                "email": "atom@exemple.fr",
+                "id": 3,
+                "membres": 2,
+                "nom": "ATOM"
+              }
+            ]
+          }
+        }
+      ],
+      "id": "lister-equipes-utilisateur",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "utilisateur": {
+            "description": "Identifiant du compte Grafana.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "utilisateur"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "equipes": {
+            "items": {
+              "properties": {
+                "email": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "membres": {
+                  "type": "integer"
+                },
+                "nom": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "nom"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "equipes"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "equipes"
+            ]
+          },
+          "input": {
+            "utilisateur": 15
+          },
+          "name": "Équipes d’un compte",
+          "target": {
+            "field": "utilisateur",
+            "label": "Compte Grafana à lire (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "grafana"
+        ]
+      }
+    },
+    {
+      "description": "Dossiers de tableaux de bord visibles par le compte.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Deux dossiers",
+          "output": {
+            "dossiers": [
+              {
+                "titre": "ATOM",
+                "uid": "atom-tableaux"
+              },
+              {
+                "titre": "Infrastructure",
+                "uid": "infra-socle"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "instance": "dev"
+          },
+          "name": "Aucun dossier",
+          "output": {
+            "dossiers": []
+          }
+        }
+      ],
+      "id": "lister-dossiers",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "dossiers": {
+            "items": {
+              "properties": {
+                "titre": {
+                  "type": "string"
+                },
+                "uid": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "uid",
+                "titre"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "dossiers"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "dossiers"
+            ]
+          },
+          "input": {},
+          "name": "Liste les dossiers"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "grafana"
+        ]
+      }
+    },
+    {
+      "description": "Droits d’un dossier de tableaux de bord : par équipe, par compte ou par rôle de l’organisation.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "dossier": "atom-tableaux"
+          },
+          "name": "Dossier ATOM",
+          "output": {
+            "droits": [
+              {
+                "droit": 2,
+                "equipe": {
+                  "id": 3,
+                  "nom": "ATOM"
+                },
+                "libelle": "Modification",
+                "role": null,
+                "utilisateur": null
+              },
+              {
+                "droit": 1,
+                "equipe": null,
+                "libelle": "Lecture",
+                "role": "Viewer",
+                "utilisateur": null
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "dossier": "infra-socle"
+          },
+          "name": "Dossier sans droit propre",
+          "output": {
+            "droits": []
+          }
+        }
+      ],
+      "id": "lister-droits-dossier",
+      "input": {
+        "properties": {
+          "dossier": {
+            "description": "Identifiant (uid) du dossier.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dossier"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "droits": {
+            "items": {
+              "properties": {
+                "droit": {
+                  "description": "1 lecture, 2 modification, 4 administration.",
+                  "type": "integer"
+                },
+                "equipe": {
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "nom": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "nom"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "libelle": {
+                  "type": "string"
+                },
+                "role": {
+                  "description": "Rôle de l’organisation (Viewer, Editor) quand le droit est donné à un rôle.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "utilisateur": {
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "login": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "login"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "droit",
+                "libelle"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "droits"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "droits"
+            ]
+          },
+          "input": {
+            "dossier": "atom-tableaux"
+          },
+          "name": "Droits d’un dossier",
+          "target": {
+            "field": "dossier",
+            "label": "Dossier à lire (uid)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "grafana"
+        ]
+      }
+    },
+    {
+      "description": "Donne à une équipe un droit sur un dossier (`lecture`, `modification`, `administration`) ou le lui retire (`aucun`) ; les autres droits du dossier sont gardés.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "dossier": "atom-tableaux",
+            "droit": "lecture",
+            "equipe": 7
+          },
+          "name": "Lecture pour l’exploitation",
+          "output": {
+            "dossier": "atom-tableaux",
+            "droit": "lecture",
+            "equipe": 7
+          }
+        },
+        {
+          "input": {
+            "dossier": "infra-socle",
+            "droit": "aucun",
+            "equipe": 3
+          },
+          "name": "Droit retiré",
+          "output": {
+            "dossier": "infra-socle",
+            "droit": "aucun",
+            "equipe": 3
+          }
+        }
+      ],
+      "id": "modifier-droit-equipe",
+      "input": {
+        "properties": {
+          "dossier": {
+            "description": "Identifiant (uid) du dossier.",
+            "type": "string"
+          },
+          "droit": {
+            "enum": [
+              "lecture",
+              "modification",
+              "administration",
+              "aucun"
+            ],
+            "type": "string"
+          },
+          "equipe": {
+            "description": "Identifiant de l’équipe.",
+            "type": "integer"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dossier",
+          "equipe",
+          "droit"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "dossier": {
+            "type": "string"
+          },
+          "droit": {
+            "type": "string"
+          },
+          "equipe": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dossier",
+          "equipe",
+          "droit"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "droit": "lecture"
+            }
+          },
+          "input": {
+            "droit": "lecture",
+            "equipe": 1
+          },
+          "name": "Donne la lecture à une équipe sur le dossier de test",
+          "target": {
+            "field": "dossier",
+            "label": "Dossier de test (uid)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "grafana"
+        ]
+      }
+    }
+  ],
+  "id": "grafana",
+  "name": "Grafana",
+  "setup": {
+    "welcome": "Gérez les équipes de vos Grafana et leurs droits sur les dossiers de tableaux de bord. Il vous faut l’adresse de chaque Grafana et un jeton de compte de service qui administre les équipes."
+  },
+  "version": "0.1.0"
+}
