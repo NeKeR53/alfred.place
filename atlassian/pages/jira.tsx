@@ -1,18 +1,18 @@
 import { Row, Stack, Text } from "@alfred/kit";
-import { ai, db, functions, notifyActionError, shell, useAsync, usePageState } from "@alfred/sdk";
+import { ai, db, functions, notifyActionError, shell, useAsync, usePageContext, usePageState, views } from "@alfred/sdk";
 import { Bookmark, Bot, ChevronLeft, ChevronRight, ExternalLink, Plus, RefreshCw, Shuffle, Trash2 } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
 import {
   Button,
-  Code,
   DetailPage,
-  Dialog,
+  Modal,
   type FormField,
   List,
   Page,
   PageSection,
-  SearchField,
+  SearchInput,
   Select,
+  Tabs,
   Table,
   type TableColumn,
   useOpenForm,
@@ -30,6 +30,7 @@ import {
 } from "../lib/jira";
 import { badge, discret, tonCategorie, tonPriorite } from "../lib/affichage";
 import { ChoixEtat, FicheTicket, lireTransitions, type Transition } from "../lib/fiche-ticket";
+import { useEtat } from "../lib/etat";
 import { useJugements } from "../lib/progressif";
 import { instructionAgent, OUTILS_AGENT, type Regle } from "../lib/regles";
 import { formulaireRegle } from "../lib/regles-ui";
@@ -46,9 +47,8 @@ interface TicketOuvert {
   cle: string;
   titre: string;
   statut: string;
-  categorie: string;
   contexte: string;
-  url?: string | null;
+  url: string | null;
 }
 
 interface LigneTicket extends Ticket {
@@ -64,6 +64,147 @@ type Fenetre =
 const plier = (texte: string) => texte.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLocaleLowerCase("fr");
 
 export default function JiraPage() {
+  const contexte = usePageContext();
+  const vue = contexte?.view;
+  const panneauVisible = contexte ? Boolean(vue) : undefined;
+
+  useEffect(() => {
+    if (panneauVisible !== undefined) void shell.setPanelVisible(panneauVisible);
+  }, [panneauVisible]);
+
+  if (!contexte) return <Page state="loading">{null}</Page>;
+  if (vue && typeof vue.params?.cle === "string") {
+    const ticket = vue.params as unknown as TicketOuvert;
+    return <JiraTicket ouvert={ticket} retour={() => shell.navigate(contexte.reference)} />;
+  }
+  return <JiraListe />;
+}
+
+function JiraTicket({ ouvert, retour }: { ouvert: TicketOuvert; retour: () => Promise<void> }) {
+  const openForm = useOpenForm();
+  const [fenetre, setFenetre] = useState<Fenetre | null>(null);
+
+  const lancer = (ticket: TicketOuvert, consigne: string, titre: string) =>
+    ai.startAgent({
+      title: `${titre} · ${ticket.cle}`,
+      instruction: instructionAgent(consigne, ticket.cle, ticket.compte),
+      context: { cle: ticket.cle, titre: ticket.titre, statut: ticket.statut, contexte: ticket.contexte },
+      functions: OUTILS_AGENT,
+    });
+
+  /** Une consigne écrite pour l’occasion. */
+  const ecrireConsigne = (ticket: TicketOuvert) =>
+    openForm({
+      title: "Lancer une consigne",
+      description: `Je lis ${ticket.cle} et je vous demande votre accord avant chaque changement.`,
+      fields: [
+        {
+          name: "consigne",
+          label: "Consigne",
+          type: "textarea",
+          isRequired: true,
+          placeholder: "Fais le point sur ce ticket, retrouve la pull request liée et passe-la en revue.",
+        },
+      ],
+      submitLabel: "Lancer",
+      onSubmit: async (v) => {
+        await lancer(ticket, String(v.consigne), "Consigne");
+      },
+    });
+
+  /** Lance un agent sur le ticket : une consigne des règles, ou une consigne écrite pour l’occasion. */
+  async function lancerConsigne(ticket: TicketOuvert) {
+    const consignes = await db.query<Regle>(
+      "SELECT * FROM atlassian_regles WHERE action = 'agent' AND consigne <> '' ORDER BY nom",
+    );
+    if (consignes.length === 0) {
+      await ecrireConsigne(ticket);
+      return;
+    }
+    setFenetre({ kind: "consigne", ticket, consignes });
+  }
+
+  const modale =
+    fenetre?.kind === "etat" ? (
+      <ChoixEtat
+        instance={fenetre.ticket.compte || undefined}
+        cle={fenetre.ticket.cle}
+        transitions={fenetre.transitions}
+        onClose={() => setFenetre(null)}
+      />
+    ) : fenetre?.kind === "consigne" ? (
+      <Modal
+        isOpen
+        title="Lancer une consigne"
+        description={`Choisissez une consigne de vos règles, ou écrivez-en une pour ${fenetre.ticket.cle}.`}
+        onOpenChange={(ouverte) => {
+          if (!ouverte) setFenetre(null);
+        }}
+        footer={
+          <>
+            <Button onPress={() => setFenetre(null)}>Annuler</Button>
+            <Button
+              icon={<Plus size={16} />}
+              onPress={() => {
+                const ticket = fenetre.ticket;
+                setFenetre(null);
+                void ecrireConsigne(ticket);
+              }}
+            >
+              Écrire une consigne
+            </Button>
+          </>
+        }
+      >
+        <List
+          label="Consignes"
+          selectionMode="none"
+          items={fenetre.consignes.map((regle) => ({ id: regle.id, title: regle.nom, subtitle: regle.consigne }))}
+          onAction={(id) => {
+            const regle = fenetre.consignes.find((element) => element.id === id);
+            const ticket = fenetre.ticket;
+            setFenetre(null);
+            if (regle) void lancer(ticket, regle.consigne, regle.nom);
+          }}
+        />
+      </Modal>
+    ) : null;
+
+  return (
+    <DetailPage
+      title={`${ouvert.cle} · ${ouvert.titre}`}
+      back={{ label: "Tickets", onPress: retour }}
+      meta={ouvert.contexte ? [ouvert.contexte] : undefined}
+      width="full"
+      actions={[
+        {
+          id: "etat",
+          label: "Changer l’état",
+          icon: <Shuffle size={16} />,
+          primary: true,
+          onPress: async () => {
+            const transitions = await lireTransitions(ouvert.compte || undefined, ouvert.cle);
+            if (transitions) setFenetre({ kind: "etat", ticket: ouvert, transitions });
+          },
+        },
+        { id: "consigne", label: "Lancer une consigne", icon: <Bot size={16} />, onPress: () => lancerConsigne(ouvert) },
+        {
+          id: "jira",
+          label: "Ouvrir dans Jira",
+          icon: <ExternalLink size={16} />,
+          isHidden: !ouvert.url,
+          onPress: () => shell.openExternal(ouvert.url ?? ""),
+        },
+      ]}
+      onActionError={notifyActionError}
+    >
+      <FicheTicket instance={ouvert.compte || undefined} cle={ouvert.cle} />
+      {modale}
+    </DetailPage>
+  );
+}
+
+function JiraListe() {
   // En ouvrant la page, la pastille du menu se remet à jour (sans notification : vous avez la liste sous les yeux).
   useEffect(() => {
     functions.call("relever-jira", { notifier: false }).catch(() => undefined);
@@ -74,37 +215,28 @@ export default function JiraPage() {
   const [vue, setVue] = usePageState<string>("jira.vue", "ouverts");
   const [tri, setTri] = usePageState<string>("jira.tri", "maj");
   const [page, setPage] = usePageState<number>("jira.page", 1);
-  const [selection, setSelection] = usePageState<string | null>("jira.selection", null);
   const [filtreId, setFiltreId] = usePageState<string>("jira.filtre", "");
 
   const openForm = useOpenForm();
-  const [fenetre, setFenetre] = useState<Fenetre | null>(null);
-  const comptes = useAsync(() => functions.call<{ comptes: Compte[] }>("comptes-jira"), []);
+  const comptes = useEtat<{ comptes: Compte[] }>("comptes-jira");
   const listeComptes = comptes.data?.comptes ?? [];
   const compte = listeComptes.find((element) => element.id === compteChoisi)?.id ?? listeComptes[0]?.id ?? "";
   const criteres = analyserRecherche(tags);
 
-  const referentiels = useAsync(
-    () =>
-      compte
-        ? functions.call<Referentiels>("lister-referentiels", { instance: compte })
-        : Promise.resolve({ projets: [], statuts: [], priorites: [], types: [], moi: null } as Referentiels),
-    [compte],
-  );
+  const referentiels = useEtat<Referentiels>("referentiels-jira", compte ? { instance: compte } : null);
 
-  const tickets = useAsync(
-    () =>
-      compte
-        ? functions.call<{ tickets: Ticket[]; total: number }>("lister-tickets", {
-            instance: compte,
-            ...criteres,
-            vue,
-            tri: tri === "criticite" ? "maj" : tri,
-            debut: (page - 1) * TAILLE,
-            limite: TAILLE,
-          })
-        : Promise.resolve({ tickets: [], total: 0 }),
-    [compte, JSON.stringify(criteres), vue, tri, page],
+  const tickets = useEtat<{ tickets: Ticket[]; total: number }>(
+    "tickets",
+    compte
+      ? {
+          instance: compte,
+          ...criteres,
+          vue,
+          tri: tri === "criticite" ? "maj" : tri,
+          debut: (page - 1) * TAILLE,
+          limite: TAILLE,
+        }
+      : null,
   );
 
   const filtres = useAsync(
@@ -118,7 +250,6 @@ export default function JiraPage() {
     [compte],
   );
 
-  const suggestions = construireSuggestions(referentiels.data, tickets.data?.tickets ?? []);
   // Les règles : leur version change à chaque création ou modification, et la colonne est rejugée.
   const versionRegles = useAsync(
     () => db.query<{ n: number; maj: string | null }>("SELECT COUNT(*) AS n, MAX(maj_le) AS maj FROM atlassian_regles WHERE active = 1"),
@@ -163,7 +294,6 @@ export default function JiraPage() {
 
   function changerCompte(nouveau: string) {
     setCompteChoisi(nouveau);
-    setSelection(null);
     setPage(1);
   }
 
@@ -183,81 +313,24 @@ export default function JiraPage() {
     }
   }
 
-  // Le ticket ouvert est retenu avec le reste de la page : en y revenant, on le retrouve tel quel.
-  const [ouvert, setOuvert] = usePageState<TicketOuvert | null>("jira.ouvert", null);
-
-  const lancer = (ticket: TicketOuvert, consigne: string, titre: string) =>
-    ai.startAgent({
-      title: `${titre} · ${ticket.cle}`,
-      instruction: instructionAgent(consigne, ticket.cle, ticket.compte),
-      context: { cle: ticket.cle, titre: ticket.titre, statut: ticket.statut, contexte: ticket.contexte },
-      functions: OUTILS_AGENT,
-    });
-
-  /** Une consigne écrite pour l’occasion. */
-  const ecrireConsigne = (ticket: TicketOuvert) =>
-    openForm({
-      title: "Lancer une consigne",
-      description: `Je lis ${ticket.cle} et je vous demande votre accord avant chaque changement.`,
-      fields: [
-        {
-          name: "consigne",
-          label: "Consigne",
-          type: "textarea",
-          isRequired: true,
-          placeholder: "Fais le point sur ce ticket, retrouve la pull request liée et passe-la en revue.",
-        },
-      ],
-      submitLabel: "Lancer",
-      onSubmit: async (v) => {
-        await lancer(ticket, String(v.consigne), "Consigne");
-      },
-    });
-
-  /** Lance un agent sur le ticket : une consigne des règles, ou une consigne écrite pour l’occasion. */
-  async function lancerConsigne(ticket: TicketOuvert) {
-    const consignes = await db.query<Regle>(
-      "SELECT * FROM atlassian_regles WHERE action = 'agent' AND consigne <> '' ORDER BY nom",
-    );
-    if (consignes.length === 0) {
-      await ecrireConsigne(ticket);
-      return;
-    }
-    setFenetre({ kind: "consigne", ticket, consignes });
-  }
-
-  /** Le ticket s’ouvre à la place de la liste, « Retour » en haut ; ses champs sont dans la colonne Détails. */
-  function afficher(ticket: TicketOuvert) {
-    void shell.publish({ id: `${ticket.compte}|${ticket.cle}` });
-    void shell.setPanelVisible(true);
-  }
-
-  function fermer() {
-    // De retour à la liste, la colonne des détails n’a plus de ticket à montrer.
-    setOuvert(null);
-    void shell.setPanelVisible(false);
-    tickets.reload();
-  }
-
-  function ouvrir(ticket: Ticket) {
-    const suivant: TicketOuvert = {
+  function ouvrir(id: string) {
+    const ticket = lignes.find((ligne) => `${compte}|${ligne.cle}` === id);
+    if (!ticket) return;
+    const projet = ticket.projetNom || ticket.projet;
+    const params: TicketOuvert = {
       compte,
       cle: ticket.cle,
       titre: ticket.titre,
       statut: ticket.statut,
-      categorie: ticket.statutCategorie,
-      contexte: [ticket.type, ticket.projetNom || ticket.projet].filter(Boolean).join(" · "),
+      contexte: [ticket.type, projet].filter(Boolean).join(" · "),
       url: ticket.url,
     };
-    setSelection(`${compte}|${ticket.cle}`);
-    setOuvert(suivant);
-    afficher(suivant);
+    void views.open({
+      id,
+      label: projet ? `${ticket.cle} · ${projet}` : ticket.cle,
+      params,
+    }).catch((error) => notifyActionError({ label: "Ouvrir le ticket" }, error));
   }
-
-  // Au retour sur la page, le ticket qui était ouvert se rouvre.
-  useEffect(() => {
-    if (ouvert && compte) afficher(ouvert);
-  }, [compte]);
 
   function formulaireTicket() {
     const champs: FormField[] = [
@@ -320,92 +393,11 @@ export default function JiraPage() {
     });
   }
 
-  const modale =
-    fenetre?.kind === "etat" ? (
-      <ChoixEtat
-        instance={fenetre.ticket.compte || undefined}
-        cle={fenetre.ticket.cle}
-        transitions={fenetre.transitions}
-        onClose={() => setFenetre(null)}
-      />
-    ) : fenetre?.kind === "consigne" ? (
-      <Dialog
-        isOpen
-        title="Lancer une consigne"
-        description={`Choisissez une consigne de vos règles, ou écrivez-en une pour ${fenetre.ticket.cle}.`}
-        onOpenChange={(ouverte) => {
-          if (!ouverte) setFenetre(null);
-        }}
-        footer={
-          <>
-            <Button onPress={() => setFenetre(null)}>Annuler</Button>
-            <Button
-              icon={<Plus size={16} />}
-              onPress={() => {
-                const ticket = fenetre.ticket;
-                setFenetre(null);
-                void ecrireConsigne(ticket);
-              }}
-            >
-              Écrire une consigne
-            </Button>
-          </>
-        }
-      >
-        <List
-          label="Consignes"
-          selectionMode="none"
-          items={fenetre.consignes.map((regle) => ({ id: regle.id, title: regle.nom, subtitle: regle.consigne }))}
-          onAction={(id) => {
-            const regle = fenetre.consignes.find((element) => element.id === id);
-            const ticket = fenetre.ticket;
-            setFenetre(null);
-            if (regle) void lancer(ticket, regle.consigne, regle.nom);
-          }}
-        />
-      </Dialog>
-    ) : null;
-
-  if (ouvert) {
-    return (
-      <DetailPage
-        title={`${ouvert.cle} · ${ouvert.titre}`}
-        back={{ label: "Tickets", onPress: fermer }}
-        meta={ouvert.contexte ? [ouvert.contexte] : undefined}
-        width="full"
-        actions={[
-          {
-            id: "etat",
-            label: "Changer l’état",
-            icon: <Shuffle size={16} />,
-            primary: true,
-            onPress: async () => {
-              const transitions = await lireTransitions(ouvert.compte || undefined, ouvert.cle);
-              if (transitions) setFenetre({ kind: "etat", ticket: ouvert, transitions });
-            },
-          },
-          { id: "consigne", label: "Lancer une consigne", icon: <Bot size={16} />, onPress: () => lancerConsigne(ouvert) },
-          {
-            id: "jira",
-            label: "Ouvrir dans Jira",
-            icon: <ExternalLink size={16} />,
-            isHidden: !ouvert.url,
-            onPress: () => shell.openExternal(ouvert.url ?? ""),
-          },
-        ]}
-        onActionError={notifyActionError}
-      >
-        <FicheTicket instance={ouvert.compte || undefined} cle={ouvert.cle} />
-        {modale}
-      </DetailPage>
-    );
-  }
-
   if (comptes.loading && !comptes.data) return <Page state="loading">{null}</Page>;
 
   if (comptes.error || listeComptes.length === 0) {
     return (
-      <Page width="text" state={comptes.error ? "error" : "ready"} onRetry={comptes.reload}>
+      <Page state={comptes.error ? "error" : "ready"} onRetry={comptes.reload}>
         <PageSection
           title="Jira"
           empty={{
@@ -421,24 +413,23 @@ export default function JiraPage() {
   }
 
   const colonnes: TableColumn[] = [
-    { id: "cle", label: "Clé", width: 110, sortable: true },
-    { id: "titre", label: "Titre", sortable: true },
-    { id: "statut", label: "État", width: 140, sortable: true },
-    { id: "assigne", label: "Assigné", width: 140, sortable: true },
-    { id: "priorite", label: "Priorité", width: 110, sortable: true },
-    { id: "regles", label: "Règles", width: 170 },
-    { id: "miseAJour", label: "Mis à jour", width: 110, align: "end" },
+    { id: "titre", label: "Ticket", sortable: true },
+    { id: "statut", label: "État", width: 120, sortable: true },
+    { id: "priorite", label: "Priorité", width: 90, sortable: true },
+    { id: "regles", label: "Règles", width: 120 },
   ];
   const cellule = (ligne: LigneTicket, colonne: string) => {
     switch (colonne) {
-      case "cle":
-        return <Code>{ligne.cle}</Code>;
       case "titre":
-        return ligne.titre;
+        // La clé passe sous le titre : le titre garde toute la largeur, même à 1024.
+        return (
+          <Stack gap="xs">
+            <Text as="span">{ligne.titre}</Text>
+            {discret(ligne.cle)}
+          </Stack>
+        );
       case "statut":
         return badge(ligne.statut, tonCategorie(ligne.statutCategorie));
-      case "assigne":
-        return discret(ligne.assigne);
       case "priorite":
         return badge(ligne.priorite, tonPriorite(ligne.priorite));
       case "regles": {
@@ -454,8 +445,6 @@ export default function JiraPage() {
           </Row>
         );
       }
-      case "miseAJour":
-        return discret(ligne.miseAJour);
       default:
         return null;
     }
@@ -464,7 +453,13 @@ export default function JiraPage() {
   const toutesSuggestions = construireSuggestions(referentiels.data, tickets.data?.tickets ?? []);
   const barre = (
     <Row gap="sm">
-      <SearchField
+      <Tabs
+        pageTitle="Jira"
+        items={VUES.map((element) => ({ id: element.value, label: element.label }))}
+        selectedId={vue}
+        onSelectionChange={changerVue}
+      />
+      <SearchInput
         label="les tickets"
         tagMode
         tags={tags.map((tag) => ({ id: tag, label: formaterTag(tag) }))}
@@ -478,18 +473,15 @@ export default function JiraPage() {
             .map((valeur) => ({ id: valeur, label: formaterTag(valeur) }));
         }}
       />
-      <Select
-        label="Vue"
-        hideLabel
-        width="sm"
-        value={vue}
-        options={VUES.map((element) => ({ id: element.value, label: element.label }))}
-        onChange={(id) => id && changerVue(id)}
-      />
+    </Row>
+  );
+
+  const reglages = (
+    <Row gap="sm" wrap>
       <Select
         label="Tri"
         hideLabel
-        width="sm"
+        width="md"
         value={tri}
         options={TRIS.map((element) => ({ id: element.value, label: element.label }))}
         onChange={(id) => id && changerTri(id)}
@@ -598,6 +590,7 @@ export default function JiraPage() {
         </Text>
       }
     >
+      {reglages}
       <PageSection
         title="Tickets"
         state={tickets.error ? "error" : "ready"}
@@ -624,13 +617,8 @@ export default function JiraPage() {
             columns={colonnes}
             rows={lignes.map((ligne) => ({ ...ligne, id: `${compte}|${ligne.cle}` }))}
             renderCell={cellule}
-            selectionMode="single"
-            selectedKeys={selection ? [selection] : []}
-            onSelectionChange={(cles) => {
-              const id = String([...cles][0] ?? "");
-              const ligne = lignes.find((element) => `${compte}|${element.cle}` === id);
-              if (ligne) ouvrir(ligne);
-            }}
+            selectionMode="none"
+            onAction={ouvrir}
             isLoading={tickets.loading}
           />
         </Stack>

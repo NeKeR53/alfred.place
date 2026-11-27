@@ -1,19 +1,19 @@
-import { functions, useAsync } from "@alfred/sdk";
 import { RefreshCw } from "lucide-react";
+import { useState } from "react";
 import { Page, PageSection } from "socle-ui";
+import { useEtat } from "../lib/etat";
 import { useJugements } from "../lib/progressif";
-import { ListePrs, ouvrirDansDepot, type Pr, useCompteBitbucket } from "../lib/bitbucket-commun";
+import { ListePrs, type Pr, useCompteBitbucket } from "../lib/bitbucket-commun";
+import { PullRequestModale } from "../lib/pull-request-modale";
 
 /** Onglet « À traiter » : les pull requests où l’on vous demande une revue, tous dépôts confondus. */
 export default function ATraiterBitbucket() {
   const { compte, attente, selecteur } = useCompteBitbucket();
+  const [prOuverte, setPrOuverte] = useState<Pr | null>(null);
 
-  const prs = useAsync(
-    () =>
-      compte
-        ? functions.call<{ prs: Pr[] }>("lister-prs", { instance: compte, etat: "OPEN", role: "INCOMING", limite: 50 })
-        : Promise.resolve({ prs: [] as Pr[] }),
-    [compte],
+  const prs = useEtat<{ prs: Pr[] }>(
+    "pull-requests",
+    compte ? { instance: compte, etat: "OPEN", role: "INCOMING", limite: 50 } : null,
   );
   const liste = prs.data?.prs ?? [];
 
@@ -48,16 +48,18 @@ export default function ATraiterBitbucket() {
           prs={liste}
           risques={risques.resultats}
           avecDepot
-          onOuvrir={(pr) =>
-            void ouvrirDansDepot({
-              instance: compte,
-              depot: `${pr.projet}/${pr.depot}`,
-              pr: `${pr.projet}/${pr.depot}/${pr.id}`,
-              origine: "a-traiter",
-            })
-          }
+          onOuvrir={setPrOuverte}
         />
       </PageSection>
+      {prOuverte ? (
+        <PullRequestModale
+          instance={compte}
+          cible={prOuverte}
+          risque={risques.resultats.get(`${prOuverte.projet}/${prOuverte.depot}/${prOuverte.id}`)}
+          onClose={() => setPrOuverte(null)}
+          onChange={prs.reload}
+        />
+      ) : null}
     </Page>
   );
 }

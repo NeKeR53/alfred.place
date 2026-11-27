@@ -32,6 +32,17 @@ export interface ChampTicket {
   options: Option[];
 }
 
+export function estChoixDirect(champ: ChampTicket): boolean {
+  return champ.modifiable && (
+    champ.editeur === "choix" ||
+    champ.editeur === "choixMultiple" ||
+    champ.editeur === "personne" ||
+    champ.editeur === "personnes" ||
+    champ.editeur === "etiquettes" ||
+    champ.editeur === "sprint"
+  );
+}
+
 export interface SchemaJira {
   type?: string;
   items?: string;

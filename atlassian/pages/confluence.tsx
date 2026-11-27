@@ -6,20 +6,21 @@ import {
   type Action,
   Button,
   DetailPage,
-  Dialog,
+  Modal,
   HtmlContent,
   Link,
   List,
   Page,
   PageSection,
-  RadioGroup,
-  SearchField,
+  RadioButtonGroup,
+  SearchInput,
   Select,
-  StatusBadge,
+  Badge,
   useOpenForm,
 } from "socle-ui";
 import { Markdown } from "socle-ui/markdown";
 import { quand } from "../lib/affichage";
+import { useEtat } from "../lib/etat";
 import { questionnerPage, resumerPage } from "../lib/assistant";
 import { texteBrut } from "../lib/ia";
 
@@ -115,17 +116,11 @@ export default function ConfluencePage() {
   const [espace, setEspace] = usePageState<string>("confluence.espace", "");
   const [pageId, setPageId] = usePageState<string>("confluence.page", "");
 
-  const comptes = useAsync(() => functions.call<{ comptes: Compte[] }>("comptes-confluence"), []);
+  const comptes = useEtat<{ comptes: Compte[] }>("comptes-confluence");
   const listeComptes = comptes.data?.comptes ?? [];
   const compte = listeComptes.find((element) => element.id === compteChoisi)?.id ?? listeComptes[0]?.id ?? "";
 
-  const espaces = useAsync(
-    () =>
-      compte
-        ? functions.call<{ espaces: Espace[] }>("lister-espaces", { instance: compte })
-        : Promise.resolve({ espaces: [] as Espace[] }),
-    [compte],
-  );
+  const espaces = useEtat<{ espaces: Espace[] }>("espaces", compte ? { instance: compte } : null);
 
   const favoris = useAsync(
     () =>
@@ -139,34 +134,24 @@ export default function ConfluencePage() {
   );
 
   // Recherche, ou pages récentes de l’accueil.
-  const pages = useAsync(
-    () =>
-      compte && !pageId && (recherche || !espace)
-        ? functions.call<{ pages: PageListe[] }>("rechercher-pages", {
-            instance: compte,
-            texte: recherche || undefined,
-            espace: recherche && espace ? espace : undefined,
-            limite: recherche ? 50 : 12,
-          })
-        : Promise.resolve({ pages: [] as PageListe[] }),
-    [compte, recherche, espace, pageId],
+  const pages = useEtat<{ pages: PageListe[] }>(
+    "recherche-pages",
+    compte && !pageId && (recherche || !espace)
+      ? {
+          instance: compte,
+          texte: recherche || undefined,
+          espace: recherche && espace ? espace : undefined,
+          limite: recherche ? 50 : 12,
+        }
+      : null,
   );
 
-  const detailEspace = useAsync(
-    () =>
-      compte && espace && !pageId && !recherche
-        ? functions.call<DetailEspace>("lister-pages-espace", { instance: compte, espace })
-        : Promise.resolve({ espace: null, pages: [] } as DetailEspace),
-    [compte, espace, pageId, recherche],
+  const detailEspace = useEtat<DetailEspace>(
+    "espace",
+    compte && espace && !pageId && !recherche ? { instance: compte, espace } : null,
   );
 
-  const page = useAsync(
-    () =>
-      compte && pageId
-        ? functions.call<{ page: PageComplete | null }>("lire-page", { instance: compte, id: pageId })
-        : Promise.resolve({ page: null as PageComplete | null }),
-    [compte, pageId],
-  );
+  const page = useEtat<{ page: PageComplete | null }>("page-confluence", compte && pageId ? { instance: compte, id: pageId } : null);
   const pageComplete = page.data?.page ?? null;
   const estFavorite = pageId ? (favoris.data ?? []).some((favori) => favori.cle === pageId) : false;
 
@@ -300,7 +285,7 @@ export default function ConfluencePage() {
   }
 
   const modale = fenetre ? (
-    <Dialog
+    <Modal
       isOpen
       size="lg"
       title={fenetre.titre}
@@ -313,14 +298,14 @@ export default function ConfluencePage() {
         {fenetre.note ? <Notice tone="info">{fenetre.note}</Notice> : null}
         <Markdown>{fenetre.texte}</Markdown>
       </Stack>
-    </Dialog>
+    </Modal>
   ) : null;
 
   if (comptes.loading && !comptes.data) return <Page state="loading">{null}</Page>;
 
   if (comptes.error || listeComptes.length === 0) {
     return (
-      <Page width="text" state={comptes.error ? "error" : "ready"} onRetry={comptes.reload}>
+      <Page state={comptes.error ? "error" : "ready"} onRetry={comptes.reload}>
         <PageSection
           title="Confluence"
           empty={{
@@ -444,9 +429,9 @@ export default function ConfluencePage() {
                 {pageComplete.etiquettes.length > 0 ? (
                   <Row gap="xs" wrap>
                     {pageComplete.etiquettes.map((etiquette) => (
-                      <StatusBadge key={etiquette} tone="neutral">
+                      <Badge key={etiquette} tone="neutral">
                         {etiquette}
-                      </StatusBadge>
+                      </Badge>
                     ))}
                   </Row>
                 ) : null}
@@ -498,15 +483,15 @@ export default function ConfluencePage() {
 
   const listeEspaces = espaces.data?.espaces ?? [];
   const barre = (
-    <Row gap="sm">
-      <SearchField
+    <Row gap="sm" wrap>
+      <SearchInput
         label={espace ? "cet espace" : "les pages Confluence"}
         onChange={({ text }) => setRecherche(text.trim())}
       />
-      <RadioGroup label="Type de recherche" hideLabel orientation="horizontal" value={mode} onChange={setMode}>
-        <RadioGroup.Option value="mots">Par les mots</RadioGroup.Option>
-        <RadioGroup.Option value="sens">Par le sens</RadioGroup.Option>
-      </RadioGroup>
+      <RadioButtonGroup label="Type de recherche" hideLabel orientation="horizontal" value={mode} onChange={setMode}>
+        <RadioButtonGroup.Option value="mots">Par les mots</RadioButtonGroup.Option>
+        <RadioButtonGroup.Option value="sens">Par le sens</RadioButtonGroup.Option>
+      </RadioButtonGroup>
       <Select
         label="Espace"
         hideLabel

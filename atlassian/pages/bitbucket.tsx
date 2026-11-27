@@ -2,10 +2,12 @@ import { Row } from "@alfred/kit";
 import { db, functions, useAsync, usePageState } from "@alfred/sdk";
 import { RefreshCw } from "lucide-react";
 import { useEffect } from "react";
-import { Page, PageSection, SearchField } from "socle-ui";
-import { type Depot, ListeDepots, ouvrirDansDepot, useCompteBitbucket } from "../lib/bitbucket-commun";
+import { Page, PageSection } from "socle-ui";
+import { type Depot, ListeDepots, ouvrirDepot, useCompteBitbucket } from "../lib/bitbucket-commun";
+import { useEtat } from "../lib/etat";
+import { RechercheRetenue } from "../lib/recherche-retenue";
 
-/** Onglet « Dépôts » : tous les dépôts du compte. Un clic ouvre le dépôt dans l’onglet « Dépôt ouvert ». */
+/** Onglet « Dépôts » : tous les dépôts du compte. Un clic ouvre un onglet pour le dépôt. */
 export default function DepotsBitbucket() {
   // En ouvrant la page, la pastille du menu se remet à jour (sans notification : vous avez la liste sous les yeux).
   useEffect(() => {
@@ -15,16 +17,9 @@ export default function DepotsBitbucket() {
   const { compte, attente, selecteur } = useCompteBitbucket();
   const [recherche, setRecherche] = usePageState<string>("bitbucket.recherche", "");
 
-  const depots = useAsync(
-    () =>
-      compte
-        ? functions.call<{ depots: Depot[] }>("lister-depots", {
-            instance: compte,
-            recherche: recherche.trim() || undefined,
-            limite: 100,
-          })
-        : Promise.resolve({ depots: [] as Depot[] }),
-    [compte, recherche],
+  const depots = useEtat<{ depots: Depot[] }>(
+    "depots",
+    compte ? { instance: compte, recherche: recherche.trim() || undefined, limite: 100 } : null,
   );
   const favoris = useAsync(
     () =>
@@ -43,7 +38,7 @@ export default function DepotsBitbucket() {
     <Page
       toolbar={
         <Row gap="sm">
-          <SearchField label="les dépôts" onChange={({ text }) => setRecherche(text)} />
+          <RechercheRetenue label="les dépôts" recherche={recherche} onChange={setRecherche} />
           {selecteur}
         </Row>
       }
@@ -72,7 +67,7 @@ export default function DepotsBitbucket() {
         <ListeDepots
           depots={liste}
           favoris={clesFavorites}
-          onOuvrir={(cle) => void ouvrirDansDepot({ instance: compte, depot: cle, origine: "bitbucket" })}
+          onOuvrir={(depot) => ouvrirDepot(compte, depot)}
         />
       </PageSection>
     </Page>

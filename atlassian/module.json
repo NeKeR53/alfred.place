@@ -151,6 +151,7 @@
         ],
         "type": "object"
       },
+      "state": "comptes-jira",
       "tests": [
         {
           "expect": {
@@ -286,6 +287,7 @@
         ],
         "type": "object"
       },
+      "state": "referentiels-jira",
       "tests": [
         {
           "expect": {
@@ -667,6 +669,7 @@
         ],
         "type": "object"
       },
+      "state": "tickets",
       "tests": [
         {
           "expect": {
@@ -766,6 +769,7 @@
         ],
         "type": "object"
       },
+      "state": "assignables",
       "tests": [
         {
           "expect": {
@@ -1127,6 +1131,7 @@
         ],
         "type": "object"
       },
+      "state": "comptes-bitbucket",
       "tests": [
         {
           "expect": {
@@ -1352,6 +1357,7 @@
         ],
         "type": "object"
       },
+      "state": "depot",
       "tests": [
         {
           "expect": {
@@ -4327,6 +4333,7 @@
         ],
         "type": "object"
       },
+      "state": "ticket",
       "tests": [
         {
           "expect": {
@@ -4657,6 +4664,7 @@
         ],
         "type": "object"
       },
+      "state": "depots",
       "tests": [
         {
           "expect": {
@@ -5012,6 +5020,7 @@
         ],
         "type": "object"
       },
+      "state": "fichiers-depot",
       "tests": [
         {
           "expect": {
@@ -5129,6 +5138,7 @@
         ],
         "type": "object"
       },
+      "state": "fichier-depot",
       "tests": [
         {
           "expect": {
@@ -5497,6 +5507,7 @@
         ],
         "type": "object"
       },
+      "state": "pull-requests",
       "tests": [
         {
           "expect": {
@@ -5832,6 +5843,7 @@
         ],
         "type": "object"
       },
+      "state": "pull-request",
       "tests": [
         {
           "expect": {
@@ -6190,6 +6202,7 @@
         ],
         "type": "object"
       },
+      "state": "comptes-confluence",
       "tests": [
         {
           "expect": {
@@ -6272,6 +6285,7 @@
         ],
         "type": "object"
       },
+      "state": "espaces",
       "tests": [
         {
           "expect": {
@@ -6532,6 +6546,7 @@
         ],
         "type": "object"
       },
+      "state": "recherche-pages",
       "tests": [
         {
           "expect": {
@@ -6851,6 +6866,7 @@
         ],
         "type": "object"
       },
+      "state": "page-confluence",
       "tests": [
         {
           "expect": {
@@ -7053,6 +7069,7 @@
         ],
         "type": "object"
       },
+      "state": "types-liens",
       "tests": [
         {
           "expect": {
@@ -7627,6 +7644,7 @@
         ],
         "type": "object"
       },
+      "state": "sprints",
       "tests": [
         {
           "expect": {
@@ -7784,6 +7802,7 @@
         ],
         "type": "object"
       },
+      "state": "commits",
       "tests": [
         {
           "expect": {
@@ -7891,6 +7910,7 @@
         ],
         "type": "object"
       },
+      "state": "changements-pr",
       "tests": [
         {
           "expect": {
@@ -8016,6 +8036,7 @@
         ],
         "type": "object"
       },
+      "state": "diff-pr",
       "tests": [
         {
           "expect": {
@@ -8290,6 +8311,7 @@
         ],
         "type": "object"
       },
+      "state": "espace",
       "tests": [
         {
           "expect": {
@@ -8407,6 +8429,7 @@
         ],
         "type": "object"
       },
+      "state": "recherche-fichiers",
       "tests": [
         {
           "expect": {
@@ -8504,6 +8527,7 @@
         ],
         "type": "object"
       },
+      "state": "services-support",
       "tests": [
         {
           "expect": {
@@ -8630,6 +8654,7 @@
         ],
         "type": "object"
       },
+      "state": "files-support",
       "tests": [
         {
           "expect": {
@@ -8967,6 +8992,7 @@
         ],
         "type": "object"
       },
+      "state": "demandes",
       "tests": [
         {
           "expect": {
@@ -9344,6 +9370,7 @@
         ],
         "type": "object"
       },
+      "state": "demande",
       "tests": [
         {
           "expect": {
@@ -9663,6 +9690,7 @@
         ],
         "type": "object"
       },
+      "state": "demandes-ouvertes",
       "tests": [
         {
           "expect": {
@@ -9730,6 +9758,7 @@
         ],
         "type": "object"
       },
+      "state": "notifications-confluence",
       "tests": [
         {
           "expect": {
@@ -10611,6 +10640,7 @@
         ],
         "type": "object"
       },
+      "state": "tickets-projet",
       "tests": [
         {
           "expect": {
@@ -10674,6 +10704,7 @@
         ],
         "type": "object"
       },
+      "state": "suivi-temps",
       "tests": [
         {
           "expect": {
@@ -11182,5 +11213,601 @@
   "setup": {
     "welcome": "Retrouvez ici vos tickets Jira, vos dépôts Bitbucket et vos pages Confluence. Il vous faut l’adresse de chaque instance et un jeton personnel (ou votre identifiant et votre mot de passe). Les trois services se configurent séparément : vous pouvez n’en brancher qu’un."
   },
-  "version": "1.0.1"
+  "states": [
+    {
+      "description": "Les comptes Jira reliés à l’espace (nom et identifiant, sans adresse ni secret).",
+      "id": "comptes-jira",
+      "schema": null
+    },
+    {
+      "description": "Un ticket Jira lu en entier : champs, description, transitions, commentaires, liens et temps passé.",
+      "id": "ticket",
+      "params": [
+        {
+          "description": "Compte Jira ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Clé du ticket, par exemple ALF-12",
+          "id": "cle"
+        }
+      ],
+      "schema": null
+    },
+    {
+      "description": "Liste les projets, statuts, priorités et types d’un compte Jira, pour les filtres et les formulaires.",
+      "id": "referentiels-jira",
+      "params": [
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        }
+      ]
+    },
+    {
+      "description": "Liste les tickets d’un compte Jira avec une recherche structurée : texte, projet, statuts, assignés, priorités, types, étiquettes, vue et tri.",
+      "id": "tickets",
+      "params": [
+        {
+          "description": "Personnes assignées",
+          "id": "assignes"
+        },
+        {
+          "description": "Position du premier élément rendu",
+          "id": "debut"
+        },
+        {
+          "description": "Étiquettes",
+          "id": "etiquettes"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Nombre d’éléments rendus au plus",
+          "id": "limite"
+        },
+        {
+          "description": "Priorités",
+          "id": "priorites"
+        },
+        {
+          "description": "Projet (clé)",
+          "id": "projet"
+        },
+        {
+          "description": "Statuts",
+          "id": "statuts"
+        },
+        {
+          "description": "Mots cherchés",
+          "id": "texte"
+        },
+        {
+          "description": "Tri",
+          "id": "tri"
+        },
+        {
+          "description": "Types",
+          "id": "types"
+        },
+        {
+          "description": "Vue",
+          "id": "vue"
+        }
+      ]
+    },
+    {
+      "description": "Liste les personnes à qui l’on peut assigner un ticket d’un projet Jira.",
+      "id": "assignables",
+      "params": [
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Projet (clé)",
+          "id": "projet"
+        },
+        {
+          "description": "Mots cherchés",
+          "id": "recherche"
+        }
+      ]
+    },
+    {
+      "description": "Liste les comptes Bitbucket reliés à l’espace (nom et identifiant, sans adresse ni secret).",
+      "id": "comptes-bitbucket"
+    },
+    {
+      "description": "Lit un dépôt Bitbucket : ses informations, sa branche par défaut et ses branches.",
+      "id": "depot",
+      "params": [
+        {
+          "description": "Dépôt (slug)",
+          "id": "depot"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Projet (clé)",
+          "id": "projet"
+        }
+      ]
+    },
+    {
+      "description": "Liste les dépôts Bitbucket auxquels l’utilisateur a accès, filtrables par nom.",
+      "id": "depots",
+      "params": [
+        {
+          "description": "Position du premier élément rendu",
+          "id": "debut"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Nombre d’éléments rendus au plus",
+          "id": "limite"
+        },
+        {
+          "description": "Mots cherchés",
+          "id": "recherche"
+        }
+      ]
+    },
+    {
+      "description": "Liste les fichiers et dossiers d’un dépôt Bitbucket, à une branche donnée.",
+      "id": "fichiers-depot",
+      "params": [
+        {
+          "description": "Branche ; omise, la branche par défaut",
+          "id": "branche"
+        },
+        {
+          "description": "Chemin dans le dépôt",
+          "id": "chemin"
+        },
+        {
+          "description": "Dépôt (slug)",
+          "id": "depot"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Projet (clé)",
+          "id": "projet"
+        }
+      ]
+    },
+    {
+      "description": "Lit le texte d’un fichier d’un dépôt Bitbucket, à une branche donnée.",
+      "id": "fichier-depot",
+      "params": [
+        {
+          "description": "Branche ; omise, la branche par défaut",
+          "id": "branche"
+        },
+        {
+          "description": "Chemin dans le dépôt",
+          "id": "chemin"
+        },
+        {
+          "description": "Dépôt (slug)",
+          "id": "depot"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Projet (clé)",
+          "id": "projet"
+        }
+      ]
+    },
+    {
+      "description": "Liste les pull requests d’un dépôt Bitbucket, ou celles qui attendent l’utilisateur.",
+      "id": "pull-requests",
+      "params": [
+        {
+          "description": "Position du premier élément rendu",
+          "id": "debut"
+        },
+        {
+          "description": "Dépôt (slug)",
+          "id": "depot"
+        },
+        {
+          "description": "État des pull requests",
+          "id": "etat"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Nombre d’éléments rendus au plus",
+          "id": "limite"
+        },
+        {
+          "description": "Projet (clé)",
+          "id": "projet"
+        },
+        {
+          "description": "Rôle de l’utilisateur",
+          "id": "role"
+        }
+      ]
+    },
+    {
+      "description": "Lit une pull request Bitbucket en détail : description, évaluateurs, commentaires et commits.",
+      "id": "pull-request",
+      "params": [
+        {
+          "description": "Dépôt (slug)",
+          "id": "depot"
+        },
+        {
+          "description": "Identifiant",
+          "id": "id"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Projet (clé)",
+          "id": "projet"
+        }
+      ]
+    },
+    {
+      "description": "Liste les comptes Confluence reliés à l’espace (nom et identifiant, sans adresse ni secret).",
+      "id": "comptes-confluence"
+    },
+    {
+      "description": "Liste les espaces Confluence visibles par l’utilisateur.",
+      "id": "espaces",
+      "params": [
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        }
+      ]
+    },
+    {
+      "description": "Recherche des pages Confluence par mots, espace ou titre.",
+      "id": "recherche-pages",
+      "params": [
+        {
+          "description": "Position du premier élément rendu",
+          "id": "debut"
+        },
+        {
+          "description": "Clé de l’espace",
+          "id": "espace"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Nombre d’éléments rendus au plus",
+          "id": "limite"
+        },
+        {
+          "description": "Mots cherchés",
+          "id": "texte"
+        },
+        {
+          "description": "Titre cherché",
+          "id": "titre"
+        }
+      ]
+    },
+    {
+      "description": "Lit une page Confluence en entier : contenu rendu, métadonnées, étiquettes et pièces jointes.",
+      "id": "page-confluence",
+      "params": [
+        {
+          "description": "Identifiant",
+          "id": "id"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        }
+      ]
+    },
+    {
+      "description": "Liste les types de liens entre tickets Jira (bloque, duplique, est lié à…), avec leur libellé dans chaque sens.",
+      "id": "types-liens",
+      "params": [
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        }
+      ]
+    },
+    {
+      "description": "Liste les sprints actifs et à venir des tableaux d’un projet Jira (Jira Software), pour ranger un ticket dans un sprint.",
+      "id": "sprints",
+      "params": [
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Projet (clé)",
+          "id": "projet"
+        }
+      ]
+    },
+    {
+      "description": "Liste les derniers commits d’une branche d’un dépôt Bitbucket, éventuellement limités à un chemin.",
+      "id": "commits",
+      "params": [
+        {
+          "description": "Branche ; omise, la branche par défaut",
+          "id": "branche"
+        },
+        {
+          "description": "Chemin dans le dépôt",
+          "id": "chemin"
+        },
+        {
+          "description": "Dépôt (slug)",
+          "id": "depot"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Nombre d’éléments rendus au plus",
+          "id": "limite"
+        },
+        {
+          "description": "Projet (clé)",
+          "id": "projet"
+        }
+      ]
+    },
+    {
+      "description": "Liste les fichiers modifiés par une pull request Bitbucket, avec la nature de chaque changement (ajouté, modifié, supprimé…).",
+      "id": "changements-pr",
+      "params": [
+        {
+          "description": "Dépôt (slug)",
+          "id": "depot"
+        },
+        {
+          "description": "Identifiant",
+          "id": "id"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "PROJET/dépôt/numéro",
+          "id": "pr"
+        },
+        {
+          "description": "Projet (clé)",
+          "id": "projet"
+        }
+      ]
+    },
+    {
+      "description": "Lit les différences d’un fichier dans une pull request Bitbucket, au format unifié, avec le nombre de lignes ajoutées et retirées.",
+      "id": "diff-pr",
+      "params": [
+        {
+          "description": "Chemin dans le dépôt",
+          "id": "chemin"
+        },
+        {
+          "description": "Dépôt (slug)",
+          "id": "depot"
+        },
+        {
+          "description": "Identifiant",
+          "id": "id"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Pull request au format PROJET/dépôt/numéro",
+          "id": "pr"
+        },
+        {
+          "description": "Projet (clé)",
+          "id": "projet"
+        }
+      ]
+    },
+    {
+      "description": "Lit un espace Confluence : sa description, sa page d’accueil et ses pages de premier niveau (avec leur nombre de sous-pages).",
+      "id": "espace",
+      "params": [
+        {
+          "description": "Clé de l’espace (ENG).",
+          "id": "espace"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        }
+      ]
+    },
+    {
+      "description": "« Aller au fichier » : cherche un fichier par son nom ou son chemin dans tout un dépôt Bitbucket, à une branche donnée.",
+      "id": "recherche-fichiers",
+      "params": [
+        {
+          "description": "Branche ; omise, la branche par défaut",
+          "id": "branche"
+        },
+        {
+          "description": "Dépôt (slug)",
+          "id": "depot"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Projet (clé)",
+          "id": "projet"
+        },
+        {
+          "description": "Mots cherchés",
+          "id": "recherche"
+        }
+      ]
+    },
+    {
+      "description": "Liste les centres de services Jira Service Management (projets de support) d’un compte Jira.",
+      "id": "services-support",
+      "params": [
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        }
+      ]
+    },
+    {
+      "description": "Liste les files d’attente d’un centre de services Jira Service Management, avec le nombre de demandes de chacune. Sans centre choisi, prend le premier.",
+      "id": "files-support",
+      "params": [
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Centre de services",
+          "id": "service"
+        }
+      ]
+    },
+    {
+      "description": "Liste les demandes d’une file d’attente Jira Service Management, dans l’ordre de la file, avec le client, le type de demande et le délai le plus urgent ; recherche par mots facultative. Sans centre ni file choisis, prend les premiers.",
+      "id": "demandes",
+      "params": [
+        {
+          "description": "Position du premier élément rendu",
+          "id": "debut"
+        },
+        {
+          "description": "File d’attente",
+          "id": "file"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Nombre d’éléments rendus au plus",
+          "id": "limite"
+        },
+        {
+          "description": "Centre de services",
+          "id": "service"
+        },
+        {
+          "description": "Mots cherchés",
+          "id": "texte"
+        }
+      ]
+    },
+    {
+      "description": "Lit une demande Jira Service Management en entier : client, type de demande, champs saisis par le client, participants, délais (SLA) et échanges, réponses publiques comme notes internes.",
+      "id": "demande",
+      "params": [
+        {
+          "description": "Clé",
+          "id": "cle"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        }
+      ]
+    },
+    {
+      "description": "Liste toutes les demandes encore ouvertes des centres de services Jira Service Management d’un compte, les plus récentes d’abord, avec leur délai le plus urgent.",
+      "id": "demandes-ouvertes",
+      "params": [
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Nombre d’éléments rendus au plus",
+          "id": "limite"
+        }
+      ]
+    },
+    {
+      "description": "Compte les notifications Confluence non lues de l’utilisateur (mentions, commentaires, partages, tâches) ; null si l’instance ne les expose pas.",
+      "id": "notifications-confluence",
+      "params": [
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        }
+      ]
+    },
+    {
+      "description": "Tickets d’un tableau de projet (comme la page Projets de OneApp) : actifs (hors catégorie Terminé) ou terminés par pages, avec l’estimation initiale et le reste à faire en secondes, le rang partagé du board (Rank de Jira Software) et, sur demande, l’historique des statuts et des responsables.",
+      "id": "tickets-projet",
+      "params": [
+        {
+          "description": "Position du premier élément rendu",
+          "id": "debut"
+        },
+        {
+          "description": "Avec l’historique des statuts et des responsables",
+          "id": "historique"
+        },
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        },
+        {
+          "description": "Nombre d’éléments rendus au plus",
+          "id": "limite"
+        },
+        {
+          "description": "Tickets actifs ou terminés",
+          "id": "mode"
+        },
+        {
+          "description": "Projets (clés)",
+          "id": "projets"
+        }
+      ]
+    },
+    {
+      "description": "Durée d’une journée de travail du suivi du temps de Jira (workingHoursPerDay), pour convertir les estimations en jours.",
+      "id": "suivi-temps",
+      "params": [
+        {
+          "description": "Compte du service ; omis, le compte par défaut",
+          "id": "instance"
+        }
+      ]
+    }
+  ],
+  "version": "1.0.2"
 }

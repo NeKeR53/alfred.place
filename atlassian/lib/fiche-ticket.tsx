@@ -5,15 +5,16 @@ import { useEffect, useState } from "react";
 import {
   type Action,
   Button,
-  Dialog,
+  Modal,
   HtmlContent,
   InlineEdit,
   List,
   type ListItemData,
   PageSection,
   PropertyRow,
-  RadioGroup,
-  StatusBadge,
+  Badge,
+  TabPanel,
+  Tabs,
   useConfirm,
   useOpenForm,
 } from "socle-ui";
@@ -58,7 +59,7 @@ export function ChoixEtat({
   onClose: () => void;
 }) {
   return (
-    <Dialog
+    <Modal
       isOpen
       title="Changer l’état"
       description={`Ticket ${cle}`}
@@ -85,7 +86,7 @@ export function ChoixEtat({
           }
         }}
       />
-    </Dialog>
+    </Modal>
   );
 }
 
@@ -143,12 +144,44 @@ const resumeTicket = (ticket: Resume, relation?: string): ListItemData => ({
   status: ticket.statut ? { label: ticket.statut, tone: tonCategorie(ticket.categorie) } : undefined,
 });
 
+function TicketLieModale({ instance, resume, onClose }: { instance?: string; resume: Resume; onClose: () => void }) {
+  const fiche = useAsync(
+    () => functions.call<{ ticket: FicheComplete | null }>("lire-ticket", { instance, cle: resume.cle }),
+    [instance, resume.cle],
+  );
+  const ticket = fiche.data?.ticket;
+  return (
+    <Modal
+      isOpen
+      size="lg"
+      title={`${resume.cle} · ${ticket?.titre ?? resume.titre}`}
+      description={[ticket?.type ?? resume.type, ticket?.statut ?? resume.statut].filter(Boolean).join(" · ")}
+      onOpenChange={(ouverte) => { if (!ouverte) onClose(); }}
+      footer={<Button onPress={onClose}>Fermer</Button>}
+    >
+      <PageSection
+        title="Description"
+        state={fiche.error ? "error" : fiche.loading ? "loading" : "ready"}
+        onRetry={fiche.reload}
+        empty={!fiche.loading && !fiche.error && !ticket ? { title: "Ticket introuvable" } : undefined}
+      >
+        {ticket?.descriptionHtml ? (
+          <HtmlContent html={ticket.descriptionHtml} label="Description du ticket lié" onLink={(url) => void shell.openExternal(url)} />
+        ) : ticket ? (
+          <Text>{ticket.description || "Aucune description."}</Text>
+        ) : null}
+      </PageSection>
+    </Modal>
+  );
+}
+
 /**
- * Fiche complète d’un ticket Jira, en sections d’une `DetailPage` : résumé, description et activité ; tous les
- * champs sont dans le panneau de droite, chacun modifiable sur place.
+ * Fiche complète d’un ticket Jira : résumé, choix modifiables, description et activité.
  */
 export function FicheTicket({ instance, cle }: { instance?: string; cle: string }) {
   const [onglet, setOnglet] = useState<Onglet>("commentaires");
+  const [ticketLie, setTicketLie] = useState<Resume | null>(null);
+  const [pieceOuverte, setPieceOuverte] = useState<FicheComplete["pieces"][number] | null>(null);
   const openForm = useOpenForm();
   const confirm = useConfirm();
   const fiche = useAsync(
@@ -322,19 +355,26 @@ export function FicheTicket({ instance, cle }: { instance?: string; cle: string 
         />
       );
   } else if (onglet === "liens") {
-    const elements = [
-      ...(ticket.parent ? [resumeTicket(ticket.parent, "Parent")] : []),
-      ...ticket.sousTaches.map((t) => resumeTicket(t, "Sous-tâche")),
-      ...ticket.liens.map((lien) => ({ ...resumeTicket(lien, lien.relation), id: `lien:${lien.id}` })),
+    const liens = [
+      ...(ticket.parent ? [{ resume: ticket.parent, item: resumeTicket(ticket.parent, "Parent") }] : []),
+      ...ticket.sousTaches.map((t) => ({ resume: t, item: resumeTicket(t, "Sous-tâche") })),
+      ...ticket.liens.map((lien) => ({
+        resume: lien,
+        item: { ...resumeTicket(lien, lien.relation), id: `lien:${lien.id}` },
+      })),
     ];
     activite =
-      elements.length === 0 ? (
+      liens.length === 0 ? (
         vide("Aucun lien")
       ) : (
         <List
           label="Tickets liés"
           selectionMode="none"
-          items={elements}
+          items={liens.map(({ item }) => item)}
+          onAction={(id) => {
+            const lien = liens.find(({ item }) => item.id === id);
+            if (lien) setTicketLie(lien.resume);
+          }}
           itemActions={(item) =>
             item.id.startsWith("lien:")
               ? [
@@ -405,7 +445,7 @@ export function FicheTicket({ instance, cle }: { instance?: string; cle: string 
           }))}
           onAction={(id) => {
             const piece = ticket.pieces.find((p) => p.id === id);
-            if (piece?.url) void shell.openExternal(piece.url);
+            if (piece) setPieceOuverte(piece);
           }}
         />
       );
@@ -459,9 +499,9 @@ export function FicheTicket({ instance, cle }: { instance?: string; cle: string 
       >
         <Stack gap="sm">
           <Row gap="sm" wrap>
-            <StatusBadge tone={tonCategorie(ticket.statutCategorie)}>{ticket.statut}</StatusBadge>
+            <Badge tone={tonCategorie(ticket.statutCategorie)}>{ticket.statut}</Badge>
             {ticket.priorite ? (
-              <StatusBadge tone={tonPriorite(ticket.priorite)}>{`Priorité ${ticket.priorite}`}</StatusBadge>
+              <Badge tone={tonPriorite(ticket.priorite)}>{`Priorité ${ticket.priorite}`}</Badge>
             ) : null}
           </Row>
           <InlineEdit
@@ -472,6 +512,7 @@ export function FicheTicket({ instance, cle }: { instance?: string; cle: string 
           />
         </Stack>
       </PageSection>
+
 
       <PageSection
         title="Description"
@@ -488,22 +529,38 @@ export function FicheTicket({ instance, cle }: { instance?: string; cle: string 
 
       <PageSection title="Activité" actions={actionsActivite}>
         <Stack gap="md">
-          <RadioGroup
-            label="Activité du ticket"
-            hideLabel
-            orientation="horizontal"
-            value={onglet}
-            onChange={(id) => setOnglet(id as Onglet)}
-          >
-            {onglets.map((element) => (
-              <RadioGroup.Option key={element.id} value={element.id}>
-                {element.label}
-              </RadioGroup.Option>
-            ))}
-          </RadioGroup>
-          {activite}
+          <Tabs
+            id="activite-ticket"
+            pageTitle={`Activité de ${ticket.cle}`}
+            items={onglets}
+            selectedId={onglet}
+            onSelectionChange={(id) => setOnglet(id as Onglet)}
+          />
+          <TabPanel tabs="activite-ticket">{activite}</TabPanel>
         </Stack>
       </PageSection>
+      {ticketLie ? <TicketLieModale instance={instance} resume={ticketLie} onClose={() => setTicketLie(null)} /> : null}
+      {pieceOuverte ? (
+        <Modal
+          isOpen
+          title={pieceOuverte.nom}
+          onOpenChange={(ouverte) => { if (!ouverte) setPieceOuverte(null); }}
+          footer={
+            <>
+              <Button onPress={() => setPieceOuverte(null)}>Fermer</Button>
+              {pieceOuverte.url ? (
+                <Button variant="primary" onPress={() => void shell.openExternal(pieceOuverte.url ?? "")}>Ouvrir dans le navigateur</Button>
+              ) : null}
+            </>
+          }
+        >
+          <Stack gap="none">
+            <PropertyRow label="Taille" value={tailleLisible(pieceOuverte.taille)} />
+            {pieceOuverte.type ? <PropertyRow label="Type de fichier" value={pieceOuverte.type} /> : null}
+            {pieceOuverte.auteur ? <PropertyRow label="Ajoutée par" value={pieceOuverte.auteur} /> : null}
+          </Stack>
+        </Modal>
+      ) : null}
     </>
   );
 }

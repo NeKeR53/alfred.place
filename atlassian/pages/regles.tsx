@@ -54,7 +54,7 @@ export default function ReglesPage() {
         description:
           "Une règle repère des tickets d’après des critères et une question, puis lance un agent avec votre consigne, vous prévient ou commente.",
       }}
-      actions={[{ id: "nouvelle", label: "Nouvelle règle", icon: <Plus size={16} />, primary: true, onPress: () => saisir() }]}
+      actions={[{ id: "nouvelle", label: "Nouvelle règle", icon: <Plus size={16} />, onPress: () => saisir() }]}
       rowActions={(regle) => [
         { id: "modifier", label: "Modifier", icon: <Pencil size={16} />, onPress: () => saisir(regle) },
         {

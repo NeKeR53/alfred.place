@@ -1,7 +1,7 @@
-import { functions, shell, useAsync, usePeerMessage, useSelection } from "@alfred/sdk";
-import { Drawer } from "socle-ui";
-import { tonCategorie } from "../lib/affichage";
-import { useLignesChamps } from "../lib/champ-ligne";
+import { functions, shell, usePageContext, usePeerMessage } from "@alfred/sdk";
+import { Drawer, PropertyRow } from "socle-ui";
+import { LigneChamp, useListesDuPanneau } from "../lib/champ-ligne";
+import { useEtat } from "../lib/etat";
 import type { FicheComplete } from "../lib/fiche-ticket";
 
 function separer(identifiant: string): { instance: string; cle: string } {
@@ -11,76 +11,67 @@ function separer(identifiant: string): { instance: string; cle: string } {
   return { instance: texte.slice(0, separateur), cle: texte.slice(separateur + 1) };
 }
 
-/** Colonne de droite du ticket ouvert : tous ses champs, chacun modifiable par l’action de sa ligne. */
+/** Colonne de droite du ticket ouvert : chaque champ se modifie sur place, sans fenêtre. */
 export default function DetailsTicket() {
-  const selection = useSelection<{ id?: string } | string>();
-  const { instance, cle } = separer(typeof selection === "string" ? selection : (selection?.id ?? ""));
+  const { instance, cle } = separer(usePageContext()?.view?.id ?? "");
 
-  const fiche = useAsync(
-    () =>
-      cle
-        ? functions.call<{ ticket: FicheComplete | null }>("lire-ticket", { instance: instance || undefined, cle })
-        : Promise.resolve({ ticket: null }),
-    [instance, cle],
-  );
+  const fiche = useEtat<{ ticket: FicheComplete | null }>("ticket", cle ? { instance, cle } : null);
   // La fiche du centre prévient quand elle change le ticket (état, temps passé…).
   usePeerMessage((message) => {
     if ((message as { type?: string })?.type === "ticket-modifie") fiche.reload();
   });
 
   const ticket = fiche.data?.ticket ?? null;
-  const lignes = useLignesChamps({
-    instance: instance || undefined,
-    cle,
-    projet: ticket?.projet ?? "",
-    champs: ticket?.champs ?? [],
-    // Jira relit le ticket (texte des valeurs), et la fiche du centre est prévenue.
-    apresEnregistrement: () => {
-      fiche.reload();
-      void shell.send({ type: "ticket-modifie", cle });
-    },
-  });
+  const champs = ticket?.champs ?? [];
+  const listes = useListesDuPanneau(instance || undefined, ticket?.projet ?? "", champs);
 
-  const remplis = (ticket?.champs ?? []).filter((c) => c.affichage);
-  const vides = (ticket?.champs ?? []).filter((c) => !c.affichage && c.modifiable);
-  const lecture = remplis.filter((c) => !c.modifiable);
-  const modifiables = remplis.filter((c) => c.modifiable);
+  if (!ticket) {
+    return (
+      <Drawer
+        isLoading={fiche.loading}
+        hasError={Boolean(fiche.error)}
+        onRetry={fiche.reload}
+        isNotFound={Boolean(cle) && !fiche.loading && !fiche.error}
+        emptyMessage="Ouvrez un ticket pour voir et modifier ses champs ici."
+      />
+    );
+  }
+
+  async function enregistrer(champ: string, valeur: string | string[]) {
+    await functions.call("modifier-champ", { instance: instance || undefined, cle, champ, valeur });
+    // Jira relit le ticket (texte des valeurs), et la fiche du centre est prévenue.
+    fiche.reload();
+    void shell.send({ type: "ticket-modifie", cle });
+  }
+
+  const remplis = champs.filter((c) => c.affichage);
+  const modifiables = remplis.filter((c) => c.modifiable && c.editeur !== "lecture");
+  const vides = champs.filter((c) => !c.affichage && c.modifiable && c.editeur !== "lecture");
+  const lecture = remplis.filter((c) => !c.modifiable || c.editeur === "lecture");
+  const ligne = (champ: (typeof champs)[number]) => (
+    <LigneChamp key={champ.id} champ={champ} listes={listes} instance={instance || undefined} projet={ticket.projet} enregistrer={enregistrer} />
+  );
 
   return (
-    <Drawer
-      header={
-        ticket
-          ? {
-              title: `${ticket.cle} · ${ticket.titre}`,
-              subtitle: [ticket.type, ticket.projetNom || ticket.projet].filter(Boolean).join(" · ") || undefined,
-              status: ticket.statut ? { label: ticket.statut, tone: tonCategorie(ticket.statutCategorie) } : undefined,
-            }
-          : undefined
-      }
-      sections={
-        ticket
-          ? [
-              { id: "champs", title: "Champs", fields: lignes(modifiables), empty: "Aucun champ modifiable" },
-              ...(vides.length > 0
-                ? [{ id: "vides", title: "Champs vides", defaultCollapsed: true, fields: lignes(vides) }]
-                : []),
-              ...(lecture.length > 0
-                ? [
-                    {
-                      id: "lecture",
-                      title: "En lecture seule",
-                      fields: lecture.map((champ) => ({ id: champ.id, label: champ.nom, value: champ.affichage })),
-                    },
-                  ]
-                : []),
-            ]
-          : undefined
-      }
-      isLoading={fiche.loading && !ticket}
-      hasError={Boolean(fiche.error)}
-      onRetry={fiche.reload}
-      isNotFound={Boolean(cle) && !fiche.loading && !fiche.error && !ticket}
-      emptyMessage="Ouvrez un ticket pour voir et modifier ses champs ici."
-    />
+    <Drawer emptyMessage="Ouvrez un ticket pour voir et modifier ses champs ici.">
+      <Drawer.Section id="ticket" title={ticket.cle} summary={ticket.statut || undefined}>
+        <PropertyRow id="titre" label="Résumé" value={ticket.titre} />
+        <PropertyRow id="type" label="Type" value={ticket.type || undefined} />
+        <PropertyRow id="projet" label="Projet" value={ticket.projetNom || ticket.projet || undefined} />
+      </Drawer.Section>
+      <Drawer.Section id="champs" title="Champs">
+        {modifiables.length > 0 ? modifiables.map(ligne) : <PropertyRow label="Champs" value="Aucun champ modifiable" />}
+      </Drawer.Section>
+      {vides.length > 0 ? (
+        <Drawer.Section id="vides" title="Champs vides" summary={String(vides.length)} defaultCollapsed>
+          {vides.map(ligne)}
+        </Drawer.Section>
+      ) : null}
+      {lecture.length > 0 ? (
+        <Drawer.Section id="lecture" title="En lecture seule" defaultCollapsed>
+          {lecture.map(ligne)}
+        </Drawer.Section>
+      ) : null}
+    </Drawer>
   );
 }

@@ -1,54 +1,22 @@
-import { functions, shell, useAsync, useSelection } from "@alfred/sdk";
+import { shell, usePageContext } from "@alfred/sdk";
 import { ExternalLink, GitBranch, GitPullRequest } from "lucide-react";
-import { DetailPanel } from "socle-ui";
+import { Drawer } from "socle-ui";
+import { type Depot, lireVueDepot, separerDepot } from "../lib/bitbucket-commun";
+import { useEtat } from "../lib/etat";
 
-interface Depot {
-  slug: string;
-  nom: string;
-  description: string;
-  projet: string;
-  projetNom: string;
-  archive: boolean;
-  public?: boolean;
-  brancheDefaut: string | null;
-  url: string | null;
-  clones?: Array<{ nom: string; url: string }>;
-}
-
-/** Colonne « À propos » d’un dépôt, comme sur GitHub. La page publie « compte|PROJET/dépôt ». */
+/** Colonne « À propos » du dépôt affiché dans l’onglet. */
 export default function AProposDepot() {
-  const selection = useSelection<{ id?: string } | string>();
-  const brut = typeof selection === "string" ? selection : (selection?.id ?? "");
-  const separateur = brut.indexOf("|");
-  const instance = separateur >= 0 ? brut.slice(0, separateur) : "";
-  const cle = separateur >= 0 ? brut.slice(separateur + 1) : brut;
-  const [projet, ...reste] = cle.split("/");
-  const depot = reste.join("/");
+  const ouverture = lireVueDepot(usePageContext()?.view?.params);
+  const instance = ouverture?.instance;
+  const { projet, depot } = separerDepot(ouverture?.depot ?? "");
 
-  const info = useAsync(
-    () =>
-      projet && depot
-        ? functions.call<{ depot: Depot | null; branches: Array<{ nom: string }> }>("lire-depot", {
-            instance: instance || undefined,
-            projet,
-            depot,
-          })
-        : Promise.resolve({ depot: null, branches: [] }),
-    [instance, projet, depot],
+  const info = useEtat<{ depot: Depot | null; branches: Array<{ nom: string }> }>(
+    "depot",
+    projet && depot ? { instance, projet, depot } : null,
   );
-  const prs = useAsync(
-    () =>
-      projet && depot
-        ? functions.call<{ prs: unknown[] }>("lister-prs", {
-            instance: instance || undefined,
-            projet,
-            depot,
-            etat: "OPEN",
-            role: "ALL",
-            limite: 50,
-          })
-        : Promise.resolve({ prs: [] }),
-    [instance, projet, depot],
+  const prs = useEtat<{ prs: unknown[] }>(
+    "pull-requests",
+    projet && depot ? { instance, projet, depot, etat: "OPEN", role: "ALL", limite: 50 } : null,
   );
 
   const fiche = info.data?.depot ?? null;
@@ -56,7 +24,7 @@ export default function AProposDepot() {
   const nbPrs = prs.data?.prs.length ?? 0;
 
   return (
-    <DetailPanel
+    <Drawer
       header={
         fiche
           ? {

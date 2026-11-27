@@ -1,3 +1,11 @@
+## 1.0.2 — 2026-11-27
+
+- Jira : chaque champ du ticket ouvert se modifie sur place, dans la colonne de droite ; les tickets s'ouvrent dans des onglets.
+- Bitbucket : une pull request s'ouvre dans une fenêtre (description, revue et analyse par l'agent) ; colonne « À propos » du dépôt ouvert.
+- Les recherches gardent leur texte et leurs filtres d'une visite à l'autre.
+- Les pages lisent les états partagés du module et se relisent après une écriture.
+- Mise en page alignée sur la dernière version de socle-ui.
+
 ## 1.0.1 — 2026-11-24
 
 - Panneau Détails du ticket : chaque champ se lit en texte et se modifie par l’action de sa ligne : un menu pour une liste, un choix multiple ou le sprint ; une fenêtre pour un texte, une date, un nombre, une personne ou des étiquettes. Le changement est enregistré aussitôt dans Jira, comme avant.

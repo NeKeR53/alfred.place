@@ -1,13 +1,14 @@
 import { Row } from "@alfred/kit";
-import { db, functions, useAsync } from "@alfred/sdk";
-import { useState } from "react";
-import { Page, PageSection, SearchField } from "socle-ui";
-import { type Depot, ListeDepots, ouvrirDansDepot, separerDepot, useCompteBitbucket } from "../lib/bitbucket-commun";
+import { db, useAsync, usePageState } from "@alfred/sdk";
+import { Page, PageSection } from "socle-ui";
+import { type Depot, ListeDepots, ouvrirDepot, separerDepot, useCompteBitbucket } from "../lib/bitbucket-commun";
+import { useEtat } from "../lib/etat";
+import { RechercheRetenue } from "../lib/recherche-retenue";
 
 /** Onglet « Favoris » : les dépôts marqués d’une étoile. */
 export default function FavorisBitbucket() {
   const { compte, attente, selecteur } = useCompteBitbucket();
-  const [recherche, setRecherche] = useState("");
+  const [recherche, setRecherche] = usePageState<string>("bitbucket.favoris.recherche", "");
   const plier = (texte: string) => texte.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLocaleLowerCase("fr");
   const mots = plier(recherche).split(/\s+/).filter(Boolean);
   const correspond = (...textes: string[]) => {
@@ -26,13 +27,7 @@ export default function FavorisBitbucket() {
     [compte],
   );
   // Les dépôts du compte, pour compléter la description des favoris.
-  const depots = useAsync(
-    () =>
-      compte
-        ? functions.call<{ depots: Depot[] }>("lister-depots", { instance: compte, limite: 100 })
-        : Promise.resolve({ depots: [] as Depot[] }),
-    [compte],
-  );
+  const depots = useEtat<{ depots: Depot[] }>("depots", compte ? { instance: compte, limite: 100 } : null);
 
   if (attente) return attente;
 
@@ -60,7 +55,7 @@ export default function FavorisBitbucket() {
     <Page
       toolbar={
         <Row gap="sm">
-          <SearchField label="les favoris" onChange={({ text }) => setRecherche(text)} />
+          <RechercheRetenue label="les favoris" recherche={recherche} onChange={setRecherche} />
           {selecteur}
         </Row>
       }
@@ -84,7 +79,7 @@ export default function FavorisBitbucket() {
         <ListeDepots
           depots={lignes}
           favoris={new Set(lignesFavoris.map((f) => f.cle))}
-          onOuvrir={(cle) => void ouvrirDansDepot({ instance: compte, depot: cle, origine: "favoris" })}
+          onOuvrir={(depot) => ouvrirDepot(compte, depot)}
         />
       </PageSection>
     </Page>

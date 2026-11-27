@@ -1,8 +1,9 @@
-import { db, functions, shell, useAsync } from "@alfred/sdk";
+import { db, notifyActionError, useAsync, views } from "@alfred/sdk";
 import type { ReactNode } from "react";
 import { EmptyState, List, Page, PageSection, Select } from "socle-ui";
 import { quand } from "./affichage";
 import { ETATS_PR } from "./bitbucket-vues";
+import { useEtat } from "./etat";
 
 export interface Compte {
   id: string;
@@ -67,18 +68,11 @@ export const RISQUES: Record<string, { label: string; tone: "danger" | "warning"
 
 // ——— Navigation entre les onglets ———
 
-/** L’onglet d’où l’on a ouvert le dépôt : « Dépôts », « Favoris » ou « À traiter ». */
-export type OrigineBitbucket = "bitbucket" | "favoris" | "a-traiter";
-
-export interface Ouverture {
+interface Ouverture {
   instance: string;
-  depot: string; // « PROJET/dépôt »
-  pr?: string; // « PROJET/dépôt/numéro »
-  origine: OrigineBitbucket;
-  ouvertLe: number;
+  depot: string;
 }
 
-const CLE_OUVERTURE = "bitbucket.ouvert";
 const CLE_COMPTE = "bitbucket.compte";
 
 async function ecrireReglage(cle: string, valeur: string) {
@@ -88,27 +82,27 @@ async function ecrireReglage(cle: string, valeur: string) {
   );
 }
 
-/** Ouvre un dépôt (ou une de ses pull requests) dans l’onglet « Dépôt ouvert ». */
-export async function ouvrirDansDepot(ouverture: Omit<Ouverture, "ouvertLe">) {
-  await ecrireReglage(CLE_OUVERTURE, JSON.stringify({ ...ouverture, ouvertLe: Date.now() }));
-  await shell.navigate("atlassian/depot-ouvert");
+export function ouvrirDepot(instance: string, depot: Depot) {
+  const cle = `${depot.projet}/${depot.slug}`;
+  void views.open({
+    page: "depot-ouvert",
+    id: `${instance}|${cle}`,
+    label: depot.nom || depot.slug,
+    params: { instance, depot: cle },
+  }).catch((error) => notifyActionError({ label: "Ouvrir le dépôt" }, error));
 }
 
-export async function lireOuverture(): Promise<Ouverture | null> {
-  const [ligne] = await db.query<{ valeur: string }>("SELECT valeur FROM atlassian_reglages WHERE cle = ?", [CLE_OUVERTURE]);
-  if (!ligne) return null;
-  try {
-    const valeur = JSON.parse(ligne.valeur) as Ouverture;
-    return valeur?.depot ? valeur : null;
-  } catch {
-    return null;
-  }
+export function lireVueDepot(params: Record<string, unknown> | null | undefined): Ouverture | null {
+  const { instance, depot } = params ?? {};
+  if (typeof instance !== "string" || !instance || typeof depot !== "string") return null;
+  const cle = separerDepot(depot);
+  return cle.projet && cle.depot ? { instance, depot } : null;
 }
 
 // ——— Compte Bitbucket, commun aux onglets ———
 
 export function useCompteBitbucket() {
-  const comptes = useAsync(() => functions.call<{ comptes: Compte[] }>("comptes-bitbucket"), []);
+  const comptes = useEtat<{ comptes: Compte[] }>("comptes-bitbucket");
   const choix = useAsync(
     () => db.query<{ valeur: string }>("SELECT valeur FROM atlassian_reglages WHERE cle = ?", [CLE_COMPTE]),
     [],
@@ -130,7 +124,7 @@ export function useCompteBitbucket() {
         {null}
       </Page>
     ) : liste.length === 0 ? (
-      <Page width="text">
+      <Page>
         <PageSection
           title="Bitbucket"
           empty={{
@@ -168,7 +162,7 @@ export function ListeDepots({
 }: {
   depots: Depot[];
   favoris: Set<string>;
-  onOuvrir: (cle: string) => void;
+  onOuvrir: (depot: Depot) => void;
 }) {
   return (
     <List
@@ -190,7 +184,10 @@ export function ListeDepots({
               : undefined,
         };
       })}
-      onAction={onOuvrir}
+      onAction={(id) => {
+        const depot = depots.find((element) => `${element.projet}/${element.slug}` === id);
+        if (depot) onOuvrir(depot);
+      }}
     />
   );
 }

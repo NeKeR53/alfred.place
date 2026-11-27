@@ -1,24 +1,8 @@
-import { announceChange, functions, notifyActionError, shell, useAsync, useSelection } from "@alfred/sdk";
+import { announceChange, functions, notifyActionError, shell, usePageContext } from "@alfred/sdk";
 import { ArrowRightLeft, ExternalLink, Send, StickyNote, UserCheck } from "lucide-react";
-import { DetailPanel, List, type OpenFormFunction, useOpenForm } from "socle-ui";
-import { ETATS_DEMANDE, dateHeure, etatDelai, type Demande } from "../lib/support";
-
-function separer(identifiant: string): { instance: string; cle: string } {
-  const texte = String(identifiant ?? "");
-  const separateur = texte.indexOf("|");
-  if (separateur < 0) return { instance: "", cle: texte };
-  return { instance: texte.slice(0, separateur), cle: texte.slice(separateur + 1) };
-}
-
-async function charger(id: string | number) {
-  const { instance, cle } = separer(String(id));
-  if (!cle) return null;
-  const { demande } = await functions.call<{ demande: Demande | null }>("lire-demande", {
-    instance: instance || undefined,
-    cle,
-  });
-  return demande;
-}
+import { Drawer, List, type OpenFormFunction, useOpenForm } from "socle-ui";
+import { useEtat } from "../lib/etat";
+import { ETATS_DEMANDE, dateHeure, etatDelai, type Demande, useDemande } from "../lib/support";
 
 function ecrire(openForm: OpenFormFunction, demande: Demande, interne: boolean) {
   return openForm({
@@ -77,23 +61,25 @@ async function changerEtat(openForm: OpenFormFunction, demande: Demande) {
   });
 }
 
-async function mAssigner(demande: Demande) {
-  const instance = demande.instance ?? undefined;
-  const { moi } = await functions.call<{ moi: { id: string; nom: string } | null }>("lister-referentiels", { instance });
+async function mAssigner(demande: Demande, moi: { id: string; nom: string } | null | undefined) {
+  if (moi === undefined) throw new Error("Votre compte Jira est encore en lecture : réessayez dans un instant.");
   if (!moi) throw new Error("Votre compte Jira n’a pas pu être identifié.");
-  return functions.call("modifier-ticket", { instance, cle: demande.cle, assigne: moi.id });
+  return functions.call("modifier-ticket", { instance: demande.instance ?? undefined, cle: demande.cle, assigne: moi.id });
 }
 
 /** Panneau de la demande ouverte : client, délais, échanges, réponse et note interne. */
 export default function DemandePanneau() {
-  const selection = useSelection<{ id?: string } | string>();
-  const id = typeof selection === "string" ? selection : (selection?.id ?? "");
+  const id = usePageContext()?.view?.id ?? "";
   const openForm = useOpenForm();
-  const lecture = useAsync(() => (id ? charger(id) : Promise.resolve(null)), [id]);
+  const lecture = useDemande(id);
   const demande = lecture.data;
-
+  // Votre compte Jira (pour « M’assigner la demande »), lu dans les référentiels du compte de la demande.
+  const referentiels = useEtat<{ moi: { id: string; nom: string } | null }>(
+    "referentiels-jira",
+    demande ? { instance: demande.instance ?? undefined } : null,
+  );
   return (
-    <DetailPanel
+    <Drawer
       header={
         demande
           ? {
@@ -119,7 +105,9 @@ export default function DemandePanneau() {
                   label: "M’assigner la demande",
                   icon: <UserCheck size={16} />,
                   onPress: async () => {
-                    await mAssigner(demande);
+                    if (referentiels.error) throw referentiels.error;
+                    await mAssigner(demande, referentiels.data ? referentiels.data.moi : undefined);
+                    lecture.reload();
                     shell.notify({ title: "Demande assignée à vous", tone: "success" });
                   },
                 },
@@ -176,7 +164,6 @@ export default function DemandePanneau() {
                     />
                   ) : undefined,
               },
-              { id: "description", title: "Description", content: demande.description || undefined, empty: "Aucune description" },
               {
                 id: "informations",
                 title: "Informations saisies",
@@ -212,7 +199,7 @@ export default function DemandePanneau() {
       hasError={Boolean(lecture.error)}
       onRetry={lecture.reload}
       isNotFound={Boolean(id) && !lecture.loading && !lecture.error && !demande}
-      emptyMessage="Sélectionnez une demande pour la voir ici."
+      emptyMessage="Ouvrez une demande pour la voir ici."
       onActionError={notifyActionError}
       onActionDone={() => {
         lecture.reload();

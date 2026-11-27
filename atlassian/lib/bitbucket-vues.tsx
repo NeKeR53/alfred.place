@@ -1,7 +1,8 @@
 import { Notice, Row, Stack, Text } from "@alfred/kit";
 import { functions, shell, useAsync } from "@alfred/sdk";
 import { FileText, Folder } from "lucide-react";
-import { Avatar, Code, ComboBox, DiffView, EmptyState, List, Skeleton, StatusBadge, Table } from "socle-ui";
+import { useState } from "react";
+import { Avatar, Button, Code, ComboBox, Modal, DiffView, EmptyState, List, Skeleton, Badge, Table } from "socle-ui";
 import { Markdown } from "socle-ui/markdown";
 import { quand } from "./affichage";
 
@@ -248,19 +249,37 @@ export function Readme(props: { instance: string; projet: string; depot: string;
 }
 
 export function ListeCommits({ commits }: { commits: Commit[] }) {
+  const [ouvert, setOuvert] = useState<Commit | null>(null);
   if (commits.length === 0) return <EmptyState size="compact" title="Aucun commit" />;
   return (
-    <List
-      label="Commits"
-      selectionMode="none"
-      leading="avatar"
-      items={commits.map((commit) => ({
-        id: commit.id,
-        title: commit.message.split("\n")[0] || "(sans message)",
-        subtitle: `${commit.auteur} · ${quand(commit.date)}`,
-        meta: commit.court,
-      }))}
-    />
+    <>
+      <List
+        label="Commits"
+        selectionMode="none"
+        leading="avatar"
+        items={commits.map((commit) => ({
+          id: commit.id,
+          title: commit.message.split("\n")[0] || "(sans message)",
+          subtitle: `${commit.auteur} · ${quand(commit.date)}`,
+          meta: commit.court,
+        }))}
+        onAction={(id) => setOuvert(commits.find((commit) => commit.id === id) ?? null)}
+      />
+      {ouvert ? (
+        <Modal
+          isOpen
+          title={`Commit ${ouvert.court}`}
+          description={`${ouvert.auteur} · ${quand(ouvert.date)}`}
+          onOpenChange={(visible) => { if (!visible) setOuvert(null); }}
+          footer={<Button onPress={() => setOuvert(null)}>Fermer</Button>}
+        >
+          <Stack gap="sm">
+            <Code block label="Identifiant du commit">{ouvert.id}</Code>
+            <Text>{ouvert.message || "Aucun message."}</Text>
+          </Stack>
+        </Modal>
+      ) : null}
+    </>
   );
 }
 
@@ -288,7 +307,7 @@ export function DiffFichier({
     <Stack gap="xs">
       <Row gap="sm">
         <Code>{chemin}</Code>
-        <StatusBadge tone={nature === "ajouté" ? "success" : nature === "supprimé" ? "danger" : "neutral"}>{nature}</StatusBadge>
+        <Badge tone={nature === "ajouté" ? "success" : nature === "supprimé" ? "danger" : "neutral"}>{nature}</Badge>
       </Row>
       {diff.error ? (
         <Text tone="danger">{diff.error.message}</Text>

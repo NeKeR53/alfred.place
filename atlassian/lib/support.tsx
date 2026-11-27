@@ -1,5 +1,6 @@
 import { Text } from "@alfred/kit";
-import { StatusBadge, type StatusMap } from "socle-ui";
+import { Badge, type StatusMap } from "socle-ui";
+import { type Lecture, useEtat } from "./etat";
 
 export interface DelaiCourt {
   nom: string;
@@ -69,6 +70,15 @@ export interface Demande {
   urlPortail: string | null;
 }
 
+/** La demande ouverte (« compte|clé »), reçue de l’état partagé « demande » puis à chaque changement. */
+export function useDemande(id: string): Lecture<Demande | null> {
+  const separateur = id.indexOf("|");
+  const instance = separateur < 0 ? "" : id.slice(0, separateur);
+  const cle = id.slice(separateur + 1);
+  const lecture = useEtat<{ demande: Demande | null }>("demande", cle ? { instance, cle } : null);
+  return { ...lecture, data: lecture.data ? lecture.data.demande : undefined };
+}
+
 /** Catégories d’état d’une demande, comme les range Jira. */
 export const ETATS_DEMANDE: StatusMap = {
   new: { label: "À traiter", tone: "neutral" },
@@ -97,7 +107,7 @@ export function badgeDelai(delai: DelaiCourt | null) {
     );
   }
   const { ton, libelle } = etatDelai(delai);
-  return <StatusBadge tone={ton}>{libelle}</StatusBadge>;
+  return <Badge tone={ton}>{libelle}</Badge>;
 }
 
 /** Date et heure courtes, en français. */
