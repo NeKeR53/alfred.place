@@ -1,0 +1,3003 @@
+{
+  "clients": [
+    {
+      "client": {
+        "headers": {
+          "Accept": "application/json"
+        },
+        "label": "Keycloak",
+        "methods": [
+          {
+            "authorizationUrl": "{url}/realms/{realm}/protocol/openid-connect/auth",
+            "help": "Saisissez l’identifiant d’un client public de ce royaume, qui accepte la redirection vers http://127.0.0.1. Vos droits d’administration du royaume s’appliquent.",
+            "id": "navigateur",
+            "label": "Connexion dans le navigateur (PKCE)",
+            "params": [
+              {
+                "example": "atom",
+                "help": "Le royaume Keycloak à administrer, tel qu’il apparaît dans l’adresse de la console (/admin/master/console/#/<royaume>).",
+                "id": "realm",
+                "label": "Royaume"
+              }
+            ],
+            "scopes": [
+              "openid",
+              "offline_access"
+            ],
+            "tokenUrl": "{url}/realms/{realm}/protocol/openid-connect/token",
+            "type": "oauth2",
+            "urlExample": "https://sso.recette.exemple.fr"
+          },
+          {
+            "help": "Dans la console Keycloak : Clients, votre client confidentiel, onglet Identifiants. Il lui faut le rôle « realm-admin » du client realm-management.",
+            "id": "compte-de-service",
+            "label": "Compte de service (client confidentiel)",
+            "params": [
+              {
+                "example": "atom",
+                "help": "Le royaume où le compte de service est déclaré et qu’il administre.",
+                "id": "realm",
+                "label": "Royaume"
+              }
+            ],
+            "scopes": [],
+            "tokenUrl": "{url}/realms/{realm}/protocol/openid-connect/token",
+            "type": "clientCredentials",
+            "urlExample": "https://sso.recette.exemple.fr"
+          }
+        ],
+        "sealed": [
+          {
+            "fields": [
+              "value"
+            ],
+            "path": "/admin/realms/{realm}/clients/*/client-secret"
+          }
+        ],
+        "testPath": "/admin/realms/{realm}/users/count"
+      },
+      "help": "Un compte par environnement : l’adresse du Keycloak (sans /realms), le royaume, et soit un client public autorisé à la connexion PKCE, soit un compte de service avec le rôle realm-management.",
+      "id": "keycloak",
+      "label": "Keycloak"
+    }
+  ],
+  "description": "Connecteur Keycloak : groupes, personnes, rôles et clients applicatifs d’un royaume, un compte par environnement.",
+  "functions": [
+    {
+      "description": "Comptes Keycloak reliés à l’espace (identifiant, nom, compte par défaut), sans adresse ni secret. `probleme` dit pourquoi la liste est vide quand le service n’est pas encore configuré.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Les six comptes, un par environnement",
+          "output": {
+            "comptes": [
+              {
+                "default": true,
+                "id": "dev",
+                "label": "Keycloak Développement"
+              },
+              {
+                "default": false,
+                "id": "int",
+                "label": "Keycloak Intégration"
+              },
+              {
+                "default": false,
+                "id": "rec",
+                "label": "Keycloak Recette"
+              },
+              {
+                "default": false,
+                "id": "val",
+                "label": "Keycloak Validation"
+              },
+              {
+                "default": false,
+                "id": "preprod",
+                "label": "Keycloak Préproduction"
+              },
+              {
+                "default": false,
+                "id": "prod",
+                "label": "Keycloak Production"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "aucun": true
+          },
+          "name": "Aucun compte encore relié",
+          "output": {
+            "comptes": [],
+            "probleme": "Le service Keycloak n’a encore aucun compte."
+          }
+        }
+      ],
+      "id": "lister-comptes",
+      "input": {
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "comptes": {
+            "items": {
+              "properties": {
+                "default": {
+                  "type": "boolean"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "default"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "probleme": {
+            "description": "Raison d’une liste vide (service pas encore configuré).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "comptes"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "comptes"
+            ],
+            "schema": true
+          },
+          "input": {},
+          "name": "Liste les comptes Keycloak"
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Un niveau de l’arbre des groupes du royaume : les groupes racine, ou les sous-groupes de `parent`. `sousGroupes` dit combien un groupe en a, pour l’ouvrir à la demande.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Deux groupes racine",
+          "output": {
+            "groupes": [
+              {
+                "chemin": "/ATOM",
+                "id": "c1a7e0f4-6b2d-4e8a-9f31-0a1b2c3d4e10",
+                "nom": "ATOM",
+                "sousGroupes": 2
+              },
+              {
+                "chemin": "/Support",
+                "id": "f4d0b3c7-9e5a-4b1d-c264-3d4e5f6a7b40",
+                "nom": "Support",
+                "sousGroupes": 0
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "parent": "c1a7e0f4-6b2d-4e8a-9f31-0a1b2c3d4e10"
+          },
+          "name": "Sous-groupes d’ATOM",
+          "output": {
+            "groupes": [
+              {
+                "chemin": "/ATOM/Développeurs",
+                "id": "d2b8f1a5-7c3e-4f9b-a042-1b2c3d4e5f20",
+                "nom": "Développeurs",
+                "sousGroupes": 0
+              },
+              {
+                "chemin": "/ATOM/Exploitation",
+                "id": "e3c9a2b6-8d4f-4a0c-b153-2c3d4e5f6a30",
+                "nom": "Exploitation",
+                "sousGroupes": 0
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "parent": "f4d0b3c7-9e5a-4b1d-c264-3d4e5f6a7b40"
+          },
+          "name": "Aucun sous-groupe",
+          "output": {
+            "groupes": []
+          }
+        }
+      ],
+      "id": "lister-groupes",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "parent": {
+            "description": "Identifiant du groupe dont on veut les sous-groupes.",
+            "type": "string"
+          },
+          "recherche": {
+            "description": "Texte cherché dans les noms (racine seulement).",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "groupes": {
+            "items": {
+              "properties": {
+                "chemin": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                },
+                "sousGroupes": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "nom",
+                "chemin"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "groupes"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "groupes"
+            ]
+          },
+          "input": {},
+          "name": "Liste les groupes racine"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Crée un groupe à la racine du royaume, ou sous le groupe `parent`.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "nom": "Qualité",
+            "parent": "c1a7e0f4-6b2d-4e8a-9f31-0a1b2c3d4e10"
+          },
+          "name": "Groupe créé sous ATOM",
+          "output": {
+            "id": "a5e1c4d8-0f6b-4c2e-d375-4e5f6a7b8c90",
+            "nom": "Qualité"
+          }
+        },
+        {
+          "input": {
+            "nom": "Prestataires"
+          },
+          "name": "Groupe racine créé",
+          "output": {
+            "id": "b6f2d5e9-1a7c-4d3f-e486-5f6a7b8c9da0",
+            "nom": "Prestataires"
+          }
+        }
+      ],
+      "id": "creer-groupe",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "nom": {
+            "description": "Nom du groupe.",
+            "type": "string"
+          },
+          "parent": {
+            "description": "Identifiant du groupe parent.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nom"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nom": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "nom"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "nom"
+            ]
+          },
+          "input": {
+            "nom": "Alfred - essai"
+          },
+          "name": "Crée un groupe de test",
+          "target": {
+            "field": "parent",
+            "label": "Groupe parent de test"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Renomme un groupe ; ses membres et ses sous-groupes ne changent pas.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "groupe": "d2b8f1a5-7c3e-4f9b-a042-1b2c3d4e5f20",
+            "nom": "Développement"
+          },
+          "name": "Groupe renommé",
+          "output": {
+            "id": "d2b8f1a5-7c3e-4f9b-a042-1b2c3d4e5f20",
+            "nom": "Développement"
+          }
+        },
+        {
+          "input": {
+            "groupe": "f4d0b3c7-9e5a-4b1d-c264-3d4e5f6a7b40",
+            "nom": "Support N2"
+          },
+          "name": "Autre groupe renommé",
+          "output": {
+            "id": "f4d0b3c7-9e5a-4b1d-c264-3d4e5f6a7b40",
+            "nom": "Support N2"
+          }
+        }
+      ],
+      "id": "renommer-groupe",
+      "input": {
+        "properties": {
+          "groupe": {
+            "description": "Identifiant du groupe.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "nom": {
+            "description": "Nouveau nom.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "groupe",
+          "nom"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "nom": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "nom"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "nom"
+            ]
+          },
+          "input": {
+            "nom": "Alfred - essai renommé"
+          },
+          "name": "Renomme le groupe de test",
+          "target": {
+            "field": "groupe",
+            "label": "Groupe de test (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Supprime un groupe et ses sous-groupes ; les personnes restent dans le royaume.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "groupe": "e3c9a2b6-8d4f-4a0c-b153-2c3d4e5f6a30"
+          },
+          "name": "Groupe supprimé",
+          "output": {
+            "id": "e3c9a2b6-8d4f-4a0c-b153-2c3d4e5f6a30",
+            "supprime": true
+          }
+        },
+        {
+          "input": {
+            "groupe": "f4d0b3c7-9e5a-4b1d-c264-3d4e5f6a7b40"
+          },
+          "name": "Autre groupe supprimé",
+          "output": {
+            "id": "f4d0b3c7-9e5a-4b1d-c264-3d4e5f6a7b40",
+            "supprime": true
+          }
+        }
+      ],
+      "id": "supprimer-groupe",
+      "input": {
+        "properties": {
+          "groupe": {
+            "description": "Identifiant du groupe.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "groupe"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "supprime": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "supprime",
+          "id"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "supprime": true
+            }
+          },
+          "input": {},
+          "name": "Supprime le groupe de test",
+          "target": {
+            "field": "groupe",
+            "label": "Groupe de test à supprimer (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Groupe désigné par son chemin complet (/ATOM/Développeurs), avec son identifiant ; `groupe` vaut null s’il n’existe pas.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "chemin": "/ATOM/Développeurs"
+          },
+          "name": "Groupe des développeurs",
+          "output": {
+            "groupe": {
+              "chemin": "/ATOM/Développeurs",
+              "id": "d2b8f1a5-7c3e-4f9b-a042-1b2c3d4e5f20",
+              "nom": "Développeurs",
+              "sousGroupes": 0
+            }
+          }
+        },
+        {
+          "input": {
+            "chemin": "/ATOM/Inconnu"
+          },
+          "name": "Groupe absent",
+          "output": {
+            "groupe": null
+          }
+        }
+      ],
+      "id": "lire-groupe-par-chemin",
+      "input": {
+        "properties": {
+          "chemin": {
+            "description": "Chemin complet du groupe, par exemple /ATOM/Développeurs.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chemin"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "groupe": {
+            "properties": {
+              "chemin": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "nom": {
+                "type": "string"
+              },
+              "sousGroupes": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "nom",
+              "chemin"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "groupe"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "groupe"
+            ]
+          },
+          "input": {
+            "chemin": "/ATOM/Développeurs"
+          },
+          "name": "Retrouve un groupe par son chemin",
+          "target": {
+            "field": "chemin",
+            "label": "Chemin d’un groupe existant"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Membres directs d’un groupe (toutes les pages).",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "groupe": "d2b8f1a5-7c3e-4f9b-a042-1b2c3d4e5f20"
+          },
+          "name": "Deux développeurs",
+          "output": {
+            "membres": [
+              {
+                "actif": true,
+                "creeLe": "2026-03-02T08:15:00.000Z",
+                "email": "lea.martin@exemple.fr",
+                "id": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01",
+                "identifiant": "lea.martin",
+                "nom": "Martin",
+                "prenom": "Léa"
+              },
+              {
+                "actif": true,
+                "creeLe": "2026-05-18T13:40:00.000Z",
+                "email": "hugo.bernard@exemple.fr",
+                "id": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02",
+                "identifiant": "hugo.bernard",
+                "nom": "Bernard",
+                "prenom": "Hugo"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "groupe": "f4d0b3c7-9e5a-4b1d-c264-3d4e5f6a7b40"
+          },
+          "name": "Groupe vide",
+          "output": {
+            "membres": []
+          }
+        }
+      ],
+      "id": "lister-membres",
+      "input": {
+        "properties": {
+          "groupe": {
+            "description": "Identifiant du groupe.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "groupe"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "membres": {
+            "items": {
+              "properties": {
+                "actif": {
+                  "type": "boolean"
+                },
+                "creeLe": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "email": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "identifiant": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                },
+                "prenom": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "identifiant"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "membres"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "membres"
+            ]
+          },
+          "input": {
+            "groupe": "g-dev"
+          },
+          "name": "Liste les membres d’un groupe",
+          "target": {
+            "field": "groupe",
+            "label": "Groupe à lire (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Personnes du royaume dont l’identifiant, le nom ou le courriel contient `recherche` (50 au plus), ou la personne au courriel exact `email`.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "recherche": "e"
+          },
+          "name": "Deux personnes trouvées",
+          "output": {
+            "utilisateurs": [
+              {
+                "actif": true,
+                "creeLe": "2026-03-02T08:15:00.000Z",
+                "email": "lea.martin@exemple.fr",
+                "id": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01",
+                "identifiant": "lea.martin",
+                "nom": "Martin",
+                "prenom": "Léa"
+              },
+              {
+                "actif": true,
+                "creeLe": "2026-05-18T13:40:00.000Z",
+                "email": "hugo.bernard@exemple.fr",
+                "id": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02",
+                "identifiant": "hugo.bernard",
+                "nom": "Bernard",
+                "prenom": "Hugo"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "email": "lea.martin@exemple.fr"
+          },
+          "name": "Par courriel",
+          "output": {
+            "utilisateurs": [
+              {
+                "actif": true,
+                "creeLe": "2026-03-02T08:15:00.000Z",
+                "email": "lea.martin@exemple.fr",
+                "id": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01",
+                "identifiant": "lea.martin",
+                "nom": "Martin",
+                "prenom": "Léa"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "recherche": "zzz"
+          },
+          "name": "Personne",
+          "output": {
+            "utilisateurs": []
+          }
+        }
+      ],
+      "id": "chercher-utilisateurs",
+      "input": {
+        "properties": {
+          "email": {
+            "description": "Courriel exact, à la place de la recherche.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "recherche": {
+            "description": "Texte cherché.",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "utilisateurs": {
+            "items": {
+              "properties": {
+                "actif": {
+                  "type": "boolean"
+                },
+                "creeLe": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "email": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "identifiant": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                },
+                "prenom": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "identifiant"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "utilisateurs"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "utilisateurs"
+            ]
+          },
+          "input": {
+            "recherche": "a"
+          },
+          "name": "Cherche les personnes « a »"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Groupes dont une personne est membre directe.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "utilisateur": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01"
+          },
+          "name": "Léa, développeuse",
+          "output": {
+            "groupes": [
+              {
+                "chemin": "/ATOM/Développeurs",
+                "id": "d2b8f1a5-7c3e-4f9b-a042-1b2c3d4e5f20",
+                "nom": "Développeurs",
+                "sousGroupes": 0
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "utilisateur": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02"
+          },
+          "name": "Hugo, dans deux groupes",
+          "output": {
+            "groupes": [
+              {
+                "chemin": "/ATOM/Développeurs",
+                "id": "d2b8f1a5-7c3e-4f9b-a042-1b2c3d4e5f20",
+                "nom": "Développeurs",
+                "sousGroupes": 0
+              },
+              {
+                "chemin": "/ATOM/Exploitation",
+                "id": "e3c9a2b6-8d4f-4a0c-b153-2c3d4e5f6a30",
+                "nom": "Exploitation",
+                "sousGroupes": 0
+              }
+            ]
+          }
+        }
+      ],
+      "id": "lister-groupes-utilisateur",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "utilisateur": {
+            "description": "Identifiant (UUID) de la personne.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "utilisateur"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "groupes": {
+            "items": {
+              "properties": {
+                "chemin": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                },
+                "sousGroupes": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "nom",
+                "chemin"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "groupes"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "groupes"
+            ]
+          },
+          "input": {
+            "utilisateur": "u-lea"
+          },
+          "name": "Groupes d’une personne",
+          "target": {
+            "field": "utilisateur",
+            "label": "Personne à lire (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Crée une personne dans le royaume, sans mot de passe (elle se connecte par le fournisseur d’identité du royaume).",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "email": "chloe.petit@exemple.fr",
+            "identifiant": "chloe.petit",
+            "nom": "Petit",
+            "prenom": "Chloé"
+          },
+          "name": "Personne créée",
+          "output": {
+            "id": "c7a3e6f0-2b8d-4e4a-f597-6a7b8c9d0eb0",
+            "identifiant": "chloe.petit"
+          }
+        },
+        {
+          "input": {
+            "identifiant": "svc-batch"
+          },
+          "name": "Sans courriel",
+          "output": {
+            "id": "d8b4f7a1-3c9e-4f5b-a608-7b8c9d0e1fc0",
+            "identifiant": "svc-batch"
+          }
+        }
+      ],
+      "id": "creer-utilisateur",
+      "input": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "identifiant": {
+            "description": "Identifiant de connexion.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "nom": {
+            "type": "string"
+          },
+          "prenom": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "identifiant"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "identifiant": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "identifiant"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "identifiant"
+            ]
+          },
+          "input": {
+            "email": "alfred.essai@exemple.fr"
+          },
+          "name": "Crée une personne de test",
+          "target": {
+            "field": "identifiant",
+            "label": "Identifiant de la personne de test"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Ajoute une personne à un groupe (sans effet si elle en est déjà membre).",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "groupe": "e3c9a2b6-8d4f-4a0c-b153-2c3d4e5f6a30",
+            "utilisateur": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01"
+          },
+          "name": "Léa ajoutée à l’exploitation",
+          "output": {
+            "groupe": "e3c9a2b6-8d4f-4a0c-b153-2c3d4e5f6a30",
+            "membre": true,
+            "utilisateur": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01"
+          }
+        },
+        {
+          "input": {
+            "groupe": "f4d0b3c7-9e5a-4b1d-c264-3d4e5f6a7b40",
+            "utilisateur": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02"
+          },
+          "name": "Hugo ajouté au support",
+          "output": {
+            "groupe": "f4d0b3c7-9e5a-4b1d-c264-3d4e5f6a7b40",
+            "membre": true,
+            "utilisateur": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02"
+          }
+        }
+      ],
+      "id": "ajouter-au-groupe",
+      "input": {
+        "properties": {
+          "groupe": {
+            "description": "Identifiant du groupe.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "utilisateur": {
+            "description": "Identifiant de la personne.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "utilisateur",
+          "groupe"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "groupe": {
+            "type": "string"
+          },
+          "membre": {
+            "type": "boolean"
+          },
+          "utilisateur": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "utilisateur",
+          "groupe",
+          "membre"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "membre": true
+            }
+          },
+          "input": {
+            "groupe": "à remplacer"
+          },
+          "name": "Ajoute la personne de test au groupe",
+          "target": {
+            "field": "utilisateur",
+            "hint": "Le groupe de l’entrée est à modifier dans la fiche du test.",
+            "label": "Personne de test (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Retire une personne d’un groupe.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "groupe": "e3c9a2b6-8d4f-4a0c-b153-2c3d4e5f6a30",
+            "utilisateur": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02"
+          },
+          "name": "Hugo retiré de l’exploitation",
+          "output": {
+            "groupe": "e3c9a2b6-8d4f-4a0c-b153-2c3d4e5f6a30",
+            "membre": false,
+            "utilisateur": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02"
+          }
+        },
+        {
+          "input": {
+            "groupe": "d2b8f1a5-7c3e-4f9b-a042-1b2c3d4e5f20",
+            "utilisateur": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01"
+          },
+          "name": "Léa retirée des développeurs",
+          "output": {
+            "groupe": "d2b8f1a5-7c3e-4f9b-a042-1b2c3d4e5f20",
+            "membre": false,
+            "utilisateur": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01"
+          }
+        }
+      ],
+      "id": "retirer-du-groupe",
+      "input": {
+        "properties": {
+          "groupe": {
+            "description": "Identifiant du groupe.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "utilisateur": {
+            "description": "Identifiant de la personne.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "utilisateur",
+          "groupe"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "groupe": {
+            "type": "string"
+          },
+          "membre": {
+            "type": "boolean"
+          },
+          "utilisateur": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "utilisateur",
+          "groupe",
+          "membre"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "membre": false
+            }
+          },
+          "input": {
+            "groupe": "à remplacer"
+          },
+          "name": "Retire la personne de test du groupe",
+          "target": {
+            "field": "utilisateur",
+            "label": "Personne de test (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Clients applicatifs OpenID Connect du royaume, triés par identifiant public.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Deux clients",
+          "output": {
+            "clients": [
+              {
+                "actif": true,
+                "clientId": "api-commandes",
+                "description": "Compte de service de l’API des commandes.",
+                "id": "1b0c9d8e-7f6a-4b5c-8d3e-2f1a0b9c8d60",
+                "nom": "API Commandes",
+                "origines": [],
+                "public": false,
+                "redirections": []
+              },
+              {
+                "actif": true,
+                "clientId": "portail-web",
+                "description": "Application web du portail ATOM.",
+                "id": "0a9b8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c50",
+                "nom": "Portail web",
+                "origines": [
+                  "https://portail.recette.exemple.fr"
+                ],
+                "public": true,
+                "redirections": [
+                  "https://portail.recette.exemple.fr/*"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "instance": "dev"
+          },
+          "name": "Aucun client",
+          "output": {
+            "clients": []
+          }
+        }
+      ],
+      "id": "lister-clients",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "clients": {
+            "items": {
+              "properties": {
+                "actif": {
+                  "type": "boolean"
+                },
+                "clientId": {
+                  "description": "Identifiant public du client (client_id).",
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "id": {
+                  "description": "Identifiant interne (UUID) du client.",
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                },
+                "origines": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "public": {
+                  "description": "Client public (sans secret), sinon confidentiel.",
+                  "type": "boolean"
+                },
+                "redirections": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "id",
+                "clientId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "clients"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "clients"
+            ]
+          },
+          "input": {},
+          "name": "Liste les clients du royaume"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Crée un client applicatif OpenID Connect (confidentiel par défaut).",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "clientId": "api-factures",
+            "nom": "API Factures"
+          },
+          "name": "Client confidentiel créé",
+          "output": {
+            "clientId": "api-factures",
+            "id": "e9c5a8b2-4d0f-4a6c-b719-8c9d0e1f2ad0"
+          }
+        },
+        {
+          "input": {
+            "clientId": "portail-mobile",
+            "public": true
+          },
+          "name": "Client public créé",
+          "output": {
+            "clientId": "portail-mobile",
+            "id": "f0d6b9c3-5e1a-4b7d-c82a-9d0e1f2a3be0"
+          }
+        }
+      ],
+      "id": "creer-client",
+      "input": {
+        "properties": {
+          "actif": {
+            "type": "boolean"
+          },
+          "clientId": {
+            "description": "Identifiant public (client_id).",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "nom": {
+            "description": "Nom affiché.",
+            "type": "string"
+          },
+          "origines": {
+            "description": "Origines web autorisées (CORS).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "public": {
+            "description": "Client public (sans secret, pour une application web ou de bureau).",
+            "type": "boolean"
+          },
+          "redirections": {
+            "description": "Adresses de redirection autorisées.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "clientId"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "clientId"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "clientId"
+            ]
+          },
+          "input": {
+            "nom": "Client d’essai d’Alfred"
+          },
+          "name": "Crée un client de test",
+          "target": {
+            "field": "clientId",
+            "label": "Identifiant du client de test"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Modifie un client applicatif ; seuls les champs fournis changent.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "client": "0a9b8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c50",
+            "redirections": [
+              "https://portail.exemple.fr/*"
+            ]
+          },
+          "name": "Redirections modifiées",
+          "output": {
+            "id": "0a9b8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c50",
+            "modifie": true
+          }
+        },
+        {
+          "input": {
+            "actif": false,
+            "client": "1b0c9d8e-7f6a-4b5c-8d3e-2f1a0b9c8d60"
+          },
+          "name": "Client désactivé",
+          "output": {
+            "id": "1b0c9d8e-7f6a-4b5c-8d3e-2f1a0b9c8d60",
+            "modifie": true
+          }
+        }
+      ],
+      "id": "modifier-client",
+      "input": {
+        "properties": {
+          "actif": {
+            "type": "boolean"
+          },
+          "client": {
+            "description": "Identifiant interne (UUID) du client.",
+            "type": "string"
+          },
+          "clientId": {
+            "description": "Nouvel identifiant public.",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "nom": {
+            "description": "Nom affiché.",
+            "type": "string"
+          },
+          "origines": {
+            "description": "Origines web autorisées (CORS).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "public": {
+            "description": "Client public (sans secret, pour une application web ou de bureau).",
+            "type": "boolean"
+          },
+          "redirections": {
+            "description": "Adresses de redirection autorisées.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "client"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "modifie": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "modifie"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "modifie": true
+            }
+          },
+          "input": {
+            "description": "Modifié par Alfred"
+          },
+          "name": "Modifie la description du client de test",
+          "target": {
+            "field": "client",
+            "label": "Client de test (identifiant interne)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Supprime un client applicatif du royaume ; les applications qui s’en servent ne peuvent plus se connecter.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "client": "1b0c9d8e-7f6a-4b5c-8d3e-2f1a0b9c8d60"
+          },
+          "name": "Client supprimé",
+          "output": {
+            "id": "1b0c9d8e-7f6a-4b5c-8d3e-2f1a0b9c8d60",
+            "supprime": true
+          }
+        },
+        {
+          "input": {
+            "client": "0a9b8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c50"
+          },
+          "name": "Autre client supprimé",
+          "output": {
+            "id": "0a9b8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c50",
+            "supprime": true
+          }
+        }
+      ],
+      "id": "supprimer-client",
+      "input": {
+        "properties": {
+          "client": {
+            "description": "Identifiant interne (UUID) du client.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "supprime": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "supprime"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "supprime": true
+            }
+          },
+          "input": {},
+          "name": "Supprime le client de test",
+          "target": {
+            "field": "client",
+            "label": "Client de test à supprimer (identifiant interne)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Secret d’un client confidentiel, scellé : `secret` est une référence que la page affiche par secrets.reveal ou écrit dans un .env, jamais la valeur.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "client": "1b0c9d8e-7f6a-4b5c-8d3e-2f1a0b9c8d60"
+          },
+          "name": "Secret de l’API des commandes",
+          "output": {
+            "client": "1b0c9d8e-7f6a-4b5c-8d3e-2f1a0b9c8d60",
+            "secret": "alfred-secret-ref:v1:Zm9vYmFyZXhlbXBsZWRlcmVmZXJlbmNlc2NlbGxlZTAx"
+          }
+        },
+        {
+          "input": {
+            "client": "0a9b8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c50"
+          },
+          "name": "Client public, sans secret",
+          "output": {
+            "client": "0a9b8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c50",
+            "secret": null
+          }
+        }
+      ],
+      "id": "lire-secret-client",
+      "input": {
+        "properties": {
+          "client": {
+            "description": "Identifiant interne (UUID) du client.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "client": {
+            "type": "string"
+          },
+          "secret": {
+            "description": "Référence scellée du secret.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "client",
+          "secret"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "secret"
+            ]
+          },
+          "input": {
+            "client": "c-api"
+          },
+          "name": "Lit le secret scellé d’un client",
+          "target": {
+            "field": "client",
+            "label": "Client confidentiel (identifiant interne)"
+          }
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Remplace le secret d’un client confidentiel (l’ancien cesse aussitôt de fonctionner) et rend le nouveau, scellé.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "client": "1b0c9d8e-7f6a-4b5c-8d3e-2f1a0b9c8d60"
+          },
+          "name": "Nouveau secret",
+          "output": {
+            "client": "1b0c9d8e-7f6a-4b5c-8d3e-2f1a0b9c8d60",
+            "secret": "alfred-secret-ref:v1:Zm9vYmFyZXhlbXBsZWRlcmVmZXJlbmNlc2NlbGxlZTAx"
+          }
+        },
+        {
+          "input": {
+            "client": "0a9b8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c50"
+          },
+          "name": "Nouveau secret d’un autre client",
+          "output": {
+            "client": "0a9b8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c50",
+            "secret": "alfred-secret-ref:v1:Zm9vYmFyZXhlbXBsZWRlcmVmZXJlbmNlc2NlbGxlZTAx"
+          }
+        }
+      ],
+      "id": "regenerer-secret-client",
+      "input": {
+        "properties": {
+          "client": {
+            "description": "Identifiant interne (UUID) du client.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "client": {
+            "type": "string"
+          },
+          "secret": {
+            "description": "Référence scellée du nouveau secret.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "client",
+          "secret"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "secret"
+            ]
+          },
+          "input": {},
+          "name": "Renouvelle le secret du client de test",
+          "target": {
+            "field": "client",
+            "label": "Client de test (identifiant interne)"
+          }
+        }
+      ],
+      "tool": false,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Rôles du royaume, ou rôles du client applicatif `client` (identifiant interne).",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {},
+          "name": "Rôles du royaume",
+          "output": {
+            "roles": [
+              {
+                "composite": false,
+                "description": "Administration d’ATOM",
+                "id": "2c1d0e9f-8a7b-4c6d-9e4f-3a2b1c0d9e70",
+                "nom": "atom-admin"
+              },
+              {
+                "composite": false,
+                "description": "Lecture seule",
+                "id": "3d2e1f0a-9b8c-4d7e-af50-4b3c2d1e0f80",
+                "nom": "atom-lecteur"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "client": "0a9b8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c50"
+          },
+          "name": "Client sans rôle propre",
+          "output": {
+            "roles": []
+          }
+        }
+      ],
+      "id": "lister-roles",
+      "input": {
+        "properties": {
+          "client": {
+            "description": "Identifiant interne d’un client, pour ses rôles propres.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "roles": {
+            "items": {
+              "properties": {
+                "composite": {
+                  "type": "boolean"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "nom"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "roles"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "roles"
+            ]
+          },
+          "input": {},
+          "name": "Liste les rôles du royaume"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Rôles du royaume attribués directement à une personne.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "utilisateur": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01"
+          },
+          "name": "Léa, administratrice",
+          "output": {
+            "roles": [
+              {
+                "composite": false,
+                "description": "Administration d’ATOM",
+                "id": "2c1d0e9f-8a7b-4c6d-9e4f-3a2b1c0d9e70",
+                "nom": "atom-admin"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "utilisateur": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02"
+          },
+          "name": "Hugo, sans rôle direct",
+          "output": {
+            "roles": []
+          }
+        }
+      ],
+      "id": "lister-roles-utilisateur",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "utilisateur": {
+            "description": "Identifiant (UUID) de la personne.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "utilisateur"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "roles": {
+            "items": {
+              "properties": {
+                "composite": {
+                  "type": "boolean"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "nom"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "roles"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "roles"
+            ]
+          },
+          "input": {
+            "utilisateur": "u-lea"
+          },
+          "name": "Rôles d’une personne",
+          "target": {
+            "field": "utilisateur",
+            "label": "Personne à lire (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Attribue un rôle du royaume (par son nom) à une personne.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "role": "atom-lecteur",
+            "utilisateur": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02"
+          },
+          "name": "Rôle lecteur pour Hugo",
+          "output": {
+            "attribue": true,
+            "role": "atom-lecteur",
+            "utilisateur": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02"
+          }
+        },
+        {
+          "input": {
+            "role": "atom-admin",
+            "utilisateur": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01"
+          },
+          "name": "Rôle administrateur pour Léa",
+          "output": {
+            "attribue": true,
+            "role": "atom-admin",
+            "utilisateur": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01"
+          }
+        }
+      ],
+      "id": "attribuer-role",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "role": {
+            "description": "Nom du rôle du royaume.",
+            "type": "string"
+          },
+          "utilisateur": {
+            "description": "Identifiant de la personne.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "utilisateur",
+          "role"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "attribue": {
+            "type": "boolean"
+          },
+          "role": {
+            "type": "string"
+          },
+          "utilisateur": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "utilisateur",
+          "role",
+          "attribue"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "attribue": true
+            }
+          },
+          "input": {
+            "role": "atom-lecteur"
+          },
+          "name": "Attribue un rôle à la personne de test",
+          "target": {
+            "field": "utilisateur",
+            "label": "Personne de test (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Retire à une personne un rôle du royaume (par son nom).",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "role": "atom-admin",
+            "utilisateur": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01"
+          },
+          "name": "Rôle retiré à Léa",
+          "output": {
+            "attribue": false,
+            "role": "atom-admin",
+            "utilisateur": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01"
+          }
+        },
+        {
+          "input": {
+            "role": "atom-lecteur",
+            "utilisateur": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02"
+          },
+          "name": "Rôle retiré à Hugo",
+          "output": {
+            "attribue": false,
+            "role": "atom-lecteur",
+            "utilisateur": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02"
+          }
+        }
+      ],
+      "id": "retirer-role",
+      "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "role": {
+            "description": "Nom du rôle du royaume.",
+            "type": "string"
+          },
+          "utilisateur": {
+            "description": "Identifiant de la personne.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "utilisateur",
+          "role"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "attribue": {
+            "type": "boolean"
+          },
+          "role": {
+            "type": "string"
+          },
+          "utilisateur": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "utilisateur",
+          "role",
+          "attribue"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "attribue": false
+            }
+          },
+          "input": {
+            "role": "atom-lecteur"
+          },
+          "name": "Retire un rôle à la personne de test",
+          "target": {
+            "field": "utilisateur",
+            "label": "Personne de test (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Groupes désignés par leur chemin complet (/ATOM/Développeurs), avec leurs attributs et tous leurs membres directs (attributs compris). Un chemin absent du royaume rend `groupe: null`.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "chemins": [
+              "/ATOM/Développeurs",
+              "/ATOM/Absent"
+            ]
+          },
+          "name": "Les développeurs et un groupe absent",
+          "output": {
+            "groupes": [
+              {
+                "chemin": "/ATOM/Développeurs",
+                "groupe": {
+                  "attributs": {},
+                  "chemin": "/ATOM/Développeurs",
+                  "id": "d2b8f1a5-7c3e-4f9b-a042-1b2c3d4e5f20",
+                  "nom": "Développeurs"
+                },
+                "membres": [
+                  {
+                    "actif": true,
+                    "attributs": {
+                      "oneapp-profils": [
+                        "Développeur ATOM"
+                      ]
+                    },
+                    "creeLe": "2026-03-02T08:15:00.000Z",
+                    "email": "lea.martin@exemple.fr",
+                    "id": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01",
+                    "identifiant": "lea.martin",
+                    "nom": "Martin",
+                    "prenom": "Léa"
+                  },
+                  {
+                    "actif": true,
+                    "attributs": {
+                      "oneapp-profils": [
+                        "Développeur ATOM",
+                        "Exploitation"
+                      ]
+                    },
+                    "creeLe": "2026-05-18T13:40:00.000Z",
+                    "email": "hugo.bernard@exemple.fr",
+                    "id": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02",
+                    "identifiant": "hugo.bernard",
+                    "nom": "Bernard",
+                    "prenom": "Hugo"
+                  }
+                ]
+              },
+              {
+                "chemin": "/ATOM/Absent",
+                "groupe": null,
+                "membres": []
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "chemins": []
+          },
+          "name": "Aucun chemin",
+          "output": {
+            "groupes": []
+          }
+        }
+      ],
+      "id": "lire-groupes-par-chemins",
+      "input": {
+        "properties": {
+          "chemins": {
+            "description": "Chemins complets des groupes.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chemins"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "groupes": {
+            "items": {
+              "properties": {
+                "chemin": {
+                  "type": "string"
+                },
+                "groupe": {
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "attributs": {
+                          "additionalProperties": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "type": "object"
+                        },
+                        "chemin": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "nom": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "nom",
+                        "chemin"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "membres": {
+                  "items": {
+                    "properties": {
+                      "actif": {
+                        "type": "boolean"
+                      },
+                      "attributs": {
+                        "additionalProperties": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "type": "object"
+                      },
+                      "creeLe": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "email": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "identifiant": {
+                        "type": "string"
+                      },
+                      "nom": {
+                        "type": "string"
+                      },
+                      "prenom": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "identifiant"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "chemin",
+                "groupe",
+                "membres"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "groupes"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "groupes.0.groupe": null
+            }
+          },
+          "input": {
+            "chemins": [
+              "/alfred-essai-introuvable"
+            ]
+          },
+          "name": "Lit un chemin qui n’existe pas"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Personnes dont l’attribut `attribut` contient exactement `valeur` (recherche par attribut de Keycloak), avec leurs attributs.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "attribut": "oneapp-profils",
+            "valeur": "Développeur ATOM"
+          },
+          "name": "Les développeurs ATOM",
+          "output": {
+            "utilisateurs": [
+              {
+                "actif": true,
+                "attributs": {
+                  "oneapp-profils": [
+                    "Développeur ATOM"
+                  ]
+                },
+                "creeLe": "2026-03-02T08:15:00.000Z",
+                "email": "lea.martin@exemple.fr",
+                "id": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01",
+                "identifiant": "lea.martin",
+                "nom": "Martin",
+                "prenom": "Léa"
+              },
+              {
+                "actif": true,
+                "attributs": {
+                  "oneapp-profils": [
+                    "Développeur ATOM",
+                    "Exploitation"
+                  ]
+                },
+                "creeLe": "2026-05-18T13:40:00.000Z",
+                "email": "hugo.bernard@exemple.fr",
+                "id": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02",
+                "identifiant": "hugo.bernard",
+                "nom": "Bernard",
+                "prenom": "Hugo"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "attribut": "oneapp-profils",
+            "valeur": "Inconnu"
+          },
+          "name": "Personne",
+          "output": {
+            "utilisateurs": []
+          }
+        }
+      ],
+      "id": "chercher-par-attribut",
+      "input": {
+        "properties": {
+          "attribut": {
+            "description": "Nom de l’attribut (oneapp-profils).",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "valeur": {
+            "description": "Valeur cherchée.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "attribut",
+          "valeur"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "utilisateurs": {
+            "items": {
+              "properties": {
+                "actif": {
+                  "type": "boolean"
+                },
+                "attributs": {
+                  "additionalProperties": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "type": "object"
+                },
+                "creeLe": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "email": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "identifiant": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                },
+                "prenom": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "identifiant"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "utilisateurs"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "has": [
+              "utilisateurs"
+            ]
+          },
+          "input": {
+            "attribut": "oneapp-profils",
+            "valeur": "alfred-essai-introuvable"
+          },
+          "name": "Cherche une valeur absente"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Une personne avec ses attributs, désignée par son identifiant interne (`utilisateur`), son identifiant de connexion exact (`identifiant`) ou son courriel exact (`email`) ; `groupes: true` y joint tous ses groupes avec leurs attributs. Introuvable : `utilisateur` vaut null.",
+      "effect": "read",
+      "examples": [
+        {
+          "input": {
+            "groupes": true,
+            "identifiant": "lea.martin"
+          },
+          "name": "Léa et ses groupes",
+          "output": {
+            "groupes": [
+              {
+                "attributs": {},
+                "chemin": "/ATOM/Développeurs",
+                "id": "d2b8f1a5-7c3e-4f9b-a042-1b2c3d4e5f20",
+                "nom": "Développeurs"
+              }
+            ],
+            "utilisateur": {
+              "actif": true,
+              "attributs": {
+                "oneapp-profils": [
+                  "Développeur ATOM"
+                ]
+              },
+              "creeLe": "2026-03-02T08:15:00.000Z",
+              "email": "lea.martin@exemple.fr",
+              "id": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01",
+              "identifiant": "lea.martin",
+              "nom": "Martin",
+              "prenom": "Léa"
+            }
+          }
+        },
+        {
+          "input": {
+            "email": "personne@exemple.fr"
+          },
+          "name": "Courriel inconnu",
+          "output": {
+            "utilisateur": null
+          }
+        }
+      ],
+      "id": "lire-utilisateur",
+      "input": {
+        "properties": {
+          "email": {
+            "description": "Courriel exact.",
+            "type": "string"
+          },
+          "groupes": {
+            "description": "Joindre ses groupes.",
+            "type": "boolean"
+          },
+          "identifiant": {
+            "description": "Identifiant de connexion exact.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "utilisateur": {
+            "description": "Identifiant interne de la personne.",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "groupes": {
+            "items": {
+              "properties": {
+                "attributs": {
+                  "additionalProperties": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "type": "object"
+                },
+                "chemin": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "nom": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "nom",
+                "chemin"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "utilisateur": {
+            "anyOf": [
+              {
+                "properties": {
+                  "actif": {
+                    "type": "boolean"
+                  },
+                  "attributs": {
+                    "additionalProperties": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "type": "object"
+                  },
+                  "creeLe": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "identifiant": {
+                    "type": "string"
+                  },
+                  "nom": {
+                    "type": "string"
+                  },
+                  "prenom": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "identifiant"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "utilisateur"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "utilisateur": null
+            }
+          },
+          "input": {
+            "email": "alfred-essai-introuvable@exemple.test"
+          },
+          "name": "Cherche un courriel absent"
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    },
+    {
+      "description": "Remplace les valeurs d’un attribut d’une personne (le reste de sa fiche est gardé), puis vérifie que Keycloak l’a bien enregistré ; une liste vide retire les valeurs.",
+      "effect": "write",
+      "examples": [
+        {
+          "input": {
+            "attribut": "oneapp-profils",
+            "utilisateur": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01",
+            "valeurs": [
+              "Développeur ATOM",
+              "Exploitation"
+            ]
+          },
+          "name": "Léa reçoit le profil Exploitation",
+          "output": {
+            "attribut": "oneapp-profils",
+            "utilisateur": "5b0d8c1e-4c1a-4f61-9a0e-7f2b6c9d1a01",
+            "valeurs": [
+              "Développeur ATOM",
+              "Exploitation"
+            ]
+          }
+        },
+        {
+          "input": {
+            "attribut": "oneapp-profils",
+            "utilisateur": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02",
+            "valeurs": []
+          },
+          "name": "Profil retiré",
+          "output": {
+            "attribut": "oneapp-profils",
+            "utilisateur": "8e3f1a52-0b7d-4a2e-b1c4-2d6e9f0a3b02",
+            "valeurs": []
+          }
+        }
+      ],
+      "id": "modifier-attribut-utilisateur",
+      "input": {
+        "properties": {
+          "attribut": {
+            "description": "Nom de l’attribut.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "Compte à utiliser (identifiant d’instance) ; à défaut, celui de la page ou le compte par défaut.",
+            "type": "string"
+          },
+          "utilisateur": {
+            "description": "Identifiant interne de la personne.",
+            "type": "string"
+          },
+          "valeurs": {
+            "description": "Nouvelles valeurs.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "utilisateur",
+          "attribut",
+          "valeurs"
+        ],
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "attribut": {
+            "type": "string"
+          },
+          "utilisateur": {
+            "type": "string"
+          },
+          "valeurs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "utilisateur",
+          "attribut",
+          "valeurs"
+        ],
+        "type": "object"
+      },
+      "tests": [
+        {
+          "expect": {
+            "equals": {
+              "valeurs.0": "oui"
+            }
+          },
+          "input": {
+            "attribut": "alfred-essai",
+            "valeurs": [
+              "oui"
+            ]
+          },
+          "name": "Enregistre un attribut d’essai sur la personne de test",
+          "target": {
+            "field": "utilisateur",
+            "label": "Personne de test (identifiant)"
+          }
+        }
+      ],
+      "tool": true,
+      "uses": {
+        "clients": [
+          "keycloak"
+        ]
+      }
+    }
+  ],
+  "id": "keycloak",
+  "name": "Keycloak",
+  "setup": {
+    "welcome": "Gérez les groupes, les personnes, les rôles et les clients de vos royaumes Keycloak. Il vous faut l’adresse de chaque Keycloak, le nom du royaume et un client autorisé à administrer ce royaume."
+  },
+  "version": "0.1.0"
+}
