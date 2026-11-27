@@ -1,14 +1,10 @@
 import { functions, notifyActionError, shell, useAsync } from "@alfred/sdk";
 import { Pencil, Play, Plus, Power, Settings, Trash2 } from "lucide-react";
+import { useMemo } from "react";
 import { type FormField, ListPage, useOpenForm } from "socle-ui";
+import { useComptesOutlook, useDossiersOutlook } from "../lib/etats";
 import { lirePoints, type PointEntree } from "../lib/points";
 import { ecrireReglage, lireReglages } from "../lib/regles";
-
-interface Dossier {
-  id: string;
-  nom: string;
-  profondeur: number;
-}
 
 interface Ligne extends PointEntree {
   dossierNom: string;
@@ -16,29 +12,22 @@ interface Ligne extends PointEntree {
 
 export default function PointsEntreePage() {
   const openForm = useOpenForm();
-  const dossiers = useAsync(
-    () => functions.call<{ boite: string; dossiers: Dossier[] }>("lister-dossiers", {}),
-    [],
-  );
-  const listeDossiers = dossiers.data?.dossiers ?? [];
-  const noms: Record<string, string> = {};
-  for (const dossier of listeDossiers) noms[dossier.id] = dossier.nom;
-  const optionsDossiers = listeDossiers.map((dossier) => ({
-    id: dossier.id,
-    label: `${"— ".repeat(dossier.profondeur)}${dossier.nom}`,
-  }));
+  const { comptes, pret } = useComptesOutlook();
+  const { noms, options: optionsDossiers } = useDossiersOutlook(pret);
 
-  const comptes = useAsync(() => functions.call<{ pret: boolean }>("comptes-outlook"), []);
-  const pret = comptes.data?.pret === true;
-
-  const points = useAsync(
-    async () =>
-      (await lirePoints()).map((point) => ({
+  // Les points se lisent une fois ; le nom des dossiers s’ajoute quand Outlook les donne, sans recharger la liste.
+  const points = useAsync(() => lirePoints(), []);
+  const lignes = useMemo(
+    () =>
+      points.data?.map((point) => ({
         ...point,
-        dossierNom: point.dossier ? (noms[point.dossier] ?? "Dossier introuvable") : "Reste dans la boîte",
+        dossierNom: point.dossier
+          ? (noms[point.dossier] ?? (pret ? "Dossier introuvable" : "Dossier Outlook"))
+          : "Reste dans la boîte",
       })),
-    [dossiers.data],
+    [points.data, noms, pret],
   );
+  const chargement = points.loading || comptes.loading;
   const reussi = (title: string) => shell.notify({ title, tone: "success" });
 
   function formulaire(point?: PointEntree) {
@@ -137,7 +126,7 @@ export default function PointsEntreePage() {
   return (
     <ListPage<Ligne>
       title="Points d’entrée"
-      rows={points.data}
+      rows={chargement ? undefined : lignes}
       columns={[
         { id: "nom", label: "Point d’entrée" },
         { id: "description", label: "Ce qu’il regroupe" },
@@ -196,7 +185,7 @@ export default function PointsEntreePage() {
           onPress: () => functions.call("supprimer-point-entree", { id: point.id }),
         },
       ]}
-      isLoading={points.loading}
+      isLoading={chargement}
       hasError={Boolean(points.error)}
       onRetry={points.reload}
       onActionError={notifyActionError}

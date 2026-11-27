@@ -6,7 +6,9 @@ try {
   $outlook = Get-Outlook
   $session = $outlook.Session
 
-  $instance = Get-Valeur $entree "instance" ""
+  # « compte » : le compte choisi dans la page (paramètre de l’état partagé) ; « instance » reste accepté.
+  $instance = [string](Get-Valeur $entree "compte" "")
+  if ([string]::IsNullOrWhiteSpace($instance)) { $instance = [string](Get-Valeur $entree "instance" "") }
   $dossierId = Get-Valeur $entree "dossier" ""
   $dossier = Get-Dossier $session $instance $dossierId
 

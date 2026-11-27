@@ -1,24 +1,30 @@
 import { Stack } from "@alfred/kit";
-import { functions, notifyActionError, shell, useAsync } from "@alfred/sdk";
+import { notifyActionError, shell, states, useAsync } from "@alfred/sdk";
+import type { EtatComptes } from "../lib/etats";
 import { PlugZap } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Page, PageSection, Switch, TextField } from "socle-ui";
+import { Page, PageSection, TextInput, Toggle } from "socle-ui";
 import { ecrireReglage, lireReglages } from "../lib/regles";
 
-/** Vérifie qu’Outlook répond sur ce poste, et dit à quelle boîte. */
+/** Fait relire les comptes Outlook, puis dit si l’application répond et à quelle boîte. */
 async function tester() {
-  const reponse = await functions.call<{ pret: boolean; profil: { nom: string; adresse: string } | null }>(
-    "comptes-outlook",
-  );
-  if (!reponse.pret) {
+  let etat: EtatComptes | undefined;
+  try {
+    const lecture = await states.get("comptes");
+    await lecture.refresh();
+    etat = (await states.get("comptes")).value as EtatComptes | undefined;
+  } catch {
+    etat = undefined;
+  }
+  if (!etat?.pret) {
     shell.notify({
       title: "Outlook ne répond pas",
-      description: "Ouvrez Microsoft Outlook sur cet ordinateur, puis réessayez.",
+      description: "Ouvrez Microsoft Outlook sur votre PC Windows, puis réessayez.",
       tone: "warning",
     });
     return;
   }
-  const qui = reponse.profil?.adresse || reponse.profil?.nom || "votre boîte";
+  const qui = etat.profil?.adresse || etat.profil?.nom || "votre boîte";
   shell.notify({ title: "Outlook répond", description: `Connecté à ${qui}.`, tone: "success" });
 }
 
@@ -44,24 +50,24 @@ export default function ReglagesOutlook() {
         actions={[{ id: "tester", label: "Tester la connexion", icon: <PlugZap size={16} />, onPress: tester }]}
       >
         <Stack gap="md">
-          <Switch
+          <Toggle
             isSelected={actif("releve_active")}
             onChange={(v) => enregistrer("releve_active", v ? "1" : "0")}
             description="Toutes les dix minutes, tant qu’Alfred est ouvert."
           >
             Relever la boîte régulièrement
-          </Switch>
-          <Switch
+          </Toggle>
+          <Toggle
             isSelected={actif("notifier")}
             onChange={(v) => enregistrer("notifier", v ? "1" : "0")}
             description="Une notification quand de nouveaux messages arrivent."
           >
             Me prévenir des nouveaux messages
-          </Switch>
+          </Toggle>
         </Stack>
       </PageSection>
       <PageSection title="Rédaction">
-        <TextField
+        <TextInput
           label="Signature"
           width="lg"
           description="Ajoutée au bas de vos nouveaux messages, réponses et transferts."
@@ -74,13 +80,13 @@ export default function ReglagesOutlook() {
         />
       </PageSection>
       <PageSection title="Lecture">
-        <Switch
+        <Toggle
           isSelected={actif("marquer_lu_ouverture")}
           onChange={(v) => enregistrer("marquer_lu_ouverture", v ? "1" : "0")}
           description="Un message ouvert depuis la boîte cesse d’être non lu."
         >
           Marquer comme lu à l’ouverture
-        </Switch>
+        </Toggle>
       </PageSection>
     </Page>
   );

@@ -1,13 +1,9 @@
 import { notifyActionError, functions, shell, useAsync } from "@alfred/sdk";
+import { useComptesOutlook, useDossiersOutlook } from "../lib/etats";
 import { Pencil, Play, Plus, Power, Trash2 } from "lucide-react";
+import { useMemo } from "react";
 import { type FormField, ListPage, useConfirm, useOpenForm } from "socle-ui";
 import { lireRegles, type Regle, resumerActions, resumerConditions } from "../lib/regles";
-
-interface Dossier {
-  id: string;
-  nom: string;
-  profondeur: number;
-}
 
 interface Ligne extends Regle {
   conditionTexte: string;
@@ -17,30 +13,21 @@ interface Ligne extends Regle {
 export default function ReglesPage() {
   const openForm = useOpenForm();
   const confirm = useConfirm();
-  const dossiers = useAsync(
-    () => functions.call<{ boite: string; dossiers: Dossier[] }>("lister-dossiers", {}),
-    [],
-  );
-  const listeDossiers = dossiers.data?.dossiers ?? [];
-  const noms: Record<string, string> = {};
-  for (const dossier of listeDossiers) noms[dossier.id] = dossier.nom;
-  const optionsDossiers = listeDossiers.map((dossier) => ({
-    id: dossier.id,
-    label: `${"— ".repeat(dossier.profondeur)}${dossier.nom}`,
-  }));
+  const { comptes, pret } = useComptesOutlook();
+  const { noms, options: optionsDossiers } = useDossiersOutlook(pret);
 
-  const comptes = useAsync(() => functions.call<{ pret: boolean }>("comptes-outlook"), []);
-  const pret = comptes.data?.pret === true;
-
-  const regles = useAsync(
-    async () =>
-      (await lireRegles()).map((regle) => ({
+  // Les règles se lisent une fois ; le nom des dossiers s’ajoute quand Outlook les donne, sans recharger la liste.
+  const regles = useAsync(lireRegles, []);
+  const lignes = useMemo(
+    () =>
+      regles.data?.map((regle) => ({
         ...regle,
         conditionTexte: resumerConditions(regle.conditions),
         actionTexte: resumerActions(regle.actions, noms),
       })),
-    [dossiers.data],
+    [regles.data, noms],
   );
+  const chargement = regles.loading || comptes.loading;
 
   async function formulaire(regle?: Regle) {
     const champs: FormField[] = [
@@ -178,7 +165,7 @@ export default function ReglesPage() {
           ? "Vous pouvez préparer vos règles dès maintenant ; elles trieront vos messages dès qu’Outlook répondra sur votre PC Windows."
           : undefined
       }
-      rows={regles.data}
+      rows={chargement ? undefined : lignes}
       columns={[
         { id: "nom", label: "Règle" },
         { id: "conditionTexte", label: "Condition" },
@@ -223,7 +210,7 @@ export default function ReglesPage() {
           onPress: () => functions.call("supprimer-regle", { id: regle.id }),
         },
       ]}
-      isLoading={regles.loading}
+      isLoading={chargement}
       hasError={Boolean(regles.error)}
       onRetry={regles.reload}
       onActionError={notifyActionError}

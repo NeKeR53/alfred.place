@@ -1,4 +1,4 @@
-import { db, functions, shell, useAsync } from "@alfred/sdk";
+import { db, shell, useAlfredState } from "@alfred/sdk";
 import { FolderOpen } from "lucide-react";
 import { ListPage } from "socle-ui";
 import { raisonIndisponible } from "../lib/affichage";
@@ -27,22 +27,24 @@ async function ouvrir(dossier: Ligne) {
 }
 
 export default function DossiersPage() {
-  const comptes = useAsync(() => functions.call<{ pret: boolean }>("comptes-outlook"), []);
-  const indisponible = Boolean(comptes.error) || (comptes.data !== undefined && comptes.data.pret !== true);
-  const dossiers = useAsync(async () => {
-    const etat = await functions.call<{ pret: boolean }>("comptes-outlook").catch(() => null);
-    if (!etat?.pret) return [];
-    const reponse = await functions.call<{ boite: string; dossiers: Dossier[] }>("lister-dossiers", {});
-    return reponse.dossiers.map((dossier) => ({
-      ...dossier,
-      nomAffiche: `${"— ".repeat(dossier.profondeur)}${dossier.nom}`,
-    }));
-  }, []);
+  const comptes = useAlfredState<{ pret: boolean }>("comptes");
+  const pret = comptes.data?.pret === true;
+  const indisponible = (Boolean(comptes.error) && !comptes.data) || (comptes.data !== undefined && !pret);
+  const dossiers = useAlfredState<{ boite: string; dossiers: Dossier[] }, Ligne[]>(pret ? "dossiers" : null, {
+    params: { compte: "" },
+    select: (valeur) =>
+      (valeur?.dossiers ?? []).map((dossier) => ({
+        ...dossier,
+        nomAffiche: `${"— ".repeat(dossier.profondeur)}${dossier.nom}`,
+      })),
+  });
+  const lignes = indisponible ? [] : dossiers.data;
+  const chargement = !indisponible && (comptes.loading || (pret && dossiers.loading));
 
   return (
     <ListPage<Ligne>
       title="Dossiers"
-      rows={dossiers.data}
+      rows={lignes}
       columns={[
         { id: "nomAffiche", label: "Dossier" },
         { id: "nonLus", label: "Non lus", type: "number" },
@@ -58,9 +60,9 @@ export default function DossiersPage() {
       rowActions={(dossier) => [
         { id: "ouvrir", label: "Ouvrir le dossier", icon: <FolderOpen size={16} />, onPress: () => ouvrir(dossier) },
       ]}
-      isLoading={dossiers.loading}
-      hasError={Boolean(dossiers.error)}
-      onRetry={dossiers.reload}
+      isLoading={chargement}
+      hasError={Boolean(dossiers.error) && !dossiers.data}
+      onRetry={() => void (pret ? dossiers.refresh() : comptes.refresh())}
     />
   );
 }

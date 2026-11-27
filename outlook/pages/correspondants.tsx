@@ -1,7 +1,9 @@
-import { db, functions, notifyActionError, shell, useAsync } from "@alfred/sdk";
+import { db, notifyActionError, shell, useAlfredState } from "@alfred/sdk";
+import { useMemo } from "react";
 import { Mail } from "lucide-react";
 import { ListPage } from "socle-ui";
 import { raisonIndisponible } from "../lib/affichage";
+import { useComptesOutlook } from "../lib/etats";
 
 interface Message {
   expediteur: string;
@@ -20,19 +22,17 @@ interface Correspondant {
 }
 
 const LOT = 100;
-const LOTS = 3;
 
-async function charger(): Promise<Correspondant[]> {
-  const etat = await functions.call<{ pret: boolean }>("comptes-outlook").catch(() => null);
-  if (!etat?.pret) return [];
+interface PageMessages {
+  messages: Message[];
+  suivant: boolean;
+}
 
+/** Regroupe les messages par expéditeur, du plus fréquent au plus rare. */
+function regrouper(pages: Array<PageMessages | undefined>): Correspondant[] {
   const parAdresse = new Map<string, Correspondant>();
-  for (let lot = 0; lot < LOTS; lot += 1) {
-    const page = await functions.call<{ messages: Message[]; suivant: boolean }>("lister-messages", {
-      debut: lot * LOT,
-      limite: LOT,
-    });
-    for (const message of page.messages) {
+  for (const page of pages) {
+    for (const message of page?.messages ?? []) {
       const adresse = (message.expediteurAdresse || message.expediteur || "").toLowerCase();
       if (!adresse) continue;
       const fiche = parAdresse.get(adresse) ?? {
@@ -48,15 +48,34 @@ async function charger(): Promise<Correspondant[]> {
       if (message.recu && (!fiche.dernier || message.recu > fiche.dernier)) fiche.dernier = message.recu;
       parAdresse.set(adresse, fiche);
     }
-    if (!page.suivant) break;
   }
   return [...parAdresse.values()].sort((a, b) => b.messages - a.messages);
 }
 
+/** Les trois cents derniers messages de la boîte, par lots de cent suivis en direct. */
+function useDerniersMessages(pret: boolean) {
+  const premier = useAlfredState<PageMessages>(pret ? "messages" : null, { params: { compte: "", debut: 0, limite: LOT } });
+  const deuxieme = useAlfredState<PageMessages>(pret && premier.data?.suivant ? "messages" : null, {
+    params: { compte: "", debut: LOT, limite: LOT },
+  });
+  const troisieme = useAlfredState<PageMessages>(pret && deuxieme.data?.suivant ? "messages" : null, {
+    params: { compte: "", debut: 2 * LOT, limite: LOT },
+  });
+  const lots = [premier, deuxieme, troisieme];
+  return {
+    pages: lots.map((lot) => lot.data),
+    loading: premier.loading,
+    error: premier.error && !premier.data ? premier.error : undefined,
+    refresh: () => Promise.all(lots.map((lot) => lot.refresh())).then(() => undefined),
+  };
+}
+
 export default function CorrespondantsPage() {
-  const comptes = useAsync(() => functions.call<{ pret: boolean }>("comptes-outlook"), []);
-  const indisponible = Boolean(comptes.error) || (comptes.data !== undefined && comptes.data.pret !== true);
-  const correspondants = useAsync(charger, []);
+  const { comptes, pret, indisponible } = useComptesOutlook();
+  const derniers = useDerniersMessages(pret);
+  const [page1, page2, page3] = derniers.pages;
+  const correspondants = useMemo(() => regrouper([page1, page2, page3]), [page1, page2, page3]);
+  const chargement = !indisponible && (comptes.loading || (pret && derniers.loading));
 
   async function voirMessages(correspondant: Correspondant) {
     await db.execute(
@@ -70,7 +89,7 @@ export default function CorrespondantsPage() {
   return (
     <ListPage<Correspondant>
       title="Correspondants"
-      rows={correspondants.data}
+      rows={indisponible ? [] : chargement ? undefined : correspondants}
       columns={[
         { id: "nom", label: "Nom" },
         { id: "adresse", label: "Adresse", type: "email" },
@@ -100,9 +119,9 @@ export default function CorrespondantsPage() {
       rowActions={(correspondant) => [
         { id: "messages", label: "Voir ses messages", icon: <Mail size={16} />, onPress: () => voirMessages(correspondant) },
       ]}
-      isLoading={correspondants.loading}
-      hasError={Boolean(correspondants.error)}
-      onRetry={correspondants.reload}
+      isLoading={chargement}
+      hasError={Boolean(derniers.error)}
+      onRetry={() => void (pret ? derniers.refresh() : comptes.refresh())}
       onActionError={notifyActionError}
     />
   );

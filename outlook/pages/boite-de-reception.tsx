@@ -6,9 +6,9 @@ import {
   functions,
   notifyActionError,
   shell,
+  useAlfredState,
   useAsync,
   usePageState,
-  usePeerMessage,
 } from "@alfred/sdk";
 import { Bot, ChevronLeft, ChevronRight, RefreshCw, SquarePen } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -16,36 +16,18 @@ import {
   Avatar,
   Page,
   PageSection,
-  SearchField,
+  SearchInput,
   Select,
   type StatusMap,
   Table,
   type TableColumn,
+  Tabs,
   useOpenForm,
 } from "socle-ui";
 import { badge as pastille, discret, quand, raisonIndisponible } from "../lib/affichage";
 import { type Classement, lirePoints } from "../lib/points";
+import { useComptesOutlook, useDossiersOutlook } from "../lib/etats";
 import { useJugements } from "../lib/progressif";
-
-interface Compte {
-  id: string;
-  label: string;
-  default: boolean;
-}
-
-interface Profil {
-  nom: string;
-  adresse: string;
-}
-
-interface Dossier {
-  id: string;
-  nom: string;
-  parent: string;
-  profondeur: number;
-  nonLus: number;
-  total: number;
-}
 
 interface Message {
   id: string;
@@ -60,6 +42,11 @@ interface Message {
   extrait: string;
   important: boolean;
   url: string | null;
+}
+
+interface PageMessages {
+  messages: Message[];
+  suivant: boolean;
 }
 
 interface Ligne extends Message {
@@ -94,13 +81,9 @@ export default function BoitePage() {
   const [page, setPage] = usePageState<number>("outlook.boite.page", 1);
   const [selection, setSelection] = usePageState<string | null>("outlook.boite.selection", null);
 
-  const comptes = useAsync(
-    () => functions.call<{ comptes: Compte[]; pret: boolean; profil: Profil | null }>("comptes-outlook"),
-    [],
-  );
+  const { comptes, pret } = useComptesOutlook();
   const listeComptes = comptes.data?.comptes ?? [];
   const compte = listeComptes.find((element) => element.default)?.id ?? listeComptes[0]?.id ?? "";
-  const pret = comptes.data?.pret === true;
 
   const preferences = useAsync(
     () => db.query<{ cle: string; valeur: string }>("SELECT cle, valeur FROM outlook_reglages"),
@@ -110,21 +93,21 @@ export default function BoitePage() {
     return preferences.data?.find((ligne) => ligne.cle === cle)?.valeur ?? defaut;
   }
 
-  const dossiers = useAsync(
-    () =>
-      compte
-        ? functions.call<{ boite: string; dossiers: Dossier[] }>("lister-dossiers", { instance: compte })
-        : Promise.resolve({ boite: "", dossiers: [] as Dossier[] }),
-    [compte],
+  const { dossiers, liste: listeDossiers, options: optionsDossiers, boite } = useDossiersOutlook(
+    pret && Boolean(compte),
+    compte,
   );
-  const listeDossiers = dossiers.data?.dossiers ?? [];
-  const boite = dossiers.data?.boite ?? "";
 
   useEffect(() => {
     if (dossier) return;
     const defaut = preference("dossier_actif", "") || boite;
     if (defaut) setDossier(defaut);
   }, [dossier, preferences.data, boite]);
+
+  // Outlook absent ou fermé : la pastille ne doit pas garder un ancien nombre.
+  useEffect(() => {
+    if (comptes.error || (comptes.data && !comptes.data.pret)) void badge.clear({ page: "boite-de-reception" });
+  }, [comptes.data, comptes.error]);
 
   useEffect(() => {
     const info = listeDossiers.find((element) => element.id === boite);
@@ -147,58 +130,66 @@ export default function BoitePage() {
   const listePoints = points.data ?? [];
   const filtrePoint = point && (point === DOUTEUX || point === AUCUN || listePoints.some((p) => p.id === point)) ? point : "";
 
-  const messages = useAsync(
-    async () => {
-      if (!compte || (!dossier && !boite)) return { messages: [] as Message[], suivant: false };
-      const criteres = {
-        instance: compte,
-        dossier: dossier || boite,
-        recherche: recherche || undefined,
-        expediteur: expediteur || undefined,
-        nonLus: vue === "nonLus",
-      };
-      if (!filtrePoint) {
-        return functions.call<{ messages: Message[]; suivant: boolean }>("lister-messages", {
-          ...criteres,
-          debut: (page - 1) * TAILLE,
-          limite: TAILLE,
-        });
-      }
-      // Filtre par point d’entrée : je parcours les derniers messages et je garde ceux de ce point.
-      const trouves: Message[] = [];
-      let debut = 0;
-      while (debut < BALAYAGE) {
-        const lot = await functions.call<{ messages: Message[]; suivant: boolean }>("lister-messages", {
-          ...criteres,
-          debut,
-          limite: 100,
-        });
-        for (let i = 0; i < lot.messages.length; i += 50) {
-          const tranche = lot.messages.slice(i, i + 50);
-          const { resultats } = await functions.call<{ resultats: Classement[] }>("classer-messages", {
-            messages: tranche.map((m) => ({
-              id: m.id,
-              objet: m.objet,
-              expediteur: m.expediteur,
-              expediteurAdresse: m.expediteurAdresse,
-              extrait: m.extrait,
-            })),
-          });
-          const gardes = new Set(resultats.filter((r) => correspondAuPoint(filtrePoint, r)).map((r) => r.id));
-          trouves.push(...tranche.filter((m) => gardes.has(m.id)));
-        }
-        if (!lot.suivant || lot.messages.length === 0) break;
-        debut += lot.messages.length;
-      }
-      return { messages: trouves.slice((page - 1) * TAILLE, page * TAILLE), suivant: trouves.length > page * TAILLE };
-    },
-    [compte, dossier, boite, recherche, expediteur, vue, page, filtrePoint],
-  );
-
-  usePeerMessage(() => {
-    messages.reload();
-    dossiers.reload();
+  // Messages suivis en direct : une page du dossier, ou les derniers messages quand un point d’entrée filtre la vue.
+  const actif = pret && Boolean(compte) && Boolean(dossier || boite);
+  const criteres = {
+    compte,
+    dossier: dossier || boite,
+    recherche,
+    expediteur,
+    nonLus: vue === "nonLus",
+  };
+  const pageSimple = useAlfredState<PageMessages>(actif && !filtrePoint ? "messages" : null, {
+    params: { ...criteres, debut: (page - 1) * TAILLE, limite: TAILLE },
   });
+  const lot1 = useAlfredState<PageMessages>(actif && filtrePoint ? "messages" : null, {
+    params: { ...criteres, debut: 0, limite: 100 },
+  });
+  const lot2 = useAlfredState<PageMessages>(actif && filtrePoint && lot1.data?.suivant ? "messages" : null, {
+    params: { ...criteres, debut: 100, limite: 100 },
+  });
+  const lot3 = useAlfredState<PageMessages>(actif && filtrePoint && lot2.data?.suivant ? "messages" : null, {
+    params: { ...criteres, debut: 200, limite: 100 },
+  });
+  // Filtre par point d’entrée : je classe les derniers messages et je garde ceux de ce point.
+  const filtres = useAsync(async () => {
+    if (!filtrePoint || !lot1.data) return null;
+    const derniers = [lot1.data, lot2.data, lot3.data].flatMap((lot) => lot?.messages ?? []).slice(0, BALAYAGE);
+    const trouves: Message[] = [];
+    for (let i = 0; i < derniers.length; i += 50) {
+      const tranche = derniers.slice(i, i + 50);
+      const { resultats } = await functions.call<{ resultats: Classement[] }>("classer-messages", {
+        messages: tranche.map((m) => ({
+          id: m.id,
+          objet: m.objet,
+          expediteur: m.expediteur,
+          expediteurAdresse: m.expediteurAdresse,
+          extrait: m.extrait,
+        })),
+      });
+      const gardes = new Set(resultats.filter((r) => correspondAuPoint(filtrePoint, r)).map((r) => r.id));
+      trouves.push(...tranche.filter((m) => gardes.has(m.id)));
+    }
+    return trouves;
+  }, [filtrePoint, lot1.data, lot2.data, lot3.data]);
+  const messages = filtrePoint
+    ? {
+        data: filtres.data
+          ? { messages: filtres.data.slice((page - 1) * TAILLE, page * TAILLE), suivant: filtres.data.length > page * TAILLE }
+          : undefined,
+        loading: lot1.loading || filtres.loading,
+        error: (lot1.error && !lot1.data ? lot1.error : undefined) ?? filtres.error,
+      }
+    : {
+        data: actif ? pageSimple.data : undefined,
+        loading: pageSimple.loading,
+        error: pageSimple.error && !pageSimple.data ? pageSimple.error : undefined,
+      };
+  const relire = () => {
+    void dossiers.refresh();
+    if (filtrePoint) void Promise.all([lot1.refresh(), lot2.refresh(), lot3.refresh()]);
+    else void pageSimple.refresh();
+  };
 
   const lignes: Ligne[] = (messages.data?.messages ?? []).map((message) => ({
     ...message,
@@ -268,10 +259,6 @@ export default function BoitePage() {
     if (!message.lu && preference("marquer_lu_ouverture", "1") === "1") {
       void functions
         .call("marquer-message", { instance: compte, id: message.id, lu: true })
-        .then(() => {
-          messages.reload();
-          dossiers.reload();
-        })
         .catch(() => {});
     }
   }
@@ -314,8 +301,6 @@ export default function BoitePage() {
           await functions.call("envoyer-message", entree);
           await shell.notify({ title: "Message envoyé", tone: "success" });
         }
-        messages.reload();
-        dossiers.reload();
       },
     });
   }
@@ -384,7 +369,19 @@ export default function BoitePage() {
 
   const outils = pret ? (
     <Row gap="sm">
-      <SearchField
+      <Tabs
+        pageTitle="Boîte de réception"
+        items={[
+          { id: "tous", label: "Tous les messages" },
+          { id: "nonLus", label: "Non lus" },
+        ]}
+        selectedId={vue}
+        onSelectionChange={(id) => {
+          setVue(id);
+          setPage(1);
+        }}
+      />
+      <SearchInput
         label="les messages"
         onChange={({ text }) => {
           setRecherche(text.trim());
@@ -398,27 +395,10 @@ export default function BoitePage() {
           width="sm"
           placeholder="Choisir un dossier"
           value={dossier || null}
-          options={listeDossiers.map((element) => ({
-            id: element.id,
-            label: `${"— ".repeat(element.profondeur)}${element.nom}`,
-          }))}
+          options={optionsDossiers}
           onChange={(id) => id && choisirDossier(id)}
         />
       ) : null}
-      <Select
-        label="Vue"
-        hideLabel
-        width="sm"
-        value={vue}
-        options={[
-          { id: "tous", label: "Tous les messages" },
-          { id: "nonLus", label: "Non lus" },
-        ]}
-        onChange={(id) => {
-          setVue(id ?? "tous");
-          setPage(1);
-        }}
-      />
       {listePoints.length > 0 ? (
         <Select
           label="Point d’entrée"
@@ -457,7 +437,7 @@ export default function BoitePage() {
       state={comptes.loading && !comptes.data ? "loading" : "ready"}
       toolbar={outils}
       actions={[
-        { id: "nouveau", label: "Nouveau message", icon: <SquarePen size={16} />, primary: true, onPress: composer },
+        { id: "nouveau", label: "Nouveau message", icon: <SquarePen size={16} />, primary: pret, onPress: composer },
         {
           id: "assistant",
           label: "Trier avec l’assistant",
@@ -484,7 +464,6 @@ export default function BoitePage() {
                   instruction: `Aide l’utilisateur à trier sa boîte Outlook. Sa demande : ${v.demande}\nLis les messages, propose les déplacements et ne déplace ou ne marque un message qu’avec son accord. Tu peux aussi créer une règle de tri si c’est utile. Réponds en français.`,
                   functions: ["lister-dossiers", "lister-messages", "lire-message", "deplacer-message", "marquer-message", "enregistrer-regle", "analyser-messages"],
                 });
-                messages.reload();
               },
             }),
         },
@@ -492,10 +471,7 @@ export default function BoitePage() {
           id: "actualiser",
           label: "Actualiser",
           icon: <RefreshCw size={16} />,
-          onPress: () => {
-            messages.reload();
-            dossiers.reload();
-          },
+          onPress: relire,
         },
         {
           id: "precedente",
@@ -529,7 +505,7 @@ export default function BoitePage() {
           empty={{
             title: "Votre boîte n’est pas encore affichée",
             description: comptes.error || comptes.data ? raisonIndisponible(comptes.error) : "Je cherche Outlook sur ce PC…",
-            action: { id: "reessayer", label: "Réessayer", onPress: () => comptes.reload() },
+            action: { id: "reessayer", label: "Réessayer", onPress: () => void comptes.refresh() },
           }}
         >
           {null}
@@ -537,11 +513,8 @@ export default function BoitePage() {
       ) : (
         <PageSection
           title={listeDossiers.find((element) => element.id === (dossier || boite))?.nom ?? "Messages"}
-          state={messages.error || dossiers.error ? "error" : "ready"}
-          onRetry={() => {
-            messages.reload();
-            dossiers.reload();
-          }}
+          state={messages.error || (dossiers.error && !dossiers.data) ? "error" : "ready"}
+          onRetry={relire}
           empty={messages.data && lignes.length === 0 ? { title: videTitre, description: videTexte } : undefined}
         >
           <Stack gap="sm">

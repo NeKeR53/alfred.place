@@ -4,11 +4,16 @@ import { lireReglage } from "../lib/regles";
 /** Relève le nombre de messages non lus dans Outlook et prévient des nouveaux. */
 export default async function () {
   if ((await lireReglage("releve_active")) === "0") {
+    await badge.clear({ page: "boite-de-reception" });
     return { nonLus: 0, nouveaux: 0, ignore: true };
   }
 
-  const comptes = await functions.call<{ pret: boolean }>("comptes-outlook", {});
+  const comptes = await functions
+    .call<{ pret: boolean }>("comptes-outlook", {})
+    .catch(() => ({ pret: false }));
   if (!comptes.pret) {
+    // Outlook absent ou fermé : aucun message à compter, la pastille disparaît.
+    await badge.clear({ page: "boite-de-reception" });
     return { nonLus: 0, nouveaux: 0 };
   }
 

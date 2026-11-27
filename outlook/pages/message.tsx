@@ -1,9 +1,20 @@
-import { announceChange, db, functions, loadPdf, notifyActionError, shell, useAsync, useSelection } from "@alfred/sdk";
+import {
+  announceChange,
+  db,
+  functions,
+  loadPdf,
+  notifyActionError,
+  shell,
+  useAlfredState,
+  useAsync,
+  useSelection,
+} from "@alfred/sdk";
 import { ExternalLink, FileText, FolderInput, Forward, Mail, MailOpen, PenLine, Reply, ReplyAll, Trash2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { Button, DetailPanel, Dialog, DocumentViewer, HtmlContent, List, type StatusMap, useOpenForm } from "socle-ui";
+import { Button, DocumentViewer, Drawer, HtmlContent, List, Modal, type StatusMap, useOpenForm } from "socle-ui";
 import { Markdown } from "socle-ui/markdown";
 import { redigerReponse, resumerMessage } from "../lib/assistant";
+import { lirePieceJointe, useComptesOutlook, useDossiersOutlook } from "../lib/etats";
 
 interface Piece {
   id: string;
@@ -31,12 +42,6 @@ interface MessageDetail {
   pieces: Piece[];
 }
 
-interface Dossier {
-  id: string;
-  nom: string;
-  profondeur: number;
-}
-
 const ETATS: StatusMap = {
   non_lu: { label: "Non lu", tone: "warning" },
   lu: { label: "Lu", tone: "neutral" },
@@ -59,21 +64,15 @@ export default function MessagePanel() {
   const id = useSelection<string>();
   const openForm = useOpenForm();
   const [fenetre, setFenetre] = useState<Fenetre | null>(null);
-  const dossiers = useAsync(
-    () => functions.call<{ boite: string; dossiers: Dossier[] }>("lister-dossiers", {}),
-    [],
-  );
-  const listeDossiers = dossiers.data?.dossiers ?? [];
+  const { pret } = useComptesOutlook();
+  const { liste: listeDossiers, options: optionsDossiers } = useDossiersOutlook(pret);
   const reglages = useAsync(
     () => db.query<{ valeur: string }>("SELECT valeur FROM outlook_reglages WHERE cle = 'signature'"),
     [],
   );
   const signature = reglages.data?.[0]?.valeur ?? "";
-  const lecture = useAsync(
-    async () => (id ? (await functions.call<{ message: MessageDetail | null }>("lire-message", { id })).message : null),
-    [id],
-  );
-  const message = lecture.data;
+  const lecture = useAlfredState<{ message: MessageDetail | null }>(id ? "message" : null, { params: { id } });
+  const message = lecture.data ? lecture.data.message : id ? undefined : null;
 
   /** Après une écriture : la boîte de réception se relit, et le message aussi. */
   const prevenir = async (title?: string) => {
@@ -129,10 +128,7 @@ export default function MessagePanel() {
           label: "Dossier",
           type: "select",
           isRequired: true,
-          options: listeDossiers.map((element) => ({
-            id: element.id,
-            label: `${"— ".repeat(element.profondeur)}${element.nom}`,
-          })),
+          options: optionsDossiers,
         },
       ],
       submitLabel: "Déplacer",
@@ -144,11 +140,7 @@ export default function MessagePanel() {
   }
 
   async function apercu(cible: MessageDetail, piece: Piece) {
-    const reponse = await functions.call<{ piece: { dataUrl: string | null } | null }>("lire-piece-jointe", {
-      message: cible.id,
-      piece: piece.id,
-    });
-    const source = reponse.piece?.dataUrl;
+    const source = await lirePieceJointe(cible.id, piece.id);
     if (!source) {
       shell.notify({ title: "Aperçu indisponible", description: "Cette pièce ne peut pas être affichée ici.", tone: "info" });
       return;
@@ -166,15 +158,11 @@ export default function MessagePanel() {
       (element) => element.contentId === cid || element.contentId === `<${cid}>` || element.contentId === source,
     );
     if (!piece) return null;
-    const reponse = await functions.call<{ piece: { dataUrl: string | null } | null }>("lire-piece-jointe", {
-      message: cible.id,
-      piece: piece.id,
-    });
-    return reponse.piece?.dataUrl ?? null;
+    return lirePieceJointe(cible.id, piece.id);
   };
 
   const modale = fenetre ? (
-    <Dialog
+    <Modal
       isOpen
       size="xl"
       title={fenetre.titre}
@@ -184,11 +172,11 @@ export default function MessagePanel() {
       footer={<Button onPress={() => setFenetre(null)}>Fermer</Button>}
     >
       {fenetre.contenu}
-    </Dialog>
+    </Modal>
   ) : null;
 
   return (
-    <DetailPanel
+    <Drawer
       header={
         message
           ? {
@@ -367,12 +355,12 @@ export default function MessagePanel() {
           : undefined
       }
       isLoading={lecture.loading}
-      hasError={Boolean(lecture.error)}
-      onRetry={lecture.reload}
-      isNotFound={Boolean(id) && !lecture.loading && !lecture.error && message === null}
+      hasError={Boolean(lecture.error) && !lecture.data}
+      onRetry={() => void lecture.refresh()}
+      isNotFound={Boolean(id) && Boolean(lecture.data) && message === null}
       emptyMessage="Sélectionnez un message pour le lire ici."
       onActionError={notifyActionError}
-      onActionDone={() => lecture.reload()}
+      onActionDone={() => void lecture.refresh()}
     />
   );
 }

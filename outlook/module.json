@@ -76,6 +76,7 @@
         "type": "object"
       },
       "runtime": "pwsh",
+      "state": "comptes",
       "tests": [
         {
           "expect": {
@@ -230,6 +231,10 @@
       "id": "lister-dossiers",
       "input": {
         "properties": {
+          "compte": {
+            "description": "Adresse du compte Outlook ; vide, le compte par défaut.",
+            "type": "string"
+          },
           "instance": {
             "type": "string"
           }
@@ -281,7 +286,9 @@
         ],
         "type": "object"
       },
+      "param": "compte",
       "runtime": "pwsh",
+      "state": "dossiers",
       "tests": [
         {
           "expect": {
@@ -634,6 +641,10 @@
       "id": "lister-messages",
       "input": {
         "properties": {
+          "compte": {
+            "description": "Adresse du compte Outlook ; vide, le compte par défaut.",
+            "type": "string"
+          },
           "debut": {
             "minimum": 0,
             "type": "integer"
@@ -740,6 +751,7 @@
         "type": "object"
       },
       "runtime": "pwsh",
+      "state": "messages",
       "tests": [
         {
           "expect": {
@@ -1168,7 +1180,9 @@
         ],
         "type": "object"
       },
+      "param": "id",
       "runtime": "pwsh",
+      "state": "message",
       "tests": [
         {
           "expect": {
@@ -1305,6 +1319,7 @@
         "type": "object"
       },
       "runtime": "pwsh",
+      "state": "piece-jointe",
       "tests": [
         {
           "expect": {
@@ -2882,5 +2897,117 @@
       "label": "Outlook"
     }
   ],
-  "version": "1.0.0"
+  "states": [
+    {
+      "description": "Comptes Outlook de l’application de bureau, et si elle répond.",
+      "id": "comptes",
+      "refresh": {
+        "every": 300,
+        "function": "comptes-outlook"
+      },
+      "schema": {
+        "type": "object"
+      }
+    },
+    {
+      "description": "Dossiers d’un compte Outlook, avec leur nombre de messages non lus et l’identifiant de la boîte de réception.",
+      "id": "dossiers",
+      "params": [
+        {
+          "description": "Adresse du compte Outlook ; vide, le compte par défaut",
+          "example": "camille.martin@acme.fr",
+          "id": "compte"
+        }
+      ],
+      "refresh": {
+        "every": 120,
+        "function": "lister-dossiers"
+      },
+      "schema": {
+        "type": "object"
+      }
+    },
+    {
+      "description": "Une page de messages d’un dossier Outlook, avec ses filtres (recherche, expéditeur, non lus).",
+      "id": "messages",
+      "params": [
+        {
+          "description": "Adresse du compte Outlook ; vide, le compte par défaut",
+          "example": "camille.martin@acme.fr",
+          "id": "compte"
+        },
+        {
+          "description": "Identifiant du dossier (lister-dossiers) ; vide, la boîte de réception",
+          "example": "0000ABCD|0000EF01",
+          "id": "dossier"
+        },
+        {
+          "description": "Mots cherchés dans l’objet, le corps et l’expéditeur ; « de:lea » filtre l’expéditeur",
+          "example": "facture mars",
+          "id": "recherche"
+        },
+        {
+          "description": "Adresse exacte de l’expéditeur",
+          "example": "lea.bernard@exemple.fr",
+          "id": "expediteur"
+        },
+        {
+          "description": "Seulement les messages non lus",
+          "example": false,
+          "id": "nonLus"
+        },
+        {
+          "description": "Rang du premier message rendu (pagination)",
+          "example": 0,
+          "id": "debut"
+        },
+        {
+          "description": "Nombre de messages rendus, 1 à 100",
+          "example": 25,
+          "id": "limite"
+        }
+      ],
+      "refresh": {
+        "every": 120,
+        "function": "lister-messages"
+      },
+      "schema": {
+        "type": "object"
+      }
+    },
+    {
+      "description": "Un message Outlook lu en entier : corps, destinataires, pièces jointes.",
+      "id": "message",
+      "params": [
+        {
+          "description": "Identifiant du message (lister-messages)",
+          "example": "00000000ABCDEF",
+          "id": "id"
+        }
+      ],
+      "schema": {
+        "type": "object"
+      }
+    },
+    {
+      "description": "Une pièce jointe d’un message Outlook, avec son contenu en adresse de données pour l’aperçu.",
+      "id": "piece-jointe",
+      "params": [
+        {
+          "description": "Identifiant du message",
+          "example": "00000000ABCDEF",
+          "id": "message"
+        },
+        {
+          "description": "Identifiant de la pièce jointe (lire-message)",
+          "example": "1",
+          "id": "piece"
+        }
+      ],
+      "schema": {
+        "type": "object"
+      }
+    }
+  ],
+  "version": "1.0.1"
 }
