@@ -1,3 +1,8 @@
+## 2.0.2 — 2026-11-27
+
+- Tableau de bord : chaque job est un bloc encadré plus compact. L’état et la barre d’avancement sont collés en bas du bloc, alignés d’un job à l’autre.
+- Demande socle-ui 1.25.0 ou plus récente : mettre Alfred à jour avant d’accepter cette version.
+
 ## 2.0.1 — 2026-11-27
 
 - Tableau de bord : chaque job suivi est une section de la grille de la page, sans carte, pour garder un bon contraste en thème clair.
