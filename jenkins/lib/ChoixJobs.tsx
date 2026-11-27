@@ -1,7 +1,7 @@
 import { Stack, Text } from "@alfred/kit";
 import { functions, useAsync } from "@alfred/sdk";
 import { useState } from "react";
-import { Button, Dialog, EmptyState, List, SearchField, Select } from "socle-ui";
+import { Button, Modal, EmptyState, List, SearchInput, Select } from "socle-ui";
 import { type Compte, etatCouleur, type JobTrouve } from "./tableau";
 
 interface Props {
@@ -42,7 +42,7 @@ export function ChoixJobs({ comptes, dejaSuivis, vue, onAjouter, onClose }: Prop
   };
 
   return (
-    <Dialog
+    <Modal
       isOpen
       size="lg"
       title="Ajouter des jobs"
@@ -74,7 +74,7 @@ export function ChoixJobs({ comptes, dejaSuivis, vue, onAjouter, onClose }: Prop
             }}
           />
         ) : null}
-        <SearchField label="les jobs" onChange={({ text }) => setRecherche(text)} />
+        <SearchInput label="les jobs" onChange={({ text }) => setRecherche(text)} />
         {resultats.data && jobs.length === 0 ? (
           <EmptyState size="compact" title="Aucun job trouvé" description="Essayez un autre nom ou une partie du dossier." />
         ) : (
@@ -118,6 +118,6 @@ export function ChoixJobs({ comptes, dejaSuivis, vue, onAjouter, onClose }: Prop
           </Stack>
         )}
       </Stack>
-    </Dialog>
+    </Modal>
   );
 }

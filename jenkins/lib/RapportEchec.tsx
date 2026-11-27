@@ -1,5 +1,5 @@
 import { Notice, Row, Stack, Text } from "@alfred/kit";
-import { Code, List, ProgressBar, StatusBadge } from "socle-ui";
+import { Code, List, ProgressBar, Badge } from "socle-ui";
 import { CATEGORIES, CERTITUDES, type Rapport } from "./rapport";
 
 /** Un bloc titré du rapport. */
@@ -24,8 +24,8 @@ export function RapportEchec({ rapport }: { rapport: Rapport }) {
       <Bloc titre="Pourquoi le build a échoué">
         <Text>{rapport.cause}</Text>
         <Row gap="xs">
-          <StatusBadge tone={certitude.tone}>{certitude.label}</StatusBadge>
-          <StatusBadge tone="neutral">{CATEGORIES[rapport.categorie ?? ""] ?? "Autre"}</StatusBadge>
+          <Badge tone={certitude.tone}>{certitude.label}</Badge>
+          <Badge tone="neutral">{CATEGORIES[rapport.categorie ?? ""] ?? "Autre"}</Badge>
         </Row>
       </Bloc>
       <Bloc titre="Ce qui s’est passé">

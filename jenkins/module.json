@@ -88,6 +88,7 @@
         ],
         "type": "object"
       },
+      "state": "comptes",
       "tests": [
         {
           "expect": {
@@ -213,21 +214,19 @@
       "output": {
         "properties": {
           "incomplet": {
-            "description": "Vrai si des dossiers n’ont pas pu être lus (droits, erreur) ou si la limite de demandes a arrêté le parcours.",
+            "description": "Vrai si un dossier n’a pas pu être lu ou si la limite de demandes est atteinte.",
             "type": "boolean"
           },
           "jobs": {
             "items": {
               "properties": {
                 "chemin": {
-                  "description": "Nom complet, dossiers compris : api-facturation/main.",
                   "type": "string"
                 },
                 "dossier": {
                   "type": "string"
                 },
                 "etat": {
-                  "description": "Couleur Jenkins : blue, red, yellow, aborted, notbuilt, disabled, suivie de _anime pendant un build.",
                   "type": "string"
                 },
                 "nom": {
@@ -249,15 +248,18 @@
             "type": "array"
           },
           "total": {
+            "description": "Nombre de jobs trouvés, avant la limite.",
             "type": "integer"
           }
         },
         "required": [
-          "jobs",
-          "total"
+          "total",
+          "incomplet",
+          "jobs"
         ],
         "type": "object"
       },
+      "state": "recherche-jobs",
       "tests": [
         {
           "expect": {
@@ -482,9 +484,26 @@
       ],
       "id": "lire-etats-jobs",
       "input": {
+        "properties": {
+          "instance": {
+            "description": "Compte Jenkins ; omis, celui par défaut.",
+            "type": "string"
+          },
+          "jobs": {
+            "description": "Noms complets des jobs, dossiers compris (200 au plus).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "jobs"
+        ],
         "type": "object"
       },
       "output": null,
+      "state": "etats-jobs",
       "tests": [
         {
           "expect": {
@@ -564,6 +583,7 @@
             "type": "integer"
           },
           "instance": {
+            "description": "Compte Jenkins ; omis, celui par défaut.",
             "type": "string"
           },
           "job": {
@@ -616,6 +636,7 @@
         ],
         "type": "object"
       },
+      "state": "log-build",
       "tests": [
         {
           "expect": {
@@ -1024,5 +1045,77 @@
   "setup": {
     "welcome": "Suivez d’un coup d’œil les jobs Jenkins qui comptent pour vous, lisez leurs logs et relancez-les. Il vous faut l’adresse de votre Jenkins, votre identifiant et un jeton d’API."
   },
-  "version": "2.0.0"
+  "states": [
+    {
+      "description": "Les comptes Jenkins reliés à l’espace (nom et identifiant, sans adresse ni secret).",
+      "id": "comptes",
+      "refresh": {
+        "every": 300,
+        "function": "comptes-jenkins"
+      },
+      "schema": {
+        "type": "object"
+      }
+    },
+    {
+      "description": "État actuel d’une liste de jobs Jenkins d’un compte : build en cours ou en file, dernier build et dernier build terminé.",
+      "id": "etats-jobs",
+      "params": [
+        {
+          "description": "Noms complets des jobs suivis, dossiers compris, triés par ordre alphabétique",
+          "example": [
+            "api-facturation/main",
+            "front-web"
+          ],
+          "id": "jobs"
+        }
+      ],
+      "refresh": {
+        "every": 10,
+        "function": "lire-etats-jobs"
+      },
+      "schema": {
+        "type": "object"
+      }
+    },
+    {
+      "description": "Jobs Jenkins d’un compte dont le nom complet contient les mots cherchés.",
+      "id": "recherche-jobs",
+      "params": [
+        {
+          "description": "Mots cherchés dans le nom complet du job ; vide, tous les jobs",
+          "example": "factu",
+          "id": "texte"
+        },
+        {
+          "description": "Nombre de jobs rendus au plus",
+          "example": 100,
+          "id": "limite"
+        }
+      ],
+      "schema": {
+        "type": "object"
+      }
+    },
+    {
+      "description": "Sortie console d’un build Jenkins (le dernier si aucun numéro n’est donné).",
+      "id": "log-build",
+      "params": [
+        {
+          "description": "Nom complet du job, dossiers compris",
+          "example": "api-facturation/main",
+          "id": "job"
+        },
+        {
+          "description": "Numéro du build ; omis, le dernier",
+          "example": 42,
+          "id": "build"
+        }
+      ],
+      "schema": {
+        "type": "object"
+      }
+    }
+  ],
+  "version": "2.0.1"
 }

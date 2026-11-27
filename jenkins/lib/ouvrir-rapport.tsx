@@ -1,6 +1,6 @@
 import { functions, shell } from "@alfred/sdk";
 import { ExternalLink, FileText, Play, RotateCw } from "lucide-react";
-import { type Action, Button, Dialog, useConfirm } from "socle-ui";
+import { type Action, Button, Modal, useConfirm } from "socle-ui";
 import { JournalBuild } from "./JournalBuild";
 import { RapportEchec } from "./RapportEchec";
 import { marquerLu, type Rapport } from "./rapport";
@@ -111,7 +111,7 @@ export function Fenetres({
   if (fenetre.kind === "logs") {
     const relancer = fenetre.onRelancer;
     return (
-      <Dialog
+      <Modal
         isOpen
         size="xl"
         title={fenetre.titre}
@@ -143,12 +143,12 @@ export function Fenetres({
         }
       >
         <JournalBuild instance={fenetre.instance} job={fenetre.job} build={fenetre.build} />
-      </Dialog>
+      </Modal>
     );
   }
   const { rapport } = fenetre;
   return (
-    <Dialog
+    <Modal
       isOpen
       size="lg"
       title={titreRapport(rapport)}
@@ -182,6 +182,6 @@ export function Fenetres({
       }
     >
       <RapportEchec rapport={rapport} />
-    </Dialog>
+    </Modal>
   );
 }

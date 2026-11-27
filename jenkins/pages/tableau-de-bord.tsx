@@ -1,8 +1,8 @@
 import { Row, Text } from "@alfred/kit";
-import { badge, functions, notifyActionError, shell, useAsync, usePageState } from "@alfred/sdk";
+import { badge, functions, notifyActionError, shell, useAlfredState, useAsync, usePageState } from "@alfred/sdk";
 import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { type Action, Page, PageSection, RadioGroup, Select, useOpenForm } from "socle-ui";
+import { type Action, Page, PageGrid, PageSection, Tabs, useOpenForm } from "socle-ui";
 import { CarteJob } from "../lib/CarteJob";
 import { ChoixJobs } from "../lib/ChoixJobs";
 import { type Fenetre, Fenetres, ouvrirRapport } from "../lib/ouvrir-rapport";
@@ -47,7 +47,7 @@ export default function TableauDeBord() {
   const [ajout, setAjout] = useState(false);
 
   const vues = useAsync(lireVues, [version]);
-  const comptes = useAsync(() => functions.call<{ comptes: Compte[] }>("comptes-jenkins").then((r) => r.comptes), []);
+  const comptes = useAlfredState<{ comptes: Compte[] }, Compte[]>("comptes", { select: (v) => v.comptes ?? [] });
   const vue = vues.data?.find((v) => v.id === vueChoisie) ?? vues.data?.[0];
   const vueId = vue?.id ?? "";
 
@@ -84,7 +84,11 @@ export default function TableauDeBord() {
       setFenetre(ouvrirRapport(rapport, rapports.reload));
     } catch (erreur) {
       rapports.reload();
-      void shell.notify({ title: "L’analyse de l’échec n’a pas abouti", description: (erreur as Error).message, tone: "error" });
+      void shell.notify({
+        title: "L’analyse de l’échec n’a pas abouti",
+        description: (erreur as Error).message,
+        tone: "error",
+      });
     } finally {
       setEnAnalyse((actuel) => {
         const suivant = new Set(actuel);
@@ -139,7 +143,11 @@ export default function TableauDeBord() {
     setFenetre({
       kind: "logs",
       titre: `Logs de « ${nom} »`,
-      description: [affiche.label, etat?.dernier ? `build n° ${etat.dernier.numero}` : null, dossierDe(carte.job) || null]
+      description: [
+        affiche.label,
+        etat?.dernier ? `build n° ${etat.dernier.numero}` : null,
+        dossierDe(carte.job) || null,
+      ]
         .filter(Boolean)
         .join(" · "),
       instance: carte.instance,
@@ -173,8 +181,8 @@ export default function TableauDeBord() {
         isHidden: !etat?.url,
         onPress: () => shell.openExternal(etat?.url ?? ""),
       },
-      { id: "monter", label: "Monter", isHidden: index === 0, onPress: () => deplacerDe(index, -1) },
-      { id: "descendre", label: "Descendre", isHidden: index === ordre.length - 1, onPress: () => deplacerDe(index, 1) },
+      { id: "monter", label: "Avancer", isHidden: index === 0, onPress: () => deplacerDe(index, -1) },
+      { id: "descendre", label: "Reculer", isHidden: index === ordre.length - 1, onPress: () => deplacerDe(index, 1) },
       {
         id: "autre-vue",
         label: "Déplacer vers une autre vue…",
@@ -214,22 +222,12 @@ export default function TableauDeBord() {
 
   const listeVues = vues.data ?? [];
   const choixVue =
-    listeVues.length <= 1 ? null : listeVues.length <= 4 ? (
-      <RadioGroup label="Vue" hideLabel orientation="horizontal" value={vueId} onChange={setVueChoisie}>
-        {listeVues.map((v) => (
-          <RadioGroup.Option key={v.id} value={v.id}>
-            {v.nom}
-          </RadioGroup.Option>
-        ))}
-      </RadioGroup>
-    ) : (
-      <Select
-        label="Vue"
-        hideLabel
-        width="sm"
-        value={vueId}
-        options={listeVues.map((v) => ({ id: v.id, label: v.nom }))}
-        onChange={(id) => id && setVueChoisie(id)}
+    listeVues.length <= 1 ? null : (
+      <Tabs
+        pageTitle="Tableau de bord Jenkins"
+        items={listeVues.map((v) => ({ id: v.id, label: v.nom }))}
+        selectedId={vueId}
+        onSelectionChange={setVueChoisie}
       />
     );
 
@@ -318,25 +316,31 @@ export default function TableauDeBord() {
           {null}
         </PageSection>
       ) : (
-        ordre.map((carte, index) => {
-          const etat = etats.data?.get(cleEtat(carte.instance, carte.job));
-          return (
-            <CarteJob
-              key={carte.id}
-              carte={carte}
-              etat={etats.error ? { ...(etat as EtatJob), erreur: `L’état des jobs n’a pas pu être lu : ${etats.error.message}` } : etat}
-              compte={nomCompte(carte.instance)}
-              maintenant={maintenant}
-              onLogs={() => ouvrirLogs(carte, etat)}
-              onRelancer={() => relancer(carte)}
-              rapport={rapports.data?.get(cleRapport(carte.instance, carte.job))}
-              enAnalyse={enAnalyse.has(cleRapport(carte.instance, carte.job))}
-              onRapport={(rapport) => setFenetre(ouvrirRapport(rapport, rapports.reload))}
-              onAnalyser={() => analyser(carte, etat)}
-              autres={actionsCarte(carte, index, etat)}
-            />
-          );
-        })
+        <PageGrid columns={3}>
+          {ordre.map((carte, index) => {
+            const etat = etats.data?.get(cleEtat(carte.instance, carte.job));
+            return (
+              <CarteJob
+                key={carte.id}
+                carte={carte}
+                etat={
+                  etats.error
+                    ? { ...(etat as EtatJob), erreur: `L’état des jobs n’a pas pu être lu : ${etats.error.message}` }
+                    : etat
+                }
+                compte={nomCompte(carte.instance)}
+                maintenant={maintenant}
+                onLogs={() => ouvrirLogs(carte, etat)}
+                onRelancer={() => relancer(carte)}
+                rapport={rapports.data?.get(cleRapport(carte.instance, carte.job))}
+                enAnalyse={enAnalyse.has(cleRapport(carte.instance, carte.job))}
+                onRapport={(rapport) => setFenetre(ouvrirRapport(rapport, rapports.reload))}
+                onAnalyser={() => analyser(carte, etat)}
+                autres={actionsCarte(carte, index, etat)}
+              />
+            );
+          })}
+        </PageGrid>
       )}
       <Fenetres fenetre={fenetre} onClose={() => setFenetre(null)} ouvrir={setFenetre} apres={rapports.reload} />
       {ajout ? (

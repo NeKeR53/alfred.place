@@ -31,6 +31,10 @@ const ETATS: StatusMap = {
 
 const etatDe = (r: Rapport) => (r.statut === "prete" ? (r.lu ? "lu" : "non_lu") : r.statut);
 
+/** Une ligne de la liste : le rapport, avec le numéro de build et l’état déjà mis en texte. */
+type Ligne = Rapport & { numero: string; etat: string };
+const enLigne = (r: Rapport): Ligne => ({ ...r, numero: `n° ${r.build}`, etat: etatDe(r) });
+
 export default function Echecs() {
   const rapports = useAsync(lireRapports, []);
   const [fenetre, setFenetre] = useState<Fenetre | null>(null);
@@ -63,15 +67,21 @@ export default function Echecs() {
 
   return (
     <>
-    <ListPage<Rapport>
+    <ListPage<Ligne>
       title="Rapports d’échec"
-      rows={rapports.data}
+      rows={rapports.data?.map(enLigne)}
       columns={[
-        { id: "job", label: "Job", value: (r) => [nomCourt(r.job), dossierDe(r.job)].filter(Boolean).join(" · ") },
-        { id: "cause", label: "Pourquoi", value: (r) => r.cause ?? r.erreur ?? "Analyse en cours…" },
-        { id: "build", label: "Build", type: "code", value: (r) => `n° ${r.build}` },
+        {
+          id: "echec",
+          label: "Échec",
+          value: (r) =>
+            `${[nomCourt(r.job), dossierDe(r.job)].filter(Boolean).join(" · ")} — ${
+              r.titre ?? r.cause ?? r.erreur ?? "analyse en cours…"
+            }`,
+        },
+        { id: "numero", label: "Build", type: "code" },
         { id: "analyse_le", label: "Analysé", type: "relative", value: (r) => r.analyse_le ?? r.cree_le },
-        { id: "etat", label: "État", type: "status", statuses: ETATS, value: etatDe },
+        { id: "etat", label: "État", type: "status", statuses: ETATS },
       ]}
       search={{
         label: "les rapports",

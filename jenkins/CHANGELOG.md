@@ -1,3 +1,9 @@
+## 2.0.1 — 2026-11-27
+
+- Tableau de bord : chaque job suivi est une section de la grille de la page, sans carte, pour garder un bon contraste en thème clair.
+- Échecs : liste des rapports avec le numéro de build et l'état écrits en texte.
+- Mise en page alignée sur la dernière version de socle-ui.
+
 ## 2.0.0 — 2026-11-23
 
 Les pages passent sur socle-ui, le design system d'Alfred : listes, panneaux, formulaires et états suivent les gabarits Socle. Demande un Alfred passé sur socle-ui (novembre 2026) ; un Alfred plus ancien garde la version précédente.

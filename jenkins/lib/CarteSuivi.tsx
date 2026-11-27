@@ -1,13 +1,15 @@
 /**
- * Bloc d’un élément suivi (job Jenkins, déploiement Prefect). Ce fichier est copié à l’identique dans les modules
- * jenkins et prefect : seules les données passées changent.
+ * Bloc d’un élément suivi (job Jenkins, déploiement Prefect). Ce fichier vient du module prefect ; cette copie a quitté
+ * la `Card` (voir plus bas).
  *
- * Une `PageSection` de socle-ui : le titre, le contexte et les actions en tête ; puis au besoin une note (erreur,
- * build précédent…), la ligne d’état (« Réussi · il y a 2 heures ») et la barre d’avancement.
+ * Une `PageSection` de socle-ui, rangée dans la `PageGrid` de la page : en tête, le titre, le contexte (compte,
+ * dossier) et les actions à droite ; puis au besoin une note (erreur, build précédent…), la ligne d’état (« Réussi · il
+ * y a 2 jours ») et la barre d’avancement, avec le numéro du build. Pas de `Card` : dans une carte, l’examen du thème
+ * clair relevait le titre, le contexte et l’état sous le contraste minimal.
  */
 import { Row, Stack, Text } from "@alfred/kit";
 import { PanelRight } from "lucide-react";
-import { type Action, FormattedValue, Link, PageSection, ProgressBar, StatusBadge } from "socle-ui";
+import { type Action, Badge, FormattedValue, Link, PageSection, ProgressBar } from "socle-ui";
 
 export type Ton = "neutral" | "warning" | "success" | "danger";
 
@@ -59,13 +61,13 @@ export function CarteSuivi({
         ) : null}
         <Row justify="between" wrap>
           <Row gap="xs" wrap>
-            <StatusBadge tone={etat.tone}>{etat.label}</StatusBadge>
+            <Badge tone={etat.tone}>{etat.label}</Badge>
             {badges.map((badge) => (
-              <StatusBadge key={badge.label} tone={badge.tone}>
+              <Badge key={badge.label} tone={badge.tone}>
                 {badge.label}
-              </StatusBadge>
+              </Badge>
             ))}
-            {selectionnee ? <StatusBadge tone="info">Ouvert dans le panneau</StatusBadge> : null}
+            {selectionnee ? <Badge tone="info">Ouvert dans le panneau</Badge> : null}
           </Row>
           {quand ? (
             <Row gap="xs">
