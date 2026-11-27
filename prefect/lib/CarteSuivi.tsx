@@ -2,12 +2,12 @@
  * Bloc d’un élément suivi (job Jenkins, déploiement Prefect). Ce fichier est copié à l’identique dans les modules
  * jenkins et prefect : seules les données passées changent.
  *
- * Une `PageSection` de socle-ui, rangée dans la grille de la page (`PageGrid`) : en tête, le titre, le contexte et
- * les actions à droite ; puis au besoin une note (erreur, build précédent…) ; en bas, la ligne d’état
- * (« Réussi · il y a 2 jours ») et la barre d’avancement, avec le numéro du build.
+ * Une `PageSection` encadrée de socle-ui (`framed`, socle-ui 1.25.0), rangée dans la grille de la page (`PageGrid`) :
+ * en tête, le titre, le contexte et les actions à droite ; puis au besoin une note (erreur, build précédent…) ; dans le
+ * pied (`footer`), collé en bas du bloc, la ligne d’état (« Réussi · il y a 2 jours ») et la barre d’avancement, avec
+ * le numéro du build. Les pieds d’une même ligne de la grille sont alignés.
  *
- * Module prefect : pas de `Card` autour de la section. Le fond d’une `Card` passe d’un thème à l’autre en fondu, alors
- * que ses textes changent tout de suite : pendant ce fondu, ses textes deviennent illisibles (contraste sous 3:1).
+ * Pas de `Card` : elle n’a ni actions d’en-tête ni pied collé en bas.
  */
 import { Row, Stack, Text } from "@alfred/kit";
 import { PanelRight } from "lucide-react";
@@ -50,47 +50,49 @@ export function CarteSuivi({
   const ouvrir: Action[] = onOuvrir
     ? [{ id: "ouvrir", label: `Ouvrir le détail de ${titre}`, icon: <PanelRight size={16} />, onPress: onOuvrir }]
     : [];
-  return (
-    <PageSection title={titre} description={contexte || undefined} actions={[...ouvrir, ...actions]}>
-        <Stack gap="sm">
-          {note ? (
-            <Row gap="xs" wrap>
-              <Text as="span" size="meta" tone={note.tone ?? "muted"}>
-                {note.texte}
+  const pied = (
+    <Stack gap="sm">
+      <Row justify="between" wrap>
+        <Row gap="xs" wrap>
+          <Badge tone={etat.tone}>{etat.label}</Badge>
+          {badges.map((badge) => (
+            <Badge key={badge.label} tone={badge.tone}>
+              {badge.label}
+            </Badge>
+          ))}
+          {selectionnee ? <Badge tone="info">Ouvert dans le panneau</Badge> : null}
+        </Row>
+        {quand ? (
+          <Row gap="xs">
+            {quand.prefixe ? (
+              <Text as="span" size="meta" tone="muted">
+                {quand.prefixe}
               </Text>
-              {note.onClick ? <Link onPress={note.onClick}>{note.lien ?? "Voir le détail"}</Link> : null}
-            </Row>
-          ) : null}
-          <Row justify="between" wrap>
-            <Row gap="xs" wrap>
-              <Badge tone={etat.tone}>{etat.label}</Badge>
-              {badges.map((badge) => (
-                <Badge key={badge.label} tone={badge.tone}>
-                  {badge.label}
-                </Badge>
-              ))}
-              {selectionnee ? <Badge tone="info">Ouvert dans le panneau</Badge> : null}
-            </Row>
-            {quand ? (
-              <Row gap="xs">
-                {quand.prefixe ? (
-                  <Text as="span" size="meta" tone="muted">
-                    {quand.prefixe}
-                  </Text>
-                ) : null}
-                <FormattedValue value={quand.date} type="relative" />
-              </Row>
             ) : null}
+            <FormattedValue value={quand.date} type="relative" />
           </Row>
-          {barre ? (
-            <ProgressBar
-              label={barre.label}
-              value={barre.valeur}
-              tone={etat.tone === "warning" || etat.tone === "danger" ? etat.tone : "accent"}
-              showValue={Boolean(barre.afficherValeur)}
-            />
-          ) : null}
-        </Stack>
+        ) : null}
+      </Row>
+      {barre ? (
+        <ProgressBar
+          label={barre.label}
+          value={barre.valeur}
+          tone={etat.tone === "warning" || etat.tone === "danger" ? etat.tone : "accent"}
+          showValue={Boolean(barre.afficherValeur)}
+        />
+      ) : null}
+    </Stack>
+  );
+  return (
+    <PageSection framed title={titre} description={contexte || undefined} actions={[...ouvrir, ...actions]} footer={pied}>
+      {note ? (
+        <Row gap="xs" wrap>
+          <Text as="span" size="meta" tone={note.tone ?? "muted"}>
+            {note.texte}
+          </Text>
+          {note.onClick ? <Link onPress={note.onClick}>{note.lien ?? "Voir le détail"}</Link> : null}
+        </Row>
+      ) : null}
     </PageSection>
   );
 }

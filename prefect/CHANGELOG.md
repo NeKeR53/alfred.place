@@ -1,3 +1,8 @@
+## 2.0.3 — 2026-11-27
+
+- Déploiements : chaque déploiement est un bloc encadré plus compact. L’état et la barre d’avancement sont collés en bas du bloc, alignés d’un déploiement à l’autre.
+- Demande socle-ui 1.25.0 ou plus récente : mettre Alfred à jour avant d’accepter cette version.
+
 ## 2.0.2 — 2026-11-27
 
 - Déploiements : chaque déploiement est une section de la grille de la page, sans carte, pour garder un bon contraste au changement de thème.
