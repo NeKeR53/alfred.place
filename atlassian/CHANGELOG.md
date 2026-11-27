@@ -1,3 +1,7 @@
+## 1.0.3 — 2026-11-27
+
+- Support : la liste des demandes ne tombe plus en erreur quand un centre de services visible par l’API du support est un projet que la recherche de Jira ne vous laisse pas parcourir (Jira répondait 400 « does not exist for the field ’project’ »).
+
 ## 1.0.2 — 2026-11-27
 
 - Jira : chaque champ du ticket ouvert se modifie sur place, dans la colonne de droite ; les tickets s'ouvrent dans des onglets.

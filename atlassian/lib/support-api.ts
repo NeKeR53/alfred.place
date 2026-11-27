@@ -165,6 +165,10 @@ export async function chercherDemandes(jql: string, debut: number, limite: numbe
   const champs = await champsSupport(instance);
   const reponse = await client("jira", { instance }).get<{ issues?: DemandeJira[]; total?: number }>("/rest/api/2/search", {
     jql,
+    // Un centre de services visible par l’API du support peut être un projet que la recherche ne vous laisse pas
+    // parcourir : Jira refuserait alors toute la requête (400, « does not exist for the field 'project' »). Sans
+    // validation, ces projets ne donnent simplement aucune demande.
+    validateQuery: "false",
     startAt: debut,
     maxResults: limite,
     fields: ["summary", "status", "reporter", "assignee", "priority", "created", "updated", champs.typeDemande, ...champs.slas]
